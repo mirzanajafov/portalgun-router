@@ -1,0 +1,6 @@
+/bin/
+/bench/results/**/raw/
+.env
+.env.*
+!.env.example
+coverage.out
