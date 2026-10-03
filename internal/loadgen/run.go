@@ -31,7 +31,7 @@ const (
 )
 
 type Config struct {
-	URL         string
+	URLs        []string
 	Method      string
 	Header      http.Header
 	BodyBytes   int
@@ -48,7 +48,7 @@ type Config struct {
 	Label       string
 }
 
-func (c Config) normalize() (Config, *url.URL, error) {
+func (c Config) normalize() (Config, []*url.URL, error) {
 	if c.Method == "" {
 		c.Method = http.MethodGet
 	}
@@ -61,15 +61,23 @@ func (c Config) normalize() (Config, *url.URL, error) {
 	if c.Timeout == 0 {
 		c.Timeout = 10 * time.Second
 	}
-	u, err := url.Parse(c.URL)
-	if err != nil {
-		return c, nil, fmt.Errorf("url: %w", err)
+	if len(c.URLs) == 0 {
+		return c, nil, errors.New("at least one url is required")
+	}
+	urls := make([]*url.URL, 0, len(c.URLs))
+	for _, raw := range c.URLs {
+		u, err := url.Parse(raw)
+		switch {
+		case err != nil:
+			return c, nil, fmt.Errorf("url: %w", err)
+		case u.Scheme != "http" && u.Scheme != "https":
+			return c, nil, fmt.Errorf("url %q must be http or https", raw)
+		case u.Host == "":
+			return c, nil, fmt.Errorf("url %q needs a host", raw)
+		}
+		urls = append(urls, u)
 	}
 	switch {
-	case u.Scheme != "http" && u.Scheme != "https":
-		return c, nil, errors.New("url must be http or https")
-	case u.Host == "":
-		return c, nil, errors.New("url needs a host")
 	case c.Duration <= 0:
 		return c, nil, errors.New("duration must be positive")
 	case c.Warmup < 0:
@@ -79,7 +87,7 @@ func (c Config) normalize() (Config, *url.URL, error) {
 	case c.MaxConns < 0 || c.MaxInflight < 0:
 		return c, nil, errors.New("connection and in-flight limits must not be negative")
 	}
-	return c, u, nil
+	return c, urls, nil
 }
 
 type Result struct {
@@ -94,7 +102,7 @@ type sample struct {
 
 type generator struct {
 	cfg      Config
-	url      *url.URL
+	urls     []*url.URL
 	body     []byte
 	client   *http.Client
 	start    time.Time
@@ -104,7 +112,7 @@ type generator struct {
 }
 
 func Run(ctx context.Context, cfg Config) (*Result, error) {
-	cfg, u, err := cfg.normalize()
+	cfg, urls, err := cfg.normalize()
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +131,8 @@ func Run(ctx context.Context, cfg Config) (*Result, error) {
 	}
 	defer transport.CloseIdleConnections()
 	g := &generator{
-		cfg: cfg,
-		url: u,
+		cfg:  cfg,
+		urls: urls,
 		client: &http.Client{
 			Transport:     transport,
 			Timeout:       cfg.Timeout,
@@ -155,11 +163,12 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 	var windowStart int64
 	var cpuStart time.Duration
 	cpuOK := false
-	for {
+	for i := 0; ; i++ {
 		at := sched.Next()
 		if at >= total || !g.waitUntil(ctx, at) {
 			break
 		}
+		u := g.urls[i%len(g.urls)]
 		if !measuring && at >= warm {
 			measuring = true
 			windowStart = g.now()
@@ -171,7 +180,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 			continue
 		}
 		g.inflight.Add(1)
-		wg.Go(func() { g.fire(ctx, at) })
+		wg.Go(func() { g.fire(ctx, u, at) })
 	}
 	windowEnd := g.now()
 	cpuEnd, cpuEndOK := processCPU()
@@ -181,7 +190,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 
 	sum := &res.Summary
 	sum.Label = g.cfg.Label
-	sum.URL = g.cfg.URL
+	sum.URLs = g.cfg.URLs
 	sum.Method = g.cfg.Method
 	sum.Rate = g.cfg.Rate
 	sum.Arrival = g.cfg.Arrival
@@ -226,15 +235,15 @@ func (g *generator) waitUntil(ctx context.Context, at int64) bool {
 	}
 }
 
-func (g *generator) newRequest(ctx context.Context) *http.Request {
+func (g *generator) newRequest(ctx context.Context, u *url.URL) *http.Request {
 	req := &http.Request{
 		Method:     g.cfg.Method,
-		URL:        g.url,
+		URL:        u,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
 		Header:     g.cfg.Header.Clone(),
-		Host:       g.url.Host,
+		Host:       u.Host,
 	}
 	if req.Header == nil {
 		req.Header = http.Header{}
@@ -246,13 +255,13 @@ func (g *generator) newRequest(ctx context.Context) *http.Request {
 	return req.WithContext(ctx)
 }
 
-func (g *generator) fire(ctx context.Context, scheduled int64) {
+func (g *generator) fire(ctx context.Context, u *url.URL, scheduled int64) {
 	defer g.inflight.Add(-1)
 	rec := Record{Scheduled: scheduled, Started: g.now()}
 	var connected atomic.Int64
 	trace := &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { connected.CompareAndSwap(0, g.now()) }}
 	var dim string
-	resp, err := g.client.Do(g.newRequest(httptrace.WithClientTrace(ctx, trace)))
+	resp, err := g.client.Do(g.newRequest(httptrace.WithClientTrace(ctx, trace), u))
 	if err == nil {
 		var n int64
 		n, err = io.Copy(io.Discard, resp.Body)

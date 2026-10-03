@@ -1,0 +1,58 @@
+name: pgbench
+
+x-portalgun-build: &portalgun-build
+  context: ..
+  dockerfile: Dockerfile
+
+x-dimension: &dimension
+  image: pgbench-portalgun
+  build: *portalgun-build
+  mem_limit: 256m
+
+x-system: &system
+  cpuset: "${SUT_CPUS:-1}"
+  mem_limit: 256m
+  depends_on: [dim-a, dim-b, dim-c]
+
+services:
+  dim-a:
+    <<: *dimension
+    cpuset: "${DIM_A_CPUS:-10-11}"
+    command: ["dimension", "-id", "a", "-body", "${BODY_BYTES:-1024}", "-delay-ms", "${DELAY_MS:-0}"]
+  dim-b:
+    <<: *dimension
+    cpuset: "${DIM_B_CPUS:-12-13}"
+    command: ["dimension", "-id", "b", "-body", "${BODY_BYTES:-1024}", "-delay-ms", "${DELAY_MS:-0}"]
+  dim-c:
+    <<: *dimension
+    cpuset: "${DIM_C_CPUS:-14-15}"
+    command: ["dimension", "-id", "c", "-body", "${BODY_BYTES:-1024}", "-delay-ms", "${DELAY_MS:-0}"]
+
+  stdlib:
+    <<: *system
+    image: pgbench-portalgun
+    build: *portalgun-build
+    command: ["stdproxy", "-upstreams", "dim-a:8080,dim-b:8080,dim-c:8080"]
+  nginx:
+    <<: *system
+    image: pgbench-nginx
+    build: systems/nginx
+  caddy:
+    <<: *system
+    image: pgbench-caddy
+    build: systems/caddy
+  envoy:
+    <<: *system
+    image: pgbench-envoy
+    build: systems/envoy
+  haproxy:
+    <<: *system
+    image: pgbench-haproxy
+    build: systems/haproxy
+
+  loadgen:
+    image: pgbench-portalgun
+    build: *portalgun-build
+    profiles: ["tools"]
+    cpuset: "${LOADGEN_CPUS:-2-9}"
+    entrypoint: ["loadgen"]
