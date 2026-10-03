@@ -35,7 +35,7 @@ func dimensionServer(t *testing.T, mutate func(*dimension.Behavior)) *httptest.S
 func TestRunCountsEveryRequest(t *testing.T) {
 	srv := dimensionServer(t, func(b *dimension.Behavior) { b.BodyBytes = 256 })
 	res, err := Run(context.Background(), Config{
-		URL:         srv.URL,
+		URLs:        []string{srv.URL},
 		Rate:        400,
 		Warmup:      250 * time.Millisecond,
 		Duration:    500 * time.Millisecond,
@@ -67,7 +67,7 @@ func TestRunCountsEveryRequest(t *testing.T) {
 func TestLatencyIsMeasuredFromTheSchedule(t *testing.T) {
 	srv := dimensionServer(t, func(b *dimension.Behavior) { b.DelayMs = 20 })
 	res, err := Run(context.Background(), Config{
-		URL:      srv.URL,
+		URLs:     []string{srv.URL},
 		Rate:     100,
 		Duration: time.Second,
 		MaxConns: 1,
@@ -87,6 +87,26 @@ func TestLatencyIsMeasuredFromTheSchedule(t *testing.T) {
 	}
 }
 
+func TestSpreadsRequestsOverURLsInTurn(t *testing.T) {
+	var urls []string
+	for _, id := range []string{"a", "b", "c"} {
+		s, err := dimension.New(id, "v1", dimension.DefaultBehavior())
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := httptest.NewServer(s.Handler())
+		t.Cleanup(srv.Close)
+		urls = append(urls, srv.URL)
+	}
+	res, err := Run(context.Background(), Config{URLs: urls, Rate: 300, Duration: 300 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := res.Summary.Dimensions; d["a"] != 30 || d["b"] != 30 || d["c"] != 30 {
+		t.Fatalf("dimensions %v, want 30 each", d)
+	}
+}
+
 func TestSendsBodyAndHeaders(t *testing.T) {
 	var seen, wrong atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +118,7 @@ func TestSendsBodyAndHeaders(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	_, err := Run(context.Background(), Config{
-		URL:       srv.URL,
+		URLs:      []string{srv.URL},
 		Method:    http.MethodPost,
 		BodyBytes: 1000,
 		Header:    http.Header{"X-Api-Key": {"morty"}},
@@ -123,7 +143,7 @@ func TestRefusedConnectionsAreClassified(t *testing.T) {
 	}
 	addr := ln.Addr().String()
 	ln.Close()
-	res, err := Run(context.Background(), Config{URL: "http://" + addr, Rate: 50, Duration: 200 * time.Millisecond})
+	res, err := Run(context.Background(), Config{URLs: []string{"http://" + addr}, Rate: 50, Duration: 200 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +156,7 @@ func TestRefusedConnectionsAreClassified(t *testing.T) {
 func TestInflightLimitDropsAndInvalidatesTheRun(t *testing.T) {
 	srv := dimensionServer(t, func(b *dimension.Behavior) { b.Hang = true })
 	res, err := Run(context.Background(), Config{
-		URL:         srv.URL,
+		URLs:        []string{srv.URL},
 		Rate:        200,
 		Duration:    300 * time.Millisecond,
 		MaxInflight: 5,
@@ -162,7 +182,7 @@ func TestCancelStopsTheRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	began := time.Now()
-	res, err := Run(ctx, Config{URL: srv.URL, Rate: 100, Duration: 10 * time.Second})
+	res, err := Run(ctx, Config{URLs: []string{srv.URL}, Rate: 100, Duration: 10 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,11 +210,12 @@ func TestValidateFlagsAnUnreliableGenerator(t *testing.T) {
 
 func TestNormalizeRejectsBadConfig(t *testing.T) {
 	for name, c := range map[string]Config{
-		"scheme":   {URL: "ftp://x", Duration: time.Second},
-		"host":     {URL: "http://", Duration: time.Second},
-		"duration": {URL: "http://x"},
-		"warmup":   {URL: "http://x", Duration: time.Second, Warmup: -time.Second},
-		"body":     {URL: "http://x", Duration: time.Second, BodyBytes: -1},
+		"scheme":   {URLs: []string{"ftp://x"}, Duration: time.Second},
+		"host":     {URLs: []string{"http://"}, Duration: time.Second},
+		"duration": {URLs: []string{"http://x"}},
+		"warmup":   {URLs: []string{"http://x"}, Duration: time.Second, Warmup: -time.Second},
+		"body":     {URLs: []string{"http://x"}, Duration: time.Second, BodyBytes: -1},
+		"no urls":  {Duration: time.Second},
 	} {
 		if _, _, err := c.normalize(); err == nil {
 			t.Errorf("%s: accepted", name)

@@ -18,7 +18,10 @@ import (
 
 func main() {
 	var cfg loadgen.Config
-	flag.StringVar(&cfg.URL, "url", "", "target URL")
+	flag.Func("url", "target URL, repeatable; requests go to each in turn", func(v string) error {
+		cfg.URLs = append(cfg.URLs, v)
+		return nil
+	})
 	flag.StringVar(&cfg.Method, "method", http.MethodGet, "request method")
 	flag.IntVar(&cfg.BodyBytes, "body", 0, "request body size in bytes")
 	flag.Float64Var(&cfg.Rate, "rate", 1000, "requests per second")

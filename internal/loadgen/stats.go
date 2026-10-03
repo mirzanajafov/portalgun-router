@@ -27,7 +27,7 @@ type CPU struct {
 
 type Summary struct {
 	Label         string           `json:"label,omitempty"`
-	URL           string           `json:"url"`
+	URLs          []string         `json:"urls"`
 	Method        string           `json:"method"`
 	Rate          float64          `json:"rate"`
 	Arrival       Arrival          `json:"arrival"`
