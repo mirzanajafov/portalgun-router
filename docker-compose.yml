@@ -7,7 +7,7 @@ x-go: &go
 
 x-dimension: &dimension
   <<: *go
-  cpus: 0.1
+  cpus: 0.2
   mem_limit: 32m
 
 services:
@@ -52,7 +52,7 @@ services:
     command: ["dimension", "-id", "j19-zeta-7", "-version", "v1", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
   dim-d99:
     <<: *dimension
-    command: ["dimension", "-id", "d-99", "-version", "v1", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
+    command: ["dimension", "-id", "d-99", "-version", "v2", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
   dim-cronenberg:
     <<: *dimension
     command: ["dimension", "-id", "cronenberg", "-version", "v2", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
@@ -98,6 +98,21 @@ services:
         condition: service_started
     cpus: 0.25
     mem_limit: 128m
+
+  web:
+    image: portalgun-web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    environment:
+      CONTROLLER_URL: http://controller:9100
+      GATEWAY_URL: http://gateway-1:8080
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3123}:3000"
+    depends_on: [controller, gateway-1]
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 256m
 
   traffic:
     <<: *go
