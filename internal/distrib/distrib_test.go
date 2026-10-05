@@ -90,8 +90,7 @@ func TestWatcherAppliesNewerConfigsOnly(t *testing.T) {
 
 func TestWatcherReactsToTheChannel(t *testing.T) {
 	rdb := testRedis(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	target := &fakeTarget{}
 	go NewWatcher(rdb, target, quiet(), time.Hour).Run(ctx)
 	time.Sleep(100 * time.Millisecond)
@@ -109,8 +108,7 @@ func TestWatcherReactsToTheChannel(t *testing.T) {
 
 func TestPublisherWritesSnapshots(t *testing.T) {
 	rdb := testRedis(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	p := NewPublisher(rdb, quiet())
 	go p.Run(ctx)
 	p.Offer(proxy.Snapshot{Instance: "gw-1", Second: 42, Routes: map[string]proxy.RouteSnapshot{"all": {Requests: 7}}})
