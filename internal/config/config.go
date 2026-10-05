@@ -43,6 +43,7 @@ const (
 	DefaultRetries     = 2
 	DefaultPanic       = 0.5
 	DefaultSlowStart   = 10 * time.Second
+	DefaultEwmaDecay   = 10 * time.Second
 )
 
 type Config struct {
@@ -73,6 +74,7 @@ type Pool struct {
 	Outlier        Outlier     `json:"outlier,omitzero"`
 	PanicThreshold *float64    `json:"panicThreshold,omitempty"`
 	SlowStart      *Duration   `json:"slowStart,omitempty"`
+	EwmaDecay      Duration    `json:"ewmaDecay,omitempty"`
 	Dimensions     []Dimension `json:"dimensions"`
 }
 
@@ -176,6 +178,7 @@ func (c *Config) ApplyDefaults() {
 		if p.SlowStart == nil {
 			p.SlowStart = new(Duration(DefaultSlowStart))
 		}
+		orDefault(&p.EwmaDecay, Duration(DefaultEwmaDecay))
 		for j := range p.Dimensions {
 			d := &p.Dimensions[j]
 			if d.Version == "" {
@@ -275,6 +278,9 @@ func (p Pool) validateResilience() []error {
 	}
 	if *p.SlowStart < 0 {
 		bad("slowStart must not be negative")
+	}
+	if p.EwmaDecay.D() < 100*time.Millisecond {
+		bad("ewmaDecay must be at least 100ms")
 	}
 	h := p.HealthCheck
 	if !h.Disabled {
