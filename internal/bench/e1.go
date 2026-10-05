@@ -115,7 +115,6 @@ const (
 	maxGeneratorLag  = 1000
 	maxGeneratorUtil = 0.8
 	maxDimensionUtil = 0.5
-	dimensionCPUs    = 2
 	primeDuration    = 10 * time.Second
 	maxAttempts      = 3
 )
@@ -155,6 +154,7 @@ type Runner struct {
 	Compose Compose
 	Out     string
 	Log     io.Writer
+	ids     map[string]string
 }
 
 func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
@@ -179,6 +179,17 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 	if err := r.waitReady(ctx, compose, plan); err != nil {
 		return "", err
 	}
+	services := slices.Clone(dimensions)
+	for _, s := range plan.Systems {
+		if s.Service != "" {
+			services = append(services, s.Service)
+		}
+	}
+	ids, err := compose.ContainerIDs(ctx, services)
+	if err != nil {
+		return "", err
+	}
+	r.ids = ids
 	if err := r.prime(ctx, compose, plan); err != nil {
 		return "", err
 	}
@@ -254,42 +265,42 @@ func (r *Runner) measure(ctx context.Context, compose Compose, plan Plan, sys Sy
 
 func (r *Runner) point(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int) (Point, error) {
 	p := Point{Workload: plan.Workload.Name, System: sys.Name, Rate: rate, Rep: rep, Slot: slot, StartedAt: time.Now().UTC()}
-	services := slices.Clone(dimensions)
-	if sys.Service != "" {
-		services = append(services, sys.Service)
-	}
-	before, err := compose.CPUs(ctx, services)
-	if err != nil {
-		return p, err
-	}
 	began := time.Now()
-	sum, err := compose.Loadgen(ctx, loadgenArgs(plan, sys, rate)...)
-	if err != nil {
-		return p, err
-	}
-	elapsed := time.Since(began)
-	after, err := compose.CPUs(ctx, services)
+	sum, err := compose.Loadgen(ctx, append(loadgenArgs(plan, sys, rate), watchArgs(r.ids, sys)...)...)
 	if err != nil {
 		return p, err
 	}
 	p.Loadgen = sum
-	p.ElapsedSec = elapsed.Seconds()
+	p.ElapsedSec = time.Since(began).Seconds()
 	p.DimensionCPU = map[string]float64{}
 	for _, d := range dimensions {
-		used := after[d].Sub(before[d]).Total.Seconds()
-		p.DimensionCPU[d] = used
-		p.DimensionUtil = max(p.DimensionUtil, used/(elapsed.Seconds()*dimensionCPUs))
+		w := sum.Watched[d]
+		p.DimensionCPU[d] = w.Seconds
+		p.DimensionUtil = max(p.DimensionUtil, w.Utilization)
 	}
-	if sys.Service != "" {
-		used := after[sys.Service].Sub(before[sys.Service])
-		sent := rate * (plan.Warmup + plan.Duration).Seconds()
-		p.SystemCPUSec = used.Total.Seconds()
-		p.CPUPerRequestUs = used.Total.Seconds() / sent * 1e6
-		p.UserPerRequestUs = used.User.Seconds() / sent * 1e6
-		p.KernelPerRequestUs = used.System.Seconds() / sent * 1e6
+	if w, ok := sum.Watched["system"]; ok && sum.Completed > 0 {
+		served := float64(sum.Completed)
+		p.SystemCPUSec = w.Seconds
+		p.CPUPerRequestUs = w.Seconds / served * 1e6
+		p.UserPerRequestUs = w.UserSeconds / served * 1e6
+		p.KernelPerRequestUs = w.SystemSeconds / served * 1e6
 	}
 	judge(&p)
 	return p, nil
+}
+
+func watchArgs(ids map[string]string, sys System) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	args := []string{"-cgroup-root", "/host/cgroup"}
+	for _, d := range dimensions {
+		args = append(args, "-watch", d+"="+ids[d])
+	}
+	if sys.Service != "" {
+		args = append(args, "-watch", "system="+ids[sys.Service])
+	}
+	return args
 }
 
 func loadgenArgs(plan Plan, sys System, rate float64) []string {

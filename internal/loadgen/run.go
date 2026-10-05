@@ -46,6 +46,7 @@ type Config struct {
 	NoKeepAlive bool
 	KeepRecords bool
 	Label       string
+	Watch       map[string]string
 }
 
 func (c Config) normalize() (Config, []*url.URL, error) {
@@ -163,6 +164,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 	var windowStart int64
 	var cpuStart time.Duration
 	cpuOK := false
+	watch := newWatcher(g.cfg.Watch)
 	for i := 0; ; i++ {
 		at := sched.Next()
 		if at >= total || !g.waitUntil(ctx, at) {
@@ -171,6 +173,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 		u := g.urls[i%len(g.urls)]
 		if !measuring && at >= warm {
 			measuring = true
+			watch.begin()
 			windowStart = g.now()
 			cpuStart, cpuOK = processCPU()
 		}
@@ -184,6 +187,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 	}
 	windowEnd := g.now()
 	cpuEnd, cpuEndOK := processCPU()
+	watched := watch.end(time.Duration(windowEnd - windowStart).Seconds())
 	wg.Wait()
 	close(g.results)
 	res := <-collected
@@ -196,6 +200,9 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 	sum.Arrival = g.cfg.Arrival
 	sum.WarmupSec = g.cfg.Warmup.Seconds()
 	sum.StartUnixNano = g.start.UnixNano()
+	if measuring {
+		sum.Watched = watched
+	}
 	if res.Log != nil {
 		res.Log.StartUnixNano = sum.StartUnixNano
 	}

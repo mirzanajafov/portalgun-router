@@ -7,10 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
@@ -52,70 +49,25 @@ func (c Compose) Exec(ctx context.Context, service string, args ...string) (stri
 	return strings.TrimSpace(string(out)), err
 }
 
-type CPUTime struct {
-	Total  time.Duration
-	User   time.Duration
-	System time.Duration
-}
-
-func (a CPUTime) Sub(b CPUTime) CPUTime {
-	return CPUTime{Total: a.Total - b.Total, User: a.User - b.User, System: a.System - b.System}
-}
-
-func (c Compose) CPU(ctx context.Context, service string) (CPUTime, error) {
-	out, err := c.Exec(ctx, service, "cat", "/sys/fs/cgroup/cpu.stat")
-	if err != nil {
-		return CPUTime{}, err
-	}
-	return parseCPUStat(out)
-}
-
-func parseCPUStat(s string) (CPUTime, error) {
-	var t CPUTime
-	fields := map[string]*time.Duration{"usage_usec": &t.Total, "user_usec": &t.User, "system_usec": &t.System}
-	seen := 0
-	for line := range strings.Lines(s) {
-		name, value, ok := strings.Cut(strings.TrimSpace(line), " ")
-		dst, known := fields[name]
-		if !ok || !known {
-			continue
-		}
-		n, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return t, fmt.Errorf("cpu.stat %s: %w", name, err)
-		}
-		*dst = time.Duration(n) * time.Microsecond
-		seen++
-	}
-	if seen != len(fields) {
-		return t, fmt.Errorf("cpu.stat lacks usage, user or system time")
-	}
-	return t, nil
-}
-
-func (c Compose) CPUs(ctx context.Context, services []string) (map[string]CPUTime, error) {
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	out := make(map[string]CPUTime, len(services))
-	var firstErr error
+func (c Compose) ContainerIDs(ctx context.Context, services []string) (map[string]string, error) {
+	ids := map[string]string{}
 	for _, s := range services {
-		wg.Go(func() {
-			d, err := c.CPU(ctx, s)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil && firstErr == nil {
-				firstErr = err
-			}
-			out[s] = d
-		})
+		out, err := c.run(ctx, "ps", "-q", "--no-trunc", s)
+		if err != nil {
+			return nil, err
+		}
+		id := strings.TrimSpace(string(out))
+		if id == "" || strings.ContainsAny(id, " \n") {
+			return nil, fmt.Errorf("expected one container for %s, got %q", s, id)
+		}
+		ids[s] = id
 	}
-	wg.Wait()
-	return out, firstErr
+	return ids, nil
 }
 
 func (c Compose) Loadgen(ctx context.Context, args ...string) (loadgen.Summary, error) {
 	var sum loadgen.Summary
-	out, err := c.run(ctx, append([]string{"run", "--rm", "-T", "loadgen"}, args...)...)
+	out, err := c.run(ctx, append([]string{"exec", "-T", "loadgen", "loadgen"}, args...)...)
 	if err != nil {
 		return sum, err
 	}
