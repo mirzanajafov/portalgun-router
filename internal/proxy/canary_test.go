@@ -98,8 +98,8 @@ func TestRetriesFromACanaryLandOnStable(t *testing.T) {
 	if v[canarySlot].Attempts != 5 || v[canarySlot].Errors != 5 || v[stableSlot].Attempts != 5 || v[stableSlot].Errors != 0 {
 		t.Fatalf("version counts %+v", v)
 	}
-	if snap.Routes["all"].Requests != 5 {
-		t.Fatalf("requests %d", snap.Routes["all"].Requests)
+	if snap.Routes["all"].Requests != 5 || snap.Routes["all"].Failed != 0 {
+		t.Fatalf("requests %d, failed %d", snap.Routes["all"].Requests, snap.Routes["all"].Failed)
 	}
 	dims := map[string]DimensionSnapshot{}
 	for _, d := range snap.Dimensions {
@@ -110,6 +110,21 @@ func TestRetriesFromACanaryLandOnStable(t *testing.T) {
 	}
 	if again := g.Tick(2); again.Routes["all"].Versions[canarySlot].Attempts != 0 {
 		t.Fatal("a tick did not reset the counters")
+	}
+}
+
+func TestFailuresTheClientSeesAreCounted(t *testing.T) {
+	broken := dim(t, "canary", func(b *dimension.Behavior) { b.ErrorRate = 1 })
+	cfg := canaryConfig(t, dim(t, "stable", func(b *dimension.Behavior) { b.ErrorRate = 1 }), broken, 0.5, "r1")
+	cfg.Pools[0].Outlier.Disabled = true
+	g, srv := manual(t, cfg)
+	for i := range 4 {
+		if code, _ := from(t, srv.URL, fmt.Sprintf("10.0.0.%d", i+1)); code != 503 {
+			t.Fatalf("got %d", code)
+		}
+	}
+	if f := g.Tick(1).Routes["all"].Failed; f != 4 {
+		t.Fatalf("failed %d, want 4", f)
 	}
 }
 

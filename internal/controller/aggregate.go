@@ -115,6 +115,7 @@ func merge(sec int64, bin map[string]proxy.Snapshot) Merged {
 			}
 			acc.Requests += r.Requests
 			acc.Limited += r.Limited
+			acc.Failed += r.Failed
 			for i := range acc.Versions {
 				acc.Versions[i].Attempts += r.Versions[i].Attempts
 				acc.Versions[i].Errors += r.Versions[i].Errors
