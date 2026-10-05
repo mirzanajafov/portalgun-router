@@ -46,7 +46,7 @@ func usage() {
 func e1(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("e1", flag.ExitOnError)
 	workload := fs.String("workload", "w1", "w1 to w5")
-	systems := fs.String("systems", "direct,stdlib,nginx,caddy,envoy,haproxy", "systems to compare")
+	systems := fs.String("systems", "direct,stdlib,portalgun,nginx,caddy,envoy,haproxy", "systems to compare")
 	rates := fs.String("rates", "1000,2000,5000,10000,15000,20000,30000,40000", "offered rates")
 	reps := fs.Int("reps", 3, "repetitions of the whole sweep")
 	duration := fs.Duration("duration", 20*time.Second, "measured window per point")

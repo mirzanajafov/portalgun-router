@@ -33,6 +33,13 @@ services:
     image: pgbench-portalgun
     build: *portalgun-build
     command: ["stdproxy", "-upstreams", "dim-a:8080,dim-b:8080,dim-c:8080"]
+  portalgun:
+    <<: *system
+    image: pgbench-portalgun
+    build: *portalgun-build
+    command: ["gateway", "-config", "/etc/portalgun/config.json"]
+    volumes:
+      - ./systems/portalgun/config.json:/etc/portalgun/config.json:ro
   nginx:
     <<: *system
     image: pgbench-nginx

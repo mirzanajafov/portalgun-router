@@ -1,12 +1,14 @@
 package bench
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -31,6 +33,7 @@ func proxied(name string) System {
 var Systems = []System{
 	{Name: "direct", URLs: []string{"http://dim-a:8080/", "http://dim-b:8080/", "http://dim-c:8080/"}},
 	proxied("stdlib"),
+	proxied("portalgun"),
 	proxied("nginx"),
 	proxied("caddy"),
 	proxied("envoy"),
@@ -182,6 +185,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 	meta := map[string]any{
 		"plan":      plan,
 		"versions":  versions(ctx, compose, plan.Systems),
+		"commit":    commit(ctx),
 		"startedAt": time.Now().UTC(),
 		"env":       compose.Env,
 	}
@@ -377,6 +381,18 @@ func versions(ctx context.Context, compose Compose, systems []System) map[string
 		out[s.Name] = firstLine(v)
 	}
 	return out
+}
+
+func commit(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return "unknown"
+	}
+	c := strings.TrimSpace(string(out))
+	if dirty, err := exec.CommandContext(ctx, "git", "status", "--porcelain", "--untracked-files=no").Output(); err == nil && len(bytes.TrimSpace(dirty)) > 0 {
+		c += "-dirty"
+	}
+	return c
 }
 
 func firstLine(s string) string {
