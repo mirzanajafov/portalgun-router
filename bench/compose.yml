@@ -62,4 +62,5 @@ services:
     build: *portalgun-build
     profiles: ["tools"]
     cpuset: "${LOADGEN_CPUS:-2-9}"
+    mem_limit: 512m
     entrypoint: ["loadgen"]

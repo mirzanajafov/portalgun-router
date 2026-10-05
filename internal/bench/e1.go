@@ -386,6 +386,9 @@ func versions(ctx context.Context, compose Compose, systems []System) map[string
 func commit(ctx context.Context) string {
 	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
+		if c := os.Getenv("BENCH_COMMIT"); c != "" {
+			return c
+		}
 		return "unknown"
 	}
 	c := strings.TrimSpace(string(out))
