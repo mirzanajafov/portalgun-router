@@ -60,6 +60,7 @@ func serve(t *testing.T, cfg *config.Config) (*Gateway, *httptest.Server) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(g.Close)
 	srv := httptest.NewServer(g)
 	t.Cleanup(srv.Close)
 	return g, srv

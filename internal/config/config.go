@@ -40,6 +40,9 @@ const (
 	DefaultMaxInflight = 1024
 	DefaultTimeout     = 30 * time.Second
 	DefaultPerTry      = 10 * time.Second
+	DefaultRetries     = 2
+	DefaultPanic       = 0.5
+	DefaultSlowStart   = 10 * time.Second
 )
 
 type Config struct {
@@ -54,12 +57,77 @@ type Route struct {
 	Pool          string   `json:"pool"`
 	Timeout       Duration `json:"timeout,omitempty"`
 	PerTryTimeout Duration `json:"perTryTimeout,omitempty"`
+	Retries       Retries  `json:"retries,omitzero"`
+}
+
+type Retries struct {
+	Max          *int    `json:"max,omitempty"`
+	BudgetRatio  float64 `json:"budgetRatio,omitempty"`
+	MinPerSecond float64 `json:"minPerSecond,omitempty"`
 }
 
 type Pool struct {
-	Name       string      `json:"name"`
-	Balancer   string      `json:"balancer,omitempty"`
-	Dimensions []Dimension `json:"dimensions"`
+	Name           string      `json:"name"`
+	Balancer       string      `json:"balancer,omitempty"`
+	HealthCheck    HealthCheck `json:"healthCheck,omitzero"`
+	Outlier        Outlier     `json:"outlier,omitzero"`
+	PanicThreshold *float64    `json:"panicThreshold,omitempty"`
+	SlowStart      *Duration   `json:"slowStart,omitempty"`
+	Dimensions     []Dimension `json:"dimensions"`
+}
+
+type HealthCheck struct {
+	Disabled       bool     `json:"disabled,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	Interval       Duration `json:"interval,omitempty"`
+	Timeout        Duration `json:"timeout,omitempty"`
+	UnhealthyAfter int      `json:"unhealthyAfter,omitempty"`
+	HealthyAfter   int      `json:"healthyAfter,omitempty"`
+}
+
+type Outlier struct {
+	Disabled       bool     `json:"disabled,omitempty"`
+	Consecutive    int      `json:"consecutive,omitempty"`
+	Window         int      `json:"window,omitempty"`
+	MinRequests    int      `json:"minRequests,omitempty"`
+	FailureRatio   float64  `json:"failureRatio,omitempty"`
+	BaseEjection   Duration `json:"baseEjection,omitempty"`
+	MaxEjection    Duration `json:"maxEjection,omitempty"`
+	HalfOpenTrials int      `json:"halfOpenTrials,omitempty"`
+	EjectOnRefused bool     `json:"ejectOnRefused,omitempty"`
+}
+
+func orDefault[T comparable](v *T, def T) {
+	var zero T
+	if *v == zero {
+		*v = def
+	}
+}
+
+func (h *HealthCheck) applyDefaults() {
+	orDefault(&h.Path, "/healthz")
+	orDefault(&h.Interval, Duration(time.Second))
+	orDefault(&h.Timeout, Duration(250*time.Millisecond))
+	orDefault(&h.UnhealthyAfter, 2)
+	orDefault(&h.HealthyAfter, 2)
+}
+
+func (o *Outlier) applyDefaults() {
+	orDefault(&o.Consecutive, 5)
+	orDefault(&o.Window, 50)
+	orDefault(&o.MinRequests, 20)
+	orDefault(&o.FailureRatio, 0.5)
+	orDefault(&o.BaseEjection, Duration(5*time.Second))
+	orDefault(&o.MaxEjection, Duration(time.Minute))
+	orDefault(&o.HalfOpenTrials, 3)
+}
+
+func (r *Retries) applyDefaults() {
+	if r.Max == nil {
+		r.Max = new(DefaultRetries)
+	}
+	orDefault(&r.BudgetRatio, 0.2)
+	orDefault(&r.MinPerSecond, 10)
 }
 
 type Dimension struct {
@@ -76,14 +144,14 @@ func Parse(data []byte) (*Config, error) {
 	if err := dec.Decode(&c); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
-	c.applyDefaults()
+	c.ApplyDefaults()
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (c *Config) applyDefaults() {
+func (c *Config) ApplyDefaults() {
 	for i := range c.Routes {
 		r := &c.Routes[i]
 		r.Host = strings.ToLower(r.Host)
@@ -93,11 +161,20 @@ func (c *Config) applyDefaults() {
 		if r.PerTryTimeout == 0 {
 			r.PerTryTimeout = Duration(min(DefaultPerTry, r.Timeout.D()))
 		}
+		r.Retries.applyDefaults()
 	}
 	for i := range c.Pools {
 		p := &c.Pools[i]
 		if p.Balancer == "" {
 			p.Balancer = BalancerP2C
+		}
+		p.HealthCheck.applyDefaults()
+		p.Outlier.applyDefaults()
+		if p.PanicThreshold == nil {
+			p.PanicThreshold = new(float64(DefaultPanic))
+		}
+		if p.SlowStart == nil {
+			p.SlowStart = new(Duration(DefaultSlowStart))
 		}
 		for j := range p.Dimensions {
 			d := &p.Dimensions[j]
@@ -131,6 +208,7 @@ func (c *Config) Validate() error {
 		if len(p.Dimensions) == 0 {
 			errs = append(errs, fmt.Errorf("pool %q has no dimensions", p.Name))
 		}
+		errs = append(errs, p.validateResilience()...)
 		for _, d := range p.Dimensions {
 			if d.ID == "" {
 				errs = append(errs, fmt.Errorf("pool %q: dimension without an id", p.Name))
@@ -166,9 +244,61 @@ func (c *Config) Validate() error {
 		if r.Timeout <= 0 || r.PerTryTimeout <= 0 || r.PerTryTimeout > r.Timeout {
 			errs = append(errs, fmt.Errorf("route %q: timeouts must be positive and perTryTimeout no longer than timeout", r.Name))
 		}
+		rt := r.Retries
+		switch {
+		case rt.Max == nil:
+			errs = append(errs, fmt.Errorf("route %q: retries have no defaults applied", r.Name))
+		case *rt.Max < 0 || *rt.Max > 5:
+			errs = append(errs, fmt.Errorf("route %q: retries.max must be between 0 and 5", r.Name))
+		}
+		if !(rt.BudgetRatio >= 0 && rt.BudgetRatio <= 1) || !(rt.MinPerSecond >= 0) {
+			errs = append(errs, fmt.Errorf("route %q: retry budget ratio must be in [0, 1] and minPerSecond not negative", r.Name))
+		}
 	}
 	if len(c.Routes) == 0 {
 		errs = append(errs, errors.New("config has no routes"))
 	}
 	return errors.Join(errs...)
+}
+
+func (p Pool) validateResilience() []error {
+	var errs []error
+	bad := func(format string, args ...any) {
+		errs = append(errs, fmt.Errorf("pool %q: "+format, append([]any{p.Name}, args...)...))
+	}
+	if p.PanicThreshold == nil || p.SlowStart == nil {
+		bad("panicThreshold and slowStart have no defaults applied")
+		return errs
+	}
+	if !(*p.PanicThreshold >= 0 && *p.PanicThreshold <= 1) {
+		bad("panicThreshold must be between 0 and 1")
+	}
+	if *p.SlowStart < 0 {
+		bad("slowStart must not be negative")
+	}
+	h := p.HealthCheck
+	if !h.Disabled {
+		if !strings.HasPrefix(h.Path, "/") {
+			bad("healthCheck.path must start with /")
+		}
+		if h.Interval.D() < 100*time.Millisecond || h.Timeout <= 0 || h.Timeout > h.Interval {
+			bad("healthCheck needs an interval of at least 100ms and a positive timeout no longer than it")
+		}
+		if h.UnhealthyAfter < 1 || h.HealthyAfter < 1 {
+			bad("healthCheck thresholds must be at least 1")
+		}
+	}
+	o := p.Outlier
+	if !o.Disabled {
+		if o.Consecutive < 1 || o.Window < 1 || o.MinRequests < 1 || o.MinRequests > o.Window || o.HalfOpenTrials < 1 {
+			bad("outlier counts must be positive and minRequests no larger than window")
+		}
+		if !(o.FailureRatio > 0 && o.FailureRatio <= 1) {
+			bad("outlier.failureRatio must be in (0, 1]")
+		}
+		if o.BaseEjection <= 0 || o.MaxEjection < o.BaseEjection {
+			bad("outlier ejection times must be positive with maxEjection at least baseEjection")
+		}
+	}
+	return errs
 }

@@ -10,8 +10,10 @@ type Target interface {
 	Load() *Load
 }
 
+type Filter[T Target] func(item T, now int64) bool
+
 type Balancer[T Target] interface {
-	Pick(items []T, now int64) (T, bool)
+	Pick(items []T, now int64, ok Filter[T]) (T, bool)
 }
 
 func New[T Target](name string) (Balancer[T], error) {
@@ -26,21 +28,21 @@ func New[T Target](name string) (Balancer[T], error) {
 	return nil, fmt.Errorf("unknown balancer %q", name)
 }
 
-func available[T Target](items []T, buf []int) []int {
-	for i, it := range items {
-		if it.Load().Available() {
-			buf = append(buf, i)
-		}
-	}
-	return buf
+func usable[T Target](it T, now int64, ok Filter[T]) bool {
+	return it.Load().Available() && (ok == nil || ok(it, now))
 }
 
 type P2C[T Target] struct{}
 
-func (P2C[T]) Pick(items []T, now int64) (T, bool) {
+func (P2C[T]) Pick(items []T, now int64, ok Filter[T]) (T, bool) {
 	var zero T
 	var buf [16]int
-	idx := available(items, buf[:0])
+	idx := buf[:0]
+	for i, it := range items {
+		if usable(it, now, ok) {
+			idx = append(idx, i)
+		}
+	}
 	switch len(idx) {
 	case 0:
 		return zero, false
@@ -63,7 +65,7 @@ type RoundRobin[T Target] struct {
 	next atomic.Uint64
 }
 
-func (r *RoundRobin[T]) Pick(items []T, _ int64) (T, bool) {
+func (r *RoundRobin[T]) Pick(items []T, now int64, ok Filter[T]) (T, bool) {
 	var zero T
 	n := uint64(len(items))
 	if n == 0 {
@@ -72,7 +74,7 @@ func (r *RoundRobin[T]) Pick(items []T, _ int64) (T, bool) {
 	start := r.next.Add(1)
 	for i := range n {
 		it := items[(start+i)%n]
-		if it.Load().Available() {
+		if usable(it, now, ok) {
 			return it, true
 		}
 	}
@@ -81,7 +83,7 @@ func (r *RoundRobin[T]) Pick(items []T, _ int64) (T, bool) {
 
 type LeastOutstanding[T Target] struct{}
 
-func (LeastOutstanding[T]) Pick(items []T, _ int64) (T, bool) {
+func (LeastOutstanding[T]) Pick(items []T, now int64, ok Filter[T]) (T, bool) {
 	var zero T
 	n := len(items)
 	if n == 0 {
@@ -92,11 +94,10 @@ func (LeastOutstanding[T]) Pick(items []T, _ int64) (T, bool) {
 	offset := rand.IntN(n)
 	for i := range n {
 		it := items[(offset+i)%n]
-		l := it.Load()
-		if !l.Available() {
+		if !usable(it, now, ok) {
 			continue
 		}
-		if v := l.Inflight(); !found || v < bestInflight {
+		if v := it.Load().Inflight(); !found || v < bestInflight {
 			best, bestInflight, found = it, v, true
 		}
 	}

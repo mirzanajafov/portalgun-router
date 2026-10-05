@@ -23,6 +23,24 @@ func TestParseAppliesDefaults(t *testing.T) {
 	if p.Balancer != BalancerP2C || d.Version != DefaultVersion || d.MaxInflight != DefaultMaxInflight {
 		t.Fatalf("pool %+v dimension %+v", p, d)
 	}
+	if *r.Retries.Max != 2 || r.Retries.BudgetRatio != 0.2 || *p.PanicThreshold != 0.5 || p.SlowStart.D() != 10*time.Second {
+		t.Fatalf("resilience defaults: retries %+v panic %v slow start %v", r.Retries, *p.PanicThreshold, *p.SlowStart)
+	}
+	if p.HealthCheck.Path != "/healthz" || p.Outlier.Consecutive != 5 || p.Outlier.BaseEjection.D() != 5*time.Second {
+		t.Fatalf("health %+v outlier %+v", p.HealthCheck, p.Outlier)
+	}
+}
+
+func TestZeroIsKeptWhereItMeansOff(t *testing.T) {
+	c, err := Parse([]byte(`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 0}}],
+		"pools": [{"name": "p", "panicThreshold": 0, "slowStart": "0s", "healthCheck": {"disabled": true},
+		"dimensions": [{"id": "a", "address": "a:1"}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *c.Routes[0].Retries.Max != 0 || *c.Pools[0].PanicThreshold != 0 || *c.Pools[0].SlowStart != 0 || !c.Pools[0].HealthCheck.Disabled {
+		t.Fatalf("explicit zeros were replaced by defaults: %+v %+v", c.Routes[0].Retries, c.Pools[0])
+	}
 }
 
 func TestParseRejectsBadConfigs(t *testing.T) {
@@ -44,6 +62,14 @@ func TestParseRejectsBadConfigs(t *testing.T) {
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "perTryTimeout"},
 		"bad duration": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "timeout": 5}],
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "duration"},
+		"too many retries": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 9}}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "retries.max"},
+		"panic above one": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "panicThreshold": 1.5, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "panicThreshold"},
+		"probe slower than interval": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "healthCheck": {"interval": "1s", "timeout": "2s"}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "healthCheck"},
+		"outlier ratio": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "outlier": {"failureRatio": 2}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "failureRatio"},
 	} {
 		_, err := Parse([]byte(tc.json))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
