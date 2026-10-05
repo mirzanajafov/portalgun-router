@@ -8,21 +8,25 @@ import (
 )
 
 const (
-	decayNanos   = float64(10 * time.Second)
+	DefaultDecay = 10 * time.Second
 	penaltyNanos = float64(time.Second)
 )
 
 type Load struct {
 	inflight    atomic.Int64
 	maxInflight int64
+	decay       float64
 
 	mu    sync.Mutex
 	cost  float64
 	stamp int64
 }
 
-func NewLoad(maxInflight int64) *Load {
-	return &Load{maxInflight: maxInflight}
+func NewLoad(maxInflight int64, decay time.Duration) *Load {
+	if decay <= 0 {
+		decay = DefaultDecay
+	}
+	return &Load{maxInflight: maxInflight, decay: float64(decay)}
 }
 
 func (l *Load) Inflight() int64 { return l.inflight.Load() }
@@ -52,7 +56,7 @@ func (l *Load) Observe(rtt time.Duration, now int64) {
 	if sample > l.cost {
 		l.cost = sample
 	} else {
-		w := math.Exp(-float64(now-l.stamp) / decayNanos)
+		w := math.Exp(-float64(now-l.stamp) / l.decay)
 		l.cost = l.cost*w + sample*(1-w)
 	}
 	l.stamp = now
@@ -62,7 +66,7 @@ func (l *Load) Cost(now int64) float64 {
 	pending := l.inflight.Load()
 	l.mu.Lock()
 	if elapsed := now - l.stamp; elapsed > 0 {
-		l.cost *= math.Exp(-float64(elapsed) / decayNanos)
+		l.cost *= math.Exp(-float64(elapsed) / l.decay)
 		l.stamp = now
 	}
 	cost := l.cost

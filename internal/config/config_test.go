@@ -26,7 +26,7 @@ func TestParseAppliesDefaults(t *testing.T) {
 	if *r.Retries.Max != 2 || r.Retries.BudgetRatio != 0.2 || *p.PanicThreshold != 0.5 || p.SlowStart.D() != 10*time.Second {
 		t.Fatalf("resilience defaults: retries %+v panic %v slow start %v", r.Retries, *p.PanicThreshold, *p.SlowStart)
 	}
-	if p.HealthCheck.Path != "/healthz" || p.Outlier.Consecutive != 5 || p.Outlier.BaseEjection.D() != 5*time.Second {
+	if p.HealthCheck.Path != "/healthz" || p.Outlier.Consecutive != 5 || p.Outlier.BaseEjection.D() != 5*time.Second || p.EwmaDecay.D() != 10*time.Second {
 		t.Fatalf("health %+v outlier %+v", p.HealthCheck, p.Outlier)
 	}
 }
@@ -68,6 +68,8 @@ func TestParseRejectsBadConfigs(t *testing.T) {
 			"pools": [{"name": "p", "panicThreshold": 1.5, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "panicThreshold"},
 		"probe slower than interval": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "healthCheck": {"interval": "1s", "timeout": "2s"}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "healthCheck"},
+		"tiny decay": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "ewmaDecay": "10ms", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "ewmaDecay"},
 		"outlier ratio": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "outlier": {"failureRatio": 2}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "failureRatio"},
 	} {

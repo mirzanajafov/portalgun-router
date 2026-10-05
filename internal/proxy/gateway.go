@@ -33,6 +33,7 @@ type upstreamSpec struct {
 	health      config.HealthCheck
 	outlier     config.Outlier
 	slowStart   config.Duration
+	ewmaDecay   config.Duration
 }
 
 type upstream struct {
@@ -251,6 +252,7 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 				health:      pc.HealthCheck,
 				outlier:     pc.Outlier,
 				slowStart:   *pc.SlowStart,
+				ewmaDecay:   pc.EwmaDecay,
 			}
 			u, existed := g.upstreams[d.ID]
 			if !existed || u.spec != spec {
@@ -322,7 +324,7 @@ func (g *Gateway) newUpstream(id string, spec upstreamSpec, rt http.RoundTripper
 		spec:      spec,
 		version:   spec.version,
 		address:   spec.address,
-		load:      balance.NewLoad(int64(spec.maxInflight)),
+		load:      balance.NewLoad(int64(spec.maxInflight), spec.ewmaDecay.D()),
 		rt:        rt,
 		idHeader:  []string{id},
 		slowStart: int64(spec.slowStart),

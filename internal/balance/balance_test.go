@@ -16,13 +16,13 @@ func (i *item) Load() *Load { return i.load }
 func items(names ...string) []*item {
 	out := make([]*item, len(names))
 	for i, n := range names {
-		out[i] = &item{name: n, load: NewLoad(100)}
+		out[i] = &item{name: n, load: NewLoad(100, 0)}
 	}
 	return out
 }
 
 func TestPeakEWMAJumpsUpAndDecaysDown(t *testing.T) {
-	l := NewLoad(10)
+	l := NewLoad(10, 0)
 	l.Observe(time.Millisecond, 0)
 	l.Observe(100*time.Millisecond, int64(time.Millisecond))
 	if got := l.Latency(); got != 100*time.Millisecond {
@@ -46,7 +46,7 @@ func TestPeakEWMAJumpsUpAndDecaysDown(t *testing.T) {
 }
 
 func TestCostDecaysWithoutSamples(t *testing.T) {
-	l := NewLoad(10)
+	l := NewLoad(10, 0)
 	l.Observe(500*time.Millisecond, 0)
 	early := l.Cost(int64(time.Second))
 	late := l.Cost(int64(60 * time.Second))
@@ -55,8 +55,19 @@ func TestCostDecaysWithoutSamples(t *testing.T) {
 	}
 }
 
+func TestShorterDecayForgetsFaster(t *testing.T) {
+	short, long := NewLoad(10, time.Second), NewLoad(10, 0)
+	short.Observe(100*time.Millisecond, 0)
+	long.Observe(100*time.Millisecond, 0)
+	at := int64(5 * time.Second)
+	s, l := short.Cost(at), long.Cost(at)
+	if s > float64(time.Millisecond) || l < float64(50*time.Millisecond) {
+		t.Fatalf("after 5s idle: 1s decay %.2fms, default decay %.2fms", s/1e6, l/1e6)
+	}
+}
+
 func TestCostPenalizesPendingWithoutSamples(t *testing.T) {
-	fresh, busy := NewLoad(10), NewLoad(10)
+	fresh, busy := NewLoad(10, 0), NewLoad(10, 0)
 	busy.Acquire()
 	if fresh.Cost(0) != 0 || busy.Cost(0) < penaltyNanos {
 		t.Fatalf("fresh %.0f busy %.0f", fresh.Cost(0), busy.Cost(0))
@@ -64,7 +75,7 @@ func TestCostPenalizesPendingWithoutSamples(t *testing.T) {
 }
 
 func TestAcquireNeverExceedsTheCap(t *testing.T) {
-	l := NewLoad(10)
+	l := NewLoad(10, 0)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	peak := int64(0)
@@ -117,7 +128,7 @@ func TestP2CSpreadsOverEqualTargets(t *testing.T) {
 func TestBalancersSkipCappedTargets(t *testing.T) {
 	for _, name := range []string{"p2c-ewma", "round-robin", "least-outstanding"} {
 		its := items("a", "b")
-		its[0].load = NewLoad(1)
+		its[0].load = NewLoad(1, 0)
 		its[0].load.Acquire()
 		b, err := New[*item](name)
 		if err != nil {
@@ -129,7 +140,7 @@ func TestBalancersSkipCappedTargets(t *testing.T) {
 				t.Fatalf("%s picked %v", name, got)
 			}
 		}
-		its[1].load = NewLoad(1)
+		its[1].load = NewLoad(1, 0)
 		its[1].load.Acquire()
 		if _, ok := b.Pick(its, 0, nil); ok {
 			t.Fatalf("%s picked from a fully capped pool", name)
