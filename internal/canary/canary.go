@@ -42,11 +42,12 @@ type Policy interface {
 }
 
 type SPRT struct {
-	upper float64
-	lower float64
-	rho   float64
-	llr   float64
-	seen  int64
+	upper    float64
+	lower    float64
+	rho      float64
+	llr      float64
+	seen     int64
+	accepted bool
 }
 
 func NewSPRT(alpha, beta, rho float64) *SPRT {
@@ -61,6 +62,9 @@ func (s *SPRT) Update(stable, canary, stableEvents, canaryEvents int64) {
 	q1 := s.rho * share / (s.rho*share + 1 - share)
 	s.llr += float64(canaryEvents)*math.Log(q1/share) + float64(stableEvents)*math.Log((1-q1)/(1-share))
 	s.seen += stableEvents + canaryEvents
+	if s.llr <= s.lower {
+		s.accepted = true
+	}
 }
 
 func (s *SPRT) LLR() float64 { return s.llr }
@@ -71,17 +75,18 @@ func (s *SPRT) Verdict() Verdict {
 	switch {
 	case s.llr >= s.upper:
 		return Rollback
-	case s.llr <= s.lower:
+	case s.accepted:
 		return Promote
 	}
 	return Continue
 }
 
 type Sequential struct {
-	errors  *SPRT
-	slow    *SPRT
-	minStep time.Duration
-	accept  bool
+	errors      *SPRT
+	slow        *SPRT
+	minStep     time.Duration
+	canary      int64
+	errorEvents int64
 }
 
 func NewSequential(alpha, beta, rho float64, minStep time.Duration) *Sequential {
@@ -94,16 +99,23 @@ func (s *Sequential) Errors() *SPRT { return s.errors }
 
 func (s *Sequential) Slow() *SPRT { return s.slow }
 
+const SilentRequests = 300
+
 func (s *Sequential) Observe(b Bin, elapsed time.Duration) Decision {
 	s.errors.Update(b.Requests[0], b.Requests[1], b.Errors[0], b.Errors[1])
 	s.slow.Update(b.Requests[0], b.Requests[1], b.Slow[0], b.Slow[1])
+	s.canary += b.Requests[1]
+	s.errorEvents += b.Errors[0] + b.Errors[1]
+	silent := s.errorEvents == 0 && s.canary >= SilentRequests
 	switch {
 	case s.errors.Verdict() == Rollback:
 		return Decision{Rollback, fmt.Sprintf("errors: log-likelihood ratio %.2f crossed %.2f", s.errors.llr, s.errors.upper)}
 	case s.slow.Verdict() == Rollback:
 		return Decision{Rollback, fmt.Sprintf("latency: log-likelihood ratio %.2f crossed %.2f", s.slow.llr, s.slow.upper)}
-	case s.errors.Verdict() == Promote && s.slow.Verdict() == Promote && elapsed >= s.minStep:
+	case s.slow.Verdict() == Promote && elapsed >= s.minStep && s.errors.Verdict() == Promote:
 		return Decision{Promote, "both tests accepted the canary"}
+	case s.slow.Verdict() == Promote && elapsed >= s.minStep && silent:
+		return Decision{Promote, fmt.Sprintf("latency accepted, and %d canary requests without a single error on either version", s.canary)}
 	}
 	return Decision{}
 }

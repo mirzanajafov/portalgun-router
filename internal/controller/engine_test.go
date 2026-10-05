@@ -273,6 +273,19 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 			t.Errorf("auth %q body %s: %d, want %d", tc.auth, tc.body, got, tc.want)
 		}
 	}
+	check := func(auth string) int {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/admin", nil)
+		req.Header.Set("Authorization", auth)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if check("Bearer s3cret") != 200 || check("Bearer guess") != 401 {
+		t.Fatal("the admin check endpoint does not check")
+	}
 	resp, err := http.Get(srv.URL + "/api/state")
 	if err != nil {
 		t.Fatal(err)

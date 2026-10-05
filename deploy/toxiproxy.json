@@ -1,0 +1,6 @@
+[
+  { "name": "c-137", "listen": "0.0.0.0:18080", "upstream": "dim-c137:8080", "enabled": true },
+  { "name": "j19-zeta-7", "listen": "0.0.0.0:18081", "upstream": "dim-j19:8080", "enabled": true },
+  { "name": "d-99", "listen": "0.0.0.0:18082", "upstream": "dim-d99:8080", "enabled": true },
+  { "name": "cronenberg", "listen": "0.0.0.0:18083", "upstream": "dim-cronenberg:8080", "enabled": true }
+]
