@@ -13,14 +13,18 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
-func TestParseCPUStat(t *testing.T) {
-	got, err := parseCPUStat("usage_usec 1500000\nuser_usec 1000000\nsystem_usec 500000\nnr_periods 0\n")
-	want := CPUTime{Total: 1500 * time.Millisecond, User: time.Second, System: 500 * time.Millisecond}
-	if err != nil || got != want {
-		t.Fatalf("got %+v %v", got, err)
+func TestWatchArgs(t *testing.T) {
+	ids := map[string]string{"dim-a": "1", "dim-b": "2", "dim-c": "3", "nginx": "4"}
+	got := strings.Join(watchArgs(ids, Systems[3]), " ")
+	want := "-cgroup-root /host/cgroup -watch dim-a=1 -watch dim-b=2 -watch dim-c=3 -watch system=4"
+	if Systems[3].Name != "nginx" || got != want {
+		t.Fatalf("got %q", got)
 	}
-	if _, err := parseCPUStat("usage_usec 10\nnr_periods 0\n"); err == nil {
-		t.Fatal("missing user and system time accepted")
+	if direct := strings.Join(watchArgs(ids, Systems[0]), " "); strings.Contains(direct, "system=") {
+		t.Fatalf("direct watches a system: %q", direct)
+	}
+	if watchArgs(nil, Systems[3]) != nil {
+		t.Fatal("watch args without container ids")
 	}
 }
 

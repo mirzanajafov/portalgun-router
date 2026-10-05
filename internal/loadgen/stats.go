@@ -26,28 +26,29 @@ type CPU struct {
 }
 
 type Summary struct {
-	Label         string           `json:"label,omitempty"`
-	URLs          []string         `json:"urls"`
-	Method        string           `json:"method"`
-	Rate          float64          `json:"rate"`
-	Arrival       Arrival          `json:"arrival"`
-	WarmupSec     float64          `json:"warmupSec"`
-	WindowSec     float64          `json:"windowSec"`
-	StartUnixNano int64            `json:"startUnixNano"`
-	Scheduled     int64            `json:"scheduled"`
-	Completed     int64            `json:"completed"`
-	Failed        int64            `json:"failed"`
-	Dropped       int64            `json:"dropped"`
-	ThroughputRps float64          `json:"throughputRps"`
-	Status        map[string]int64 `json:"status"`
-	Errors        map[string]int64 `json:"errors,omitempty"`
-	Dimensions    map[string]int64 `json:"dimensions,omitempty"`
-	LatencyUs     Percentiles      `json:"latencyUs"`
-	ServiceUs     Percentiles      `json:"serviceUs"`
-	LagUs         Percentiles      `json:"lagUs"`
-	CPU           *CPU             `json:"cpu,omitempty"`
-	Valid         bool             `json:"valid"`
-	Invalid       []string         `json:"invalid,omitempty"`
+	Label         string             `json:"label,omitempty"`
+	URLs          []string           `json:"urls"`
+	Method        string             `json:"method"`
+	Rate          float64            `json:"rate"`
+	Arrival       Arrival            `json:"arrival"`
+	WarmupSec     float64            `json:"warmupSec"`
+	WindowSec     float64            `json:"windowSec"`
+	StartUnixNano int64              `json:"startUnixNano"`
+	Scheduled     int64              `json:"scheduled"`
+	Completed     int64              `json:"completed"`
+	Failed        int64              `json:"failed"`
+	Dropped       int64              `json:"dropped"`
+	ThroughputRps float64            `json:"throughputRps"`
+	Status        map[string]int64   `json:"status"`
+	Errors        map[string]int64   `json:"errors,omitempty"`
+	Dimensions    map[string]int64   `json:"dimensions,omitempty"`
+	LatencyUs     Percentiles        `json:"latencyUs"`
+	ServiceUs     Percentiles        `json:"serviceUs"`
+	LagUs         Percentiles        `json:"lagUs"`
+	CPU           *CPU               `json:"cpu,omitempty"`
+	Watched       map[string]Watched `json:"watched,omitempty"`
+	Valid         bool               `json:"valid"`
+	Invalid       []string           `json:"invalid,omitempty"`
 }
 
 type stats struct {

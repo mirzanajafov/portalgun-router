@@ -35,6 +35,16 @@ func main() {
 	flag.BoolVar(&cfg.NoKeepAlive, "no-keepalive", false, "open a new connection for every request")
 	flag.StringVar(&cfg.Label, "label", "", "label copied into the summary")
 	records := flag.String("records", "", "write every request to this file")
+	cgroupRoot := flag.String("cgroup-root", "", "host cgroup mount used to resolve -watch containers")
+	watch := map[string]string{}
+	flag.Func("watch", "name=containerID whose CPU is read over the measured window, repeatable", func(v string) error {
+		name, id, ok := strings.Cut(v, "=")
+		if !ok || name == "" || id == "" {
+			return errors.New("expected name=containerID")
+		}
+		watch[name] = id
+		return nil
+	})
 	header := http.Header{}
 	flag.Func("header", "request header as 'Name: value', repeatable", func(v string) error {
 		name, value, ok := strings.Cut(v, ":")
@@ -50,6 +60,21 @@ func main() {
 		cfg.Header = header
 	}
 	cfg.KeepRecords = *records != ""
+	if len(watch) > 0 {
+		if *cgroupRoot == "" {
+			fmt.Fprintln(os.Stderr, "loadgen: -watch needs -cgroup-root")
+			os.Exit(2)
+		}
+		cfg.Watch = map[string]string{}
+		for name, id := range watch {
+			dir, err := loadgen.FindCgroup(*cgroupRoot, id)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "loadgen:", err)
+				os.Exit(1)
+			}
+			cfg.Watch[name] = dir
+		}
+	}
 
 	if err := run(cfg, *records); err != nil {
 		fmt.Fprintln(os.Stderr, "loadgen:", err)
