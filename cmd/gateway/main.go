@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,25 +14,40 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 	configPath := flag.String("config", "/etc/portalgun/config.json", "route and pool config")
 	addr := flag.String("addr", ":8080", "traffic listener")
 	adminAddr := flag.String("admin-addr", ":9090", "admin listener, never published")
+	redisAddr := flag.String("redis", os.Getenv("PORTAL_REDIS"), "Redis address for the shared rate limiters")
+	instance := flag.String("instance", "", "name of this gateway instance, defaults to the hostname")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	redis.SetLogger(redisLog{logger})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, logger, *configPath, *addr, *adminAddr, os.Getenv("PORTAL_ADMIN_TOKEN")); err != nil {
+	opts := options{config: *configPath, addr: *addr, admin: *adminAddr, token: os.Getenv("PORTAL_ADMIN_TOKEN"), redis: *redisAddr, instance: *instance}
+	if err := run(ctx, logger, opts); err != nil {
 		logger.Error("gateway stopped", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, logger *slog.Logger, configPath, addr, adminAddr, token string) error {
-	raw, err := os.ReadFile(configPath)
+type redisLog struct{ l *slog.Logger }
+
+func (r redisLog) Printf(_ context.Context, format string, v ...any) {
+	r.l.Debug(fmt.Sprintf(format, v...), "component", "redis")
+}
+
+type options struct {
+	config, addr, admin, token, redis, instance string
+}
+
+func run(ctx context.Context, logger *slog.Logger, o options) error {
+	raw, err := os.ReadFile(o.config)
 	if err != nil {
 		return err
 	}
@@ -39,11 +55,25 @@ func run(ctx context.Context, logger *slog.Logger, configPath, addr, adminAddr, 
 	if err != nil {
 		return err
 	}
-	g, err := proxy.New(cfg, proxy.Options{Logger: logger})
+	popts := proxy.Options{Logger: logger, Instance: o.instance}
+	if o.redis != "" {
+		rdb := redis.NewClient(&redis.Options{
+			Addr:         o.redis,
+			MaxRetries:   -1,
+			DialTimeout:  time.Second,
+			ReadTimeout:  time.Second,
+			WriteTimeout: time.Second,
+			PoolSize:     64,
+		})
+		defer rdb.Close()
+		popts.Redis = rdb
+	}
+	g, err := proxy.New(cfg, popts)
 	if err != nil {
 		return err
 	}
 	defer g.Close()
+	addr, adminAddr, token := o.addr, o.admin, o.token
 	traffic := &http.Server{
 		Addr:              addr,
 		Handler:           g,
@@ -59,7 +89,7 @@ func run(ctx context.Context, logger *slog.Logger, configPath, addr, adminAddr, 
 	errc := make(chan error, 2)
 	go func() { errc <- traffic.ListenAndServe() }()
 	go func() { errc <- admin.ListenAndServe() }()
-	logger.Info("gateway up", "addr", addr, "admin", adminAddr, "routes", len(cfg.Routes), "config_writes", token != "")
+	logger.Info("gateway up", "addr", addr, "admin", adminAddr, "routes", len(cfg.Routes), "config_writes", token != "", "redis", o.redis != "")
 
 	select {
 	case <-ctx.Done():

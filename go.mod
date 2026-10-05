@@ -2,7 +2,12 @@ module github.com/mirzanajafov/portalgun-router
 
 go 1.26
 
-require github.com/HdrHistogram/hdrhistogram-go v1.3.0
+require (
+	github.com/HdrHistogram/hdrhistogram-go v1.3.0
+	github.com/redis/go-redis/v9 v9.22.0
+)
+
+require go.uber.org/atomic v1.11.0 // indirect
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

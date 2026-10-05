@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
@@ -10,7 +11,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +22,7 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/balance"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
+	"github.com/mirzanajafov/portalgun-router/internal/limit"
 )
 
 const (
@@ -124,22 +128,61 @@ func (p *pool) acquire(now int64, tried []*upstream) (*upstream, bool, bool) {
 }
 
 type route struct {
-	name    string
-	host    string
-	prefix  string
-	pool    *pool
-	timeout time.Duration
-	perTry  time.Duration
-	retries int
-	budget  *health.Budget
-	proxy   *httputil.ReverseProxy
-	metrics *routeMetrics
+	name        string
+	host        string
+	prefix      string
+	pool        *pool
+	timeout     time.Duration
+	perTry      time.Duration
+	retries     int
+	budget      *health.Budget
+	limiter     limit.Limiter
+	limitHeader string
+	proxy       *httputil.ReverseProxy
+	metrics     *routeMetrics
+}
+
+func (r *route) limitKey(req *http.Request, hops int) string {
+	if r.limitHeader != "" {
+		if v := req.Header.Get(r.limitHeader); v != "" {
+			return "key:" + v
+		}
+	}
+	return "ip:" + clientIP(req, hops)
+}
+
+func clientIP(req *http.Request, hops int) string {
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		host = req.RemoteAddr
+	}
+	if hops <= 0 {
+		return host
+	}
+	var hopsSeen []string
+	for _, v := range req.Header.Values("X-Forwarded-For") {
+		for part := range strings.SplitSeq(v, ",") {
+			if p := strings.TrimSpace(part); p != "" {
+				hopsSeen = append(hopsSeen, p)
+			}
+		}
+	}
+	if len(hopsSeen) >= hops {
+		return hopsSeen[len(hopsSeen)-hops]
+	}
+	return host
+}
+
+type routeLimiter struct {
+	cfg config.RateLimit
+	l   limit.Limiter
 }
 
 type snapshot struct {
-	version int64
-	config  *config.Config
-	routes  []*route
+	version     int64
+	config      *config.Config
+	routes      []*route
+	trustedHops int
 }
 
 func (s *snapshot) match(host, path string) *route {
@@ -159,6 +202,8 @@ type Options struct {
 	Metrics   *Metrics
 	Logger    *slog.Logger
 	Transport func(address string) http.RoundTripper
+	Redis     limit.Pipeliner
+	Instance  string
 }
 
 type Gateway struct {
@@ -166,12 +211,15 @@ type Gateway struct {
 	metrics   *Metrics
 	logger    *slog.Logger
 	transport func(address string) http.RoundTripper
+	redis     limit.Pipeliner
+	instance  string
 	epoch     time.Time
 	buffers   *bufferPool
 
 	mu        sync.Mutex
 	version   int64
 	upstreams map[string]*upstream
+	limiters  map[string]*routeLimiter
 	closed    bool
 }
 
@@ -180,9 +228,15 @@ func New(cfg *config.Config, opts Options) (*Gateway, error) {
 		metrics:   opts.Metrics,
 		logger:    opts.Logger,
 		transport: opts.Transport,
+		redis:     opts.Redis,
+		instance:  opts.Instance,
 		epoch:     time.Now(),
 		buffers:   newBufferPool(),
 		upstreams: map[string]*upstream{},
+		limiters:  map[string]*routeLimiter{},
+	}
+	if g.instance == "" {
+		g.instance, _ = os.Hostname()
 	}
 	if g.metrics == nil {
 		g.metrics = NewMetrics()
@@ -215,6 +269,56 @@ func (g *Gateway) Close() {
 	for _, u := range g.upstreams {
 		u.stop()
 	}
+	for _, l := range g.limiters {
+		l.l.Close()
+	}
+}
+
+func (g *Gateway) newLimiter(route string, c config.RateLimit) (limit.Limiter, error) {
+	rule := limit.Rule{Rate: c.Rate, Burst: c.Burst}
+	prefix := "pf:" + route + ":"
+	switch c.Design {
+	case config.LimitStaticSplit:
+		return limit.NewStatic(rule, c.Instances, g.now), nil
+	case config.LimitRedisExact:
+		return limit.NewRedisExact(g.redis, prefix, rule, c.Instances, c.RedisTimeout.D(), g.now)
+	case config.LimitLocalSync:
+		return limit.NewLocalSync(g.redis, prefix, rule, c.Instances, g.instance, c.SyncInterval.D(), c.RedisTimeout.D(), g.now)
+	case config.LimitLease:
+		return limit.NewLease(g.redis, prefix, rule, c.Instances, c.LeaseTarget.D(), c.LeaseTTL.D(), c.RedisTimeout.D(), g.now)
+	}
+	return nil, fmt.Errorf("unknown rate limit design %q", c.Design)
+}
+
+func (g *Gateway) buildLimiters(cfg *config.Config) (map[string]*routeLimiter, error) {
+	out := map[string]*routeLimiter{}
+	fail := func(err error) (map[string]*routeLimiter, error) {
+		for name, l := range out {
+			if g.limiters[name] != l {
+				l.l.Close()
+			}
+		}
+		return nil, err
+	}
+	for _, rc := range cfg.Routes {
+		c := rc.RateLimit
+		if c == nil {
+			continue
+		}
+		if c.UsesRedis() && g.redis == nil {
+			return fail(fmt.Errorf("route %q: the %s rate limiter needs Redis", rc.Name, c.Design))
+		}
+		if old, ok := g.limiters[rc.Name]; ok && old.cfg == *c {
+			out[rc.Name] = old
+			continue
+		}
+		l, err := g.newLimiter(rc.Name, *c)
+		if err != nil {
+			return fail(err)
+		}
+		out[rc.Name] = &routeLimiter{cfg: *c, l: l}
+	}
+	return out, nil
 }
 
 func (g *Gateway) Apply(cfg *config.Config) error {
@@ -230,6 +334,10 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	if g.closed {
 		return errors.New("gateway is closed")
 	}
+	limiters, err := g.buildLimiters(cfg)
+	if err != nil {
+		return err
+	}
 
 	keep := map[string]*upstream{}
 	pools := map[string]*pool{}
@@ -239,6 +347,11 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 			for id, u := range keep {
 				if g.upstreams[id] != u {
 					u.stop()
+				}
+			}
+			for name, l := range limiters {
+				if g.limiters[name] != l {
+					l.l.Close()
 				}
 			}
 			return err
@@ -283,6 +396,13 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 			budget:  health.NewBudget(rc.Retries.BudgetRatio, rc.Retries.MinPerSecond),
 			metrics: g.metrics.forRoute(rc.Name),
 		}
+		if l, ok := limiters[rc.Name]; ok {
+			r.limiter = l.l
+			r.limitHeader, _ = strings.CutPrefix(rc.RateLimit.Key, "header:")
+			if rc.RateLimit.Key == "ip" {
+				r.limitHeader = ""
+			}
+		}
 		r.proxy = g.newReverseProxy(r)
 		routes = append(routes, r)
 	}
@@ -314,7 +434,13 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	}
 	g.upstreams = keep
 	g.version++
-	g.snap.Store(&snapshot{version: g.version, config: cfg, routes: routes})
+	g.snap.Store(&snapshot{version: g.version, config: cfg, routes: routes, trustedHops: cfg.TrustedHops})
+	for name, l := range g.limiters {
+		if limiters[name] != l {
+			l.l.Close()
+		}
+	}
+	g.limiters = limiters
 	return nil
 }
 
@@ -380,6 +506,18 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.metrics.unrouted.Inc()
 		http.Error(w, "no route", http.StatusNotFound)
 		return
+	}
+	if rt.limiter != nil {
+		d := rt.limiter.Allow(r.Context(), rt.limitKey(r, s.trustedHops))
+		if d.Degraded {
+			rt.metrics.limitDegraded.Inc()
+		}
+		if !d.Allowed {
+			rt.metrics.limited.Inc()
+			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(math.Ceil(d.RetryAfter.Seconds())))))
+			http.Error(w, "rate limited", http.StatusTooManyRequests)
+			return
+		}
 	}
 	began := time.Now()
 	ctx, cancel := context.WithTimeout(r.Context(), rt.timeout)
