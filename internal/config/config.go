@@ -47,18 +47,68 @@ const (
 )
 
 type Config struct {
-	Routes []Route `json:"routes"`
-	Pools  []Pool  `json:"pools"`
+	TrustedHops int     `json:"trustedHops,omitempty"`
+	Routes      []Route `json:"routes"`
+	Pools       []Pool  `json:"pools"`
 }
 
 type Route struct {
-	Name          string   `json:"name"`
-	Host          string   `json:"host,omitempty"`
-	PathPrefix    string   `json:"pathPrefix"`
-	Pool          string   `json:"pool"`
-	Timeout       Duration `json:"timeout,omitempty"`
-	PerTryTimeout Duration `json:"perTryTimeout,omitempty"`
-	Retries       Retries  `json:"retries,omitzero"`
+	Name          string     `json:"name"`
+	Host          string     `json:"host,omitempty"`
+	PathPrefix    string     `json:"pathPrefix"`
+	Pool          string     `json:"pool"`
+	Timeout       Duration   `json:"timeout,omitempty"`
+	PerTryTimeout Duration   `json:"perTryTimeout,omitempty"`
+	Retries       Retries    `json:"retries,omitzero"`
+	RateLimit     *RateLimit `json:"rateLimit,omitempty"`
+}
+
+const (
+	LimitStaticSplit = "static-split"
+	LimitRedisExact  = "redis-exact"
+	LimitLocalSync   = "local-sync"
+	LimitLease       = "lease"
+)
+
+type RateLimit struct {
+	Design       string   `json:"design"`
+	Rate         float64  `json:"rate"`
+	Burst        float64  `json:"burst"`
+	Key          string   `json:"key,omitempty"`
+	Instances    int      `json:"instances,omitempty"`
+	SyncInterval Duration `json:"syncInterval,omitempty"`
+	LeaseTarget  Duration `json:"leaseTarget,omitempty"`
+	LeaseTTL     Duration `json:"leaseTtl,omitempty"`
+	RedisTimeout Duration `json:"redisTimeout,omitempty"`
+}
+
+func (l *RateLimit) applyDefaults() {
+	orDefault(&l.Key, "ip")
+	orDefault(&l.Instances, 1)
+	orDefault(&l.SyncInterval, Duration(100*time.Millisecond))
+	orDefault(&l.LeaseTarget, Duration(20*time.Millisecond))
+	orDefault(&l.LeaseTTL, Duration(time.Second))
+	orDefault(&l.RedisTimeout, Duration(2*time.Millisecond))
+}
+
+func (l *RateLimit) UsesRedis() bool { return l.Design != LimitStaticSplit }
+
+func (l RateLimit) validate() error {
+	switch l.Design {
+	case LimitStaticSplit, LimitRedisExact, LimitLocalSync, LimitLease:
+	default:
+		return fmt.Errorf("unknown rate limit design %q", l.Design)
+	}
+	if !(l.Rate > 0) || !(l.Burst >= 1) || l.Instances < 1 {
+		return errors.New("rate limit needs a positive rate, a burst of at least 1 and at least one instance")
+	}
+	if name, ok := strings.CutPrefix(l.Key, "header:"); l.Key != "ip" && (!ok || name == "") {
+		return errors.New(`rate limit key must be "ip" or "header:<name>"`)
+	}
+	if l.SyncInterval <= 0 || l.LeaseTarget <= 0 || l.LeaseTTL <= 0 || l.RedisTimeout <= 0 {
+		return errors.New("rate limit intervals and timeouts must be positive")
+	}
+	return nil
 }
 
 type Retries struct {
@@ -164,6 +214,9 @@ func (c *Config) ApplyDefaults() {
 			r.PerTryTimeout = Duration(min(DefaultPerTry, r.Timeout.D()))
 		}
 		r.Retries.applyDefaults()
+		if r.RateLimit != nil {
+			r.RateLimit.applyDefaults()
+		}
 	}
 	for i := range c.Pools {
 		p := &c.Pools[i]
@@ -257,6 +310,14 @@ func (c *Config) Validate() error {
 		if !(rt.BudgetRatio >= 0 && rt.BudgetRatio <= 1) || !(rt.MinPerSecond >= 0) {
 			errs = append(errs, fmt.Errorf("route %q: retry budget ratio must be in [0, 1] and minPerSecond not negative", r.Name))
 		}
+		if r.RateLimit != nil {
+			if err := r.RateLimit.validate(); err != nil {
+				errs = append(errs, fmt.Errorf("route %q: %w", r.Name, err))
+			}
+		}
+	}
+	if c.TrustedHops < 0 || c.TrustedHops > 10 {
+		errs = append(errs, errors.New("trustedHops must be between 0 and 10"))
 	}
 	if len(c.Routes) == 0 {
 		errs = append(errs, errors.New("config has no routes"))

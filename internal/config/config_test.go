@@ -31,6 +31,18 @@ func TestParseAppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestRateLimitDefaults(t *testing.T) {
+	c, err := Parse([]byte(`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "local-sync", "rate": 1000, "burst": 100}}],
+		"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := c.Routes[0].RateLimit
+	if l.Key != "ip" || l.Instances != 1 || l.SyncInterval.D() != 100*time.Millisecond || l.LeaseTarget.D() != 20*time.Millisecond || l.RedisTimeout.D() != 2*time.Millisecond || !l.UsesRedis() {
+		t.Fatalf("defaults %+v", l)
+	}
+}
+
 func TestZeroIsKeptWhereItMeansOff(t *testing.T) {
 	c, err := Parse([]byte(`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 0}}],
 		"pools": [{"name": "p", "panicThreshold": 0, "slowStart": "0s", "healthCheck": {"disabled": true},
@@ -68,6 +80,14 @@ func TestParseRejectsBadConfigs(t *testing.T) {
 			"pools": [{"name": "p", "panicThreshold": 1.5, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "panicThreshold"},
 		"probe slower than interval": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "healthCheck": {"interval": "1s", "timeout": "2s"}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "healthCheck"},
+		"unknown limiter": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "vibes", "rate": 1, "burst": 1}}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "unknown rate limit design"},
+		"limiter burst": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "lease", "rate": 10, "burst": 0.5}}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "burst of at least 1"},
+		"limiter key": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "lease", "rate": 10, "burst": 5, "key": "cookie:id"}}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "key must be"},
+		"trusted hops": {`{"trustedHops": -1, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "trustedHops"},
 		"tiny decay": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "ewmaDecay": "10ms", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "ewmaDecay"},
 		"outlier ratio": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],

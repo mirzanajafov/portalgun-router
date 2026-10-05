@@ -27,6 +27,8 @@ type Metrics struct {
 	exhausted  *prometheus.CounterVec
 	panics     *prometheus.CounterVec
 	changes    *prometheus.CounterVec
+	limited    *prometheus.CounterVec
+	degraded   *prometheus.CounterVec
 	unrouted   prometheus.Counter
 	gateway    atomic.Pointer[Gateway]
 	inflight   *prometheus.Desc
@@ -69,6 +71,14 @@ func NewMetrics() *Metrics {
 			Name: "portal_dimension_transitions_total",
 			Help: "Health and ejection state changes by dimension and new state.",
 		}, []string{"dimension", "state"}),
+		limited: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_rate_limited_total",
+			Help: "Requests refused with 429 by the route's rate limiter.",
+		}, []string{"route"}),
+		degraded: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_rate_limit_degraded_total",
+			Help: "Rate limit decisions made by the local fallback because Redis was slow or down.",
+		}, []string{"route"}),
 		unrouted: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "portal_unrouted_total",
 			Help: "Requests that matched no route.",
@@ -76,7 +86,7 @@ func NewMetrics() *Metrics {
 		inflight: prometheus.NewDesc("portal_dimension_inflight", "Requests in flight to a dimension.", []string{"dimension", "version"}, nil),
 		latency:  prometheus.NewDesc("portal_dimension_latency_seconds", "Peak EWMA latency the balancer sees for a dimension.", []string{"dimension", "version"}, nil),
 	}
-	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.unrouted, m,
+	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -117,6 +127,8 @@ type routeMetrics struct {
 	retries         prometheus.Counter
 	budgetExhausted prometheus.Counter
 	panics          prometheus.Counter
+	limited         prometheus.Counter
+	limitDegraded   prometheus.Counter
 	counters        sync.Map
 }
 
@@ -130,6 +142,8 @@ func (m *Metrics) forRoute(route string) *routeMetrics {
 		retries:         m.retries.WithLabelValues(route),
 		budgetExhausted: m.exhausted.WithLabelValues(route),
 		panics:          m.panics.WithLabelValues(route),
+		limited:         m.limited.WithLabelValues(route),
+		limitDegraded:   m.degraded.WithLabelValues(route),
 	}
 }
 
