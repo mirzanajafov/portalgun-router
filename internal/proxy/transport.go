@@ -48,13 +48,13 @@ func newBufferPool() *bufferPool {
 func (b *bufferPool) Get() []byte  { return *b.p.Get().(*[]byte) }
 func (b *bufferPool) Put(v []byte) { b.p.Put(&v) }
 
-func (g *Gateway) newReverseProxy(r *route) *httputil.ReverseProxy {
+func (g *Gateway) newReverseProxy(r *route, first *subset) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme = "http"
 			pr.SetXForwarded()
 		},
-		Transport:    &attempt{g: g, r: r},
+		Transport:    &attempt{g: g, r: r, first: first},
 		BufferPool:   g.buffers,
 		ErrorHandler: g.errorHandler(r),
 		ErrorLog:     log.New(io.Discard, "", 0),
@@ -146,8 +146,9 @@ func takeBody(req *http.Request) ([]byte, bool, error) {
 }
 
 type attempt struct {
-	g *Gateway
-	r *route
+	g     *Gateway
+	r     *route
+	first *subset
 }
 
 func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -167,7 +168,11 @@ func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
 	tried := triedBuf[:0]
 	var resp *http.Response
 	for {
-		u, ok, panicking := r.pool.acquire(g.now(), tried)
+		from := a.first
+		if len(tried) > 0 {
+			from = r.stable
+		}
+		u, ok, panicking := from.acquire(g.now(), tried)
 		if panicking {
 			r.metrics.panics.Inc()
 		}
@@ -243,8 +248,22 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 		status = resp.StatusCode
 	}
 	f := classify(err, status, timedOut.Load(), req.Context())
-	if u.outlier != nil && f != failCanceled {
-		u.outlier.Record(finished, f != failNone, errors.Is(err, syscall.ECONNREFUSED), trial)
+	if f != failCanceled {
+		if u.outlier != nil {
+			u.outlier.Record(finished, f != failNone, errors.Is(err, syscall.ECONNREFUSED), trial)
+		}
+		slot := stableSlot
+		if r.canary != nil && u.version == r.canaryVersion {
+			slot = canarySlot
+		}
+		latency := time.Duration(finished - started)
+		r.stats.observe(slot, f != failNone, latency)
+		u.counters.attempts.Add(1)
+		if f != failNone {
+			u.counters.errors.Add(1)
+		} else {
+			u.counters.latency.Observe(latency)
+		}
 	}
 	if err != nil {
 		cancel()

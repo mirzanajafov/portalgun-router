@@ -61,6 +61,14 @@ type Route struct {
 	PerTryTimeout Duration   `json:"perTryTimeout,omitempty"`
 	Retries       Retries    `json:"retries,omitzero"`
 	RateLimit     *RateLimit `json:"rateLimit,omitempty"`
+	Versions      Versions   `json:"versions,omitzero"`
+}
+
+type Versions struct {
+	Stable  string  `json:"stable,omitempty"`
+	Canary  string  `json:"canary,omitempty"`
+	Weight  float64 `json:"weight,omitempty"`
+	Rollout string  `json:"rollout,omitempty"`
 }
 
 const (
@@ -80,6 +88,25 @@ type RateLimit struct {
 	LeaseTarget  Duration `json:"leaseTarget,omitempty"`
 	LeaseTTL     Duration `json:"leaseTtl,omitempty"`
 	RedisTimeout Duration `json:"redisTimeout,omitempty"`
+}
+
+func (v Versions) validate(present map[string]bool) error {
+	switch {
+	case v.Stable != "" && present != nil && !present[v.Stable]:
+		return fmt.Errorf("no dimension in the pool runs the stable version %q", v.Stable)
+	case v.Canary == "":
+		if v.Weight != 0 {
+			return errors.New("a canary weight needs a canary version")
+		}
+	case v.Stable == "" || v.Canary == v.Stable:
+		return errors.New("a canary needs a different stable version")
+	case present != nil && !present[v.Canary]:
+		return fmt.Errorf("no dimension in the pool runs the canary version %q", v.Canary)
+	}
+	if !(v.Weight >= 0 && v.Weight <= 1) {
+		return errors.New("canary weight must be between 0 and 1")
+	}
+	return nil
 }
 
 func (l *RateLimit) applyDefaults() {
@@ -248,7 +275,12 @@ func (c *Config) Validate() error {
 	var errs []error
 	pools := map[string]bool{}
 	dims := map[string]string{}
+	versions := map[string]map[string]bool{}
 	for _, p := range c.Pools {
+		versions[p.Name] = map[string]bool{}
+		for _, d := range p.Dimensions {
+			versions[p.Name][d.Version] = true
+		}
 		switch {
 		case p.Name == "":
 			errs = append(errs, errors.New("pool without a name"))
@@ -314,6 +346,9 @@ func (c *Config) Validate() error {
 			if err := r.RateLimit.validate(); err != nil {
 				errs = append(errs, fmt.Errorf("route %q: %w", r.Name, err))
 			}
+		}
+		if err := r.Versions.validate(versions[r.Pool]); err != nil {
+			errs = append(errs, fmt.Errorf("route %q: %w", r.Name, err))
 		}
 	}
 	if c.TrustedHops < 0 || c.TrustedHops > 10 {

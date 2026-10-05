@@ -52,6 +52,7 @@ type upstream struct {
 	checker   *health.Checker
 	slowStart int64
 	readyAt   atomic.Int64
+	counters  upstreamCounters
 }
 
 func (u *upstream) Load() *balance.Load { return u.load }
@@ -86,14 +87,13 @@ var (
 	panicFilters  = []balance.Filter[*upstream]{filterAny}
 )
 
-type pool struct {
-	name      string
+type subset struct {
 	upstreams []*upstream
 	balancer  balance.Balancer[*upstream]
 	panic     float64
 }
 
-func (p *pool) panicking(now int64) bool {
+func (p *subset) panicking(now int64) bool {
 	healthy := 0
 	for _, u := range p.upstreams {
 		if u.healthy(now) {
@@ -103,7 +103,7 @@ func (p *pool) panicking(now int64) bool {
 	return float64(healthy) < p.panic*float64(len(p.upstreams))
 }
 
-func (p *pool) acquire(now int64, tried []*upstream) (*upstream, bool, bool) {
+func (p *subset) acquire(now int64, tried []*upstream) (*upstream, bool, bool) {
 	panicking := p.panicking(now)
 	filters := normalFilters
 	if panicking {
@@ -128,27 +128,50 @@ func (p *pool) acquire(now int64, tried []*upstream) (*upstream, bool, bool) {
 }
 
 type route struct {
-	name        string
-	host        string
-	prefix      string
-	pool        *pool
-	timeout     time.Duration
-	perTry      time.Duration
-	retries     int
-	budget      *health.Budget
-	limiter     limit.Limiter
-	limitHeader string
-	proxy       *httputil.ReverseProxy
-	metrics     *routeMetrics
+	name          string
+	host          string
+	prefix        string
+	stable        *subset
+	canary        *subset
+	canaryVersion string
+	canaryCut     uint64
+	rollout       string
+	weight        float64
+	stableVersion string
+	timeout       time.Duration
+	perTry        time.Duration
+	retries       int
+	budget        *health.Budget
+	limiter       limit.Limiter
+	limitHeader   string
+	stickyHeader  string
+	proxy         *httputil.ReverseProxy
+	canaryProxy   *httputil.ReverseProxy
+	stats         *routeStats
+	metrics       *routeMetrics
 }
 
-func (r *route) limitKey(req *http.Request, hops int) string {
-	if r.limitHeader != "" {
-		if v := req.Header.Get(r.limitHeader); v != "" {
+func keyFor(req *http.Request, header string, hops int) string {
+	if header != "" {
+		if v := req.Header.Get(header); v != "" {
 			return "key:" + v
 		}
 	}
 	return "ip:" + clientIP(req, hops)
+}
+
+func (r *route) limitKey(req *http.Request, hops int) string {
+	return keyFor(req, r.limitHeader, hops)
+}
+
+func (r *route) pick(req *http.Request, hops int) *httputil.ReverseProxy {
+	if r.canary == nil || r.canaryCut == 0 || r.stats.brakeOn.Load() {
+		return r.proxy
+	}
+	if sticky(r.rollout, keyFor(req, r.stickyHeader, hops)) < r.canaryCut {
+		return r.canaryProxy
+	}
+	return r.proxy
 }
 
 func clientIP(req *http.Request, hops int) string {
@@ -199,11 +222,12 @@ func (s *snapshot) match(host, path string) *route {
 }
 
 type Options struct {
-	Metrics   *Metrics
-	Logger    *slog.Logger
-	Transport func(address string) http.RoundTripper
-	Redis     limit.Pipeliner
-	Instance  string
+	Metrics    *Metrics
+	Logger     *slog.Logger
+	Transport  func(address string) http.RoundTripper
+	Redis      limit.Pipeliner
+	Instance   string
+	ManualTick bool
 }
 
 type Gateway struct {
@@ -216,24 +240,34 @@ type Gateway struct {
 	epoch     time.Time
 	buffers   *bufferPool
 
-	mu        sync.Mutex
-	version   int64
-	upstreams map[string]*upstream
-	limiters  map[string]*routeLimiter
-	closed    bool
+	cluster  atomic.Int64
+	latest   atomic.Pointer[Snapshot]
+	stopTick chan struct{}
+	tickDone chan struct{}
+
+	mu          sync.Mutex
+	version     int64
+	upstreams   map[string]*upstream
+	limiters    map[string]*routeLimiter
+	routeStats  map[string]*routeStats
+	subscribers []func(Snapshot)
+	closed      bool
 }
 
 func New(cfg *config.Config, opts Options) (*Gateway, error) {
 	g := &Gateway{
-		metrics:   opts.Metrics,
-		logger:    opts.Logger,
-		transport: opts.Transport,
-		redis:     opts.Redis,
-		instance:  opts.Instance,
-		epoch:     time.Now(),
-		buffers:   newBufferPool(),
-		upstreams: map[string]*upstream{},
-		limiters:  map[string]*routeLimiter{},
+		metrics:    opts.Metrics,
+		logger:     opts.Logger,
+		transport:  opts.Transport,
+		redis:      opts.Redis,
+		instance:   opts.Instance,
+		epoch:      time.Now(),
+		buffers:    newBufferPool(),
+		upstreams:  map[string]*upstream{},
+		limiters:   map[string]*routeLimiter{},
+		routeStats: map[string]*routeStats{},
+		stopTick:   make(chan struct{}),
+		tickDone:   make(chan struct{}),
 	}
 	if g.instance == "" {
 		g.instance, _ = os.Hostname()
@@ -251,7 +285,86 @@ func New(cfg *config.Config, opts Options) (*Gateway, error) {
 	if err := g.Apply(cfg); err != nil {
 		return nil, err
 	}
+	if opts.ManualTick {
+		close(g.tickDone)
+	} else {
+		go g.tickLoop()
+	}
 	return g, nil
+}
+
+func (g *Gateway) SetClusterVersion(v int64) { g.cluster.Store(v) }
+
+func (g *Gateway) ClusterVersion() int64 { return g.cluster.Load() }
+
+func (g *Gateway) Latest() *Snapshot { return g.latest.Load() }
+
+func (g *Gateway) Subscribe(fn func(Snapshot)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.subscribers = append(g.subscribers, fn)
+}
+
+func (g *Gateway) tickLoop() {
+	defer close(g.tickDone)
+	for {
+		next := time.Now().Truncate(time.Second).Add(time.Second)
+		t := time.NewTimer(time.Until(next))
+		select {
+		case <-g.stopTick:
+			t.Stop()
+			return
+		case <-t.C:
+		}
+		g.Tick(next.Unix() - 1)
+	}
+}
+
+func (g *Gateway) Tick(second int64) Snapshot {
+	now := g.now()
+	s := g.snap.Load()
+	snap := Snapshot{
+		Instance:      g.instance,
+		Second:        second,
+		ConfigVersion: s.version,
+		ClusterConfig: g.cluster.Load(),
+		Routes:        map[string]RouteSnapshot{},
+	}
+	g.mu.Lock()
+	for _, r := range s.routes {
+		rs := r.stats.tick()
+		rs.Stable, rs.Canary, rs.Weight, rs.Rollout = r.stableVersion, r.canaryVersion, r.weight, r.rollout
+		snap.Routes[r.name] = rs
+	}
+	for _, u := range g.upstreams {
+		lat := u.counters.latency.Drain()
+		d := DimensionSnapshot{
+			ID:       u.id,
+			Version:  u.version,
+			Attempts: u.counters.attempts.Swap(0),
+			Errors:   u.counters.errors.Swap(0),
+			P50Ms:    ms(lat.Quantile(0.5)),
+			P99Ms:    ms(lat.Quantile(0.99)),
+			Inflight: u.load.Inflight(),
+			Healthy:  u.checker == nil || u.checker.Healthy(),
+			Outlier:  "disabled",
+		}
+		if u.outlier != nil {
+			d.Outlier = u.outlier.State().String()
+			if left := u.outlier.Until() - now; d.Outlier == "ejected" && left > 0 {
+				d.EjectedMs = float64(left) / 1e6
+			}
+		}
+		snap.Dimensions = append(snap.Dimensions, d)
+	}
+	subs := slices.Clone(g.subscribers)
+	g.mu.Unlock()
+	slices.SortFunc(snap.Dimensions, func(a, b DimensionSnapshot) int { return strings.Compare(a.ID, b.ID) })
+	g.latest.Store(&snap)
+	for _, fn := range subs {
+		fn(snap)
+	}
+	return snap
 }
 
 func (g *Gateway) now() int64 { return int64(time.Since(g.epoch)) }
@@ -264,8 +377,16 @@ func (g *Gateway) Config() *config.Config { return g.snap.Load().config }
 
 func (g *Gateway) Close() {
 	g.mu.Lock()
-	defer g.mu.Unlock()
+	if g.closed {
+		g.mu.Unlock()
+		return
+	}
 	g.closed = true
+	g.mu.Unlock()
+	close(g.stopTick)
+	<-g.tickDone
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	for _, u := range g.upstreams {
 		u.stop()
 	}
@@ -340,23 +461,40 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	}
 
 	keep := map[string]*upstream{}
-	pools := map[string]*pool{}
-	for _, pc := range cfg.Pools {
-		bal, err := balance.New[*upstream](pc.Balancer)
-		if err != nil {
-			for id, u := range keep {
-				if g.upstreams[id] != u {
-					u.stop()
-				}
+	type poolSpec struct {
+		upstreams []*upstream
+		balancer  string
+		panic     float64
+	}
+	pools := map[string]*poolSpec{}
+	abort := func(err error) error {
+		for id, u := range keep {
+			if g.upstreams[id] != u {
+				u.stop()
 			}
-			for name, l := range limiters {
-				if g.limiters[name] != l {
-					l.l.Close()
-				}
-			}
-			return err
 		}
-		p := &pool{name: pc.Name, balancer: bal, panic: *pc.PanicThreshold}
+		for name, l := range limiters {
+			if g.limiters[name] != l {
+				l.l.Close()
+			}
+		}
+		return err
+	}
+	newSubset := func(ps *poolSpec, version string) (*subset, error) {
+		bal, err := balance.New[*upstream](ps.balancer)
+		if err != nil {
+			return nil, err
+		}
+		s := &subset{balancer: bal, panic: ps.panic}
+		for _, u := range ps.upstreams {
+			if version == "" || u.version == version {
+				s.upstreams = append(s.upstreams, u)
+			}
+		}
+		return s, nil
+	}
+	for _, pc := range cfg.Pools {
+		p := &poolSpec{balancer: pc.Balancer, panic: *pc.PanicThreshold}
 		for _, d := range pc.Dimensions {
 			spec := upstreamSpec{
 				address:     d.Address,
@@ -384,17 +522,35 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	}
 
 	routes := make([]*route, 0, len(cfg.Routes))
+	stats := map[string]*routeStats{}
 	for _, rc := range cfg.Routes {
+		v := rc.Versions
+		stable, err := newSubset(pools[rc.Pool], v.Stable)
+		if err != nil {
+			return abort(err)
+		}
+		rs, ok := g.routeStats[rc.Name]
+		if !ok {
+			rs = newRouteStats()
+		}
+		rs.resetBrake(v.Rollout)
+		stats[rc.Name] = rs
 		r := &route{
-			name:    rc.Name,
-			host:    rc.Host,
-			prefix:  rc.PathPrefix,
-			pool:    pools[rc.Pool],
-			timeout: rc.Timeout.D(),
-			perTry:  rc.PerTryTimeout.D(),
-			retries: *rc.Retries.Max,
-			budget:  health.NewBudget(rc.Retries.BudgetRatio, rc.Retries.MinPerSecond),
-			metrics: g.metrics.forRoute(rc.Name),
+			name:          rc.Name,
+			host:          rc.Host,
+			prefix:        rc.PathPrefix,
+			stable:        stable,
+			stableVersion: v.Stable,
+			canaryVersion: v.Canary,
+			weight:        v.Weight,
+			canaryCut:     uint64(math.Round(v.Weight * 10000)),
+			rollout:       v.Rollout,
+			timeout:       rc.Timeout.D(),
+			perTry:        rc.PerTryTimeout.D(),
+			retries:       *rc.Retries.Max,
+			budget:        health.NewBudget(rc.Retries.BudgetRatio, rc.Retries.MinPerSecond),
+			stats:         rs,
+			metrics:       g.metrics.forRoute(rc.Name),
 		}
 		if l, ok := limiters[rc.Name]; ok {
 			r.limiter = l.l
@@ -403,7 +559,14 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 				r.limitHeader = ""
 			}
 		}
-		r.proxy = g.newReverseProxy(r)
+		r.stickyHeader = r.limitHeader
+		r.proxy = g.newReverseProxy(r, stable)
+		if v.Canary != "" {
+			if r.canary, err = newSubset(pools[rc.Pool], v.Canary); err != nil {
+				return abort(err)
+			}
+			r.canaryProxy = g.newReverseProxy(r, r.canary)
+		}
 		routes = append(routes, r)
 	}
 	slices.SortStableFunc(routes, func(a, b *route) int {
@@ -441,6 +604,7 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 		}
 	}
 	g.limiters = limiters
+	g.routeStats = stats
 	return nil
 }
 
@@ -507,12 +671,14 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no route", http.StatusNotFound)
 		return
 	}
+	rt.stats.requests.Add(1)
 	if rt.limiter != nil {
 		d := rt.limiter.Allow(r.Context(), rt.limitKey(r, s.trustedHops))
 		if d.Degraded {
 			rt.metrics.limitDegraded.Inc()
 		}
 		if !d.Allowed {
+			rt.stats.limited.Add(1)
 			rt.metrics.limited.Inc()
 			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(math.Ceil(d.RetryAfter.Seconds())))))
 			http.Error(w, "rate limited", http.StatusTooManyRequests)
@@ -522,7 +688,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	began := time.Now()
 	ctx, cancel := context.WithTimeout(r.Context(), rt.timeout)
 	defer cancel()
-	rt.proxy.ServeHTTP(w, r.WithContext(ctx))
+	rt.pick(r, s.trustedHops).ServeHTTP(w, r.WithContext(ctx))
 	rt.metrics.duration.Observe(time.Since(began).Seconds())
 }
 

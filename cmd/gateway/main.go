@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/mirzanajafov/portalgun-router/internal/distrib"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/redis/go-redis/v9"
 )
@@ -56,8 +57,9 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		return err
 	}
 	popts := proxy.Options{Logger: logger, Instance: o.instance}
+	var rdb *redis.Client
 	if o.redis != "" {
-		rdb := redis.NewClient(&redis.Options{
+		rdb = redis.NewClient(&redis.Options{
 			Addr:         o.redis,
 			MaxRetries:   -1,
 			DialTimeout:  time.Second,
@@ -73,6 +75,12 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		return err
 	}
 	defer g.Close()
+	if rdb != nil {
+		pub := distrib.NewPublisher(rdb, logger)
+		g.Subscribe(pub.Offer)
+		go pub.Run(ctx)
+		go distrib.NewWatcher(rdb, g, logger, 10*time.Second).Run(ctx)
+	}
 	addr, adminAddr, token := o.addr, o.admin, o.token
 	traffic := &http.Server{
 		Addr:              addr,
