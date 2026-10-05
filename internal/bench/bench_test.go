@@ -61,10 +61,28 @@ func TestJudge(t *testing.T) {
 
 	lagging := healthy
 	lagging.LagUs.P99 = 3000
+	lagging.LatencyUs.P99 = 95_000
 	p = Point{Rate: 1000, Loadgen: lagging}
 	judge(&p)
 	if p.Saturated || p.GeneratorOK {
-		t.Fatalf("generator problem judged %+v", p)
+		t.Fatalf("a lagging generator's tail was blamed on the system: %+v", p)
+	}
+
+	lagging.Failed = 500
+	p = Point{Rate: 1000, Loadgen: lagging}
+	judge(&p)
+	if !p.Saturated {
+		t.Fatalf("failures ignored because the generator lagged: %+v", p)
+	}
+}
+
+func TestSummarizeDropsLaggingRunsFromLatency(t *testing.T) {
+	lag := point("nginx", 1000, 1, 900, 95000, false)
+	lag.GeneratorOK = false
+	r := Summarize([]Point{point("nginx", 1000, 0, 300, 1500, false), lag})
+	c := r.Cells[0]
+	if c.Runs != 2 || c.GeneratorIssues != 1 || c.P99Us.Max != 1500 {
+		t.Fatalf("cell %+v", c)
 	}
 }
 

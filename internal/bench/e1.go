@@ -100,6 +100,8 @@ type Point struct {
 	Saturated          bool               `json:"saturated"`
 	Reasons            []string           `json:"reasons,omitempty"`
 	GeneratorOK        bool               `json:"generatorOk"`
+	Attempt            int                `json:"attempt"`
+	Confirmation       bool               `json:"confirmation,omitempty"`
 	Loadgen            loadgen.Summary    `json:"loadgen"`
 }
 
@@ -112,13 +114,12 @@ const (
 	maxDimensionUtil = 0.5
 	dimensionCPUs    = 2
 	primeDuration    = 10 * time.Second
+	maxAttempts      = 3
 )
 
 func judge(p *Point) {
 	s := p.Loadgen
-	if s.LatencyUs.P99 > maxP99Us {
-		p.Reasons = append(p.Reasons, fmt.Sprintf("p99 %.1f ms", s.LatencyUs.P99/1000))
-	}
+	p.GeneratorOK = s.LagUs.P99 <= maxGeneratorLag && (s.CPU == nil || s.CPU.Utilization <= maxGeneratorUtil)
 	if s.Scheduled > 0 {
 		if share := float64(s.Failed+s.Dropped) / float64(s.Scheduled); share > maxFailureShare {
 			p.Reasons = append(p.Reasons, fmt.Sprintf("%.2f%% failed", share*100))
@@ -127,8 +128,10 @@ func judge(p *Point) {
 	if s.ThroughputRps < minThroughput*p.Rate {
 		p.Reasons = append(p.Reasons, fmt.Sprintf("throughput %.0f of %.0f", s.ThroughputRps, p.Rate))
 	}
+	if p.GeneratorOK && s.LatencyUs.P99 > maxP99Us {
+		p.Reasons = append(p.Reasons, fmt.Sprintf("p99 %.1f ms", s.LatencyUs.P99/1000))
+	}
 	p.Saturated = len(p.Reasons) > 0
-	p.GeneratorOK = s.LagUs.P99 <= maxGeneratorLag && (s.CPU == nil || s.CPU.Utilization <= maxGeneratorUtil)
 	if !p.GeneratorOK {
 		p.Reasons = append(p.Reasons, "generator limited")
 	}
@@ -202,24 +205,47 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 				if l, ok := limit[sys.Name]; ok && rate > l {
 					continue
 				}
-				p, err := r.point(ctx, compose, plan, sys, rate, rep, slot)
-				if err != nil {
-					return dir, err
-				}
-				if err := enc.Encode(p); err != nil {
-					return dir, err
-				}
-				if p.Saturated {
-					if _, ok := limit[sys.Name]; !ok {
-						limit[sys.Name] = rate
+				saturated := true
+				for _, confirmation := range []bool{false, true} {
+					p, err := r.measure(ctx, compose, plan, sys, rate, rep, slot)
+					if err != nil {
+						return dir, err
+					}
+					p.Confirmation = confirmation
+					if err := enc.Encode(p); err != nil {
+						return dir, err
+					}
+					r.logf("[%d/%d] rep %d %-8s %7.0f rps  p50 %7.1f us  p99 %8.1f us  cpu %6.1f us/req  %s",
+						done, total, rep+1, sys.Name, rate, p.Loadgen.LatencyUs.P50, p.Loadgen.LatencyUs.P99, p.CPUPerRequestUs, strings.Join(p.Reasons, ", "))
+					if !p.Saturated {
+						saturated = false
+						break
 					}
 				}
-				r.logf("[%d/%d] rep %d %-8s %7.0f rps  p50 %7.1f us  p99 %8.1f us  cpu %6.1f us/req  %s",
-					done, total, rep+1, sys.Name, rate, p.Loadgen.LatencyUs.P50, p.Loadgen.LatencyUs.P99, p.CPUPerRequestUs, strings.Join(p.Reasons, ", "))
+				if saturated {
+					limit[sys.Name] = rate
+				}
 			}
 		}
 	}
 	return dir, nil
+}
+
+func (r *Runner) measure(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int) (Point, error) {
+	var p Point
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var err error
+		p, err = r.point(ctx, compose, plan, sys, rate, rep, slot)
+		if err != nil {
+			return p, err
+		}
+		p.Attempt = attempt
+		if p.GeneratorOK || p.Saturated {
+			return p, nil
+		}
+		r.logf("  %s at %.0f rps: the generator fell behind, repeating", sys.Name, rate)
+	}
+	return p, nil
 }
 
 func (r *Runner) point(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int) (Point, error) {

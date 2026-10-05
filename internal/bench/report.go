@@ -97,6 +97,7 @@ func Summarize(points []Point) Report {
 	rep := Report{Workload: workload, MaxRate: map[string]float64{}}
 	for k, ps := range groups {
 		c := Cell{System: k.system, Rate: k.rate, Runs: len(ps)}
+		clean := slices.ContainsFunc(ps, func(p Point) bool { return p.GeneratorOK })
 		var p50, p99, p999, tput, cpu, user []float64
 		for _, p := range ps {
 			if p.Saturated {
@@ -104,6 +105,9 @@ func Summarize(points []Point) Report {
 			}
 			if !p.GeneratorOK {
 				c.GeneratorIssues++
+				if clean {
+					continue
+				}
 			}
 			p50 = append(p50, p.Loadgen.LatencyUs.P50)
 			p99 = append(p99, p.Loadgen.LatencyUs.P99)
