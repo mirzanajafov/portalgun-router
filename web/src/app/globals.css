@@ -1,0 +1,100 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-portal: #39d353;
+  --color-portal-dim: #1f7a33;
+  --color-fluid: #3fb8ff;
+  --color-warn: #f2a33a;
+  --color-fault: #f2545b;
+}
+
+:root {
+  --bg: #f6f7f4;
+  --panel: #ffffff;
+  --ink: #12151a;
+  --muted: #5d6673;
+  --line: #dfe3dc;
+  --grid: #eef0eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f0d;
+    --panel: #121815;
+    --ink: #e6ede8;
+    --muted: #8c9a92;
+    --line: #23302a;
+    --grid: #18211c;
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mono {
+  font-family: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-portal);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-portal);
+  border-color: var(--color-portal);
+  color: #06130a;
+  font-weight: 600;
+}
+
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--color-fault);
+}
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.flow {
+  stroke-dasharray: 6 6;
+  animation: flow 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow {
+    animation: none;
+  }
+}
