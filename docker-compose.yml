@@ -1,0 +1,110 @@
+name: portalgun
+
+x-go: &go
+  image: portalgun
+  build: .
+  restart: unless-stopped
+
+x-dimension: &dimension
+  <<: *go
+  cpus: 0.1
+  mem_limit: 32m
+
+services:
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "48mb", "--maxmemory-policy", "allkeys-lru"]
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 64m
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portal}
+      POSTGRES_DB: portal
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "portal"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 256m
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./deploy/toxiproxy.json:/config/toxiproxy.json:ro
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 64m
+
+  dim-c137:
+    <<: *dimension
+    command: ["dimension", "-id", "c-137", "-version", "v1", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
+  dim-j19:
+    <<: *dimension
+    command: ["dimension", "-id", "j19-zeta-7", "-version", "v1", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
+  dim-d99:
+    <<: *dimension
+    command: ["dimension", "-id", "d-99", "-version", "v1", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
+  dim-cronenberg:
+    <<: *dimension
+    command: ["dimension", "-id", "cronenberg", "-version", "v2", "-delay-ms", "15", "-delay-dist", "lognormal", "-delay-sigma", "0.4"]
+
+  gateway-1:
+    <<: *go
+    command: ["gateway", "-config", "/etc/portalgun/cluster.json", "-redis", "redis:6379", "-instance", "gw-1"]
+    volumes:
+      - ./deploy/cluster.json:/etc/portalgun/cluster.json:ro
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-3122}:8080"
+    depends_on: [redis, toxiproxy]
+    cpus: 0.5
+    mem_limit: 128m
+  gateway-2:
+    <<: *go
+    command: ["gateway", "-config", "/etc/portalgun/cluster.json", "-redis", "redis:6379", "-instance", "gw-2"]
+    volumes:
+      - ./deploy/cluster.json:/etc/portalgun/cluster.json:ro
+    depends_on: [redis, toxiproxy]
+    cpus: 0.5
+    mem_limit: 128m
+
+  controller:
+    <<: *go
+    command:
+      - controller
+      - -bootstrap=/etc/portalgun/cluster.json
+      - -toxiproxy=http://toxiproxy:8474
+      - -targets=c-137=http://dim-c137:8081,j19-zeta-7=http://dim-j19:8081,d-99=http://dim-d99:8081,cronenberg=http://dim-cronenberg:8081
+    environment:
+      PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:-portal}@postgres:5432/portal?sslmode=disable
+      PORTAL_REDIS: redis:6379
+      PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:-dev-token}
+    volumes:
+      - ./deploy/cluster.json:/etc/portalgun/cluster.json:ro
+    ports:
+      - "127.0.0.1:${CONTROLLER_PORT:-3121}:9100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    cpus: 0.25
+    mem_limit: 128m
+
+  traffic:
+    <<: *go
+    command: ["traffic", "-controller", "http://controller:9100", "-gateways", "http://gateway-1:8080,http://gateway-2:8080", "-rate", "${TRAFFIC_RATE:-200}", "-clients", "2000"]
+    depends_on: [controller, gateway-1, gateway-2]
+    cpus: 0.25
+    mem_limit: 64m
+
+volumes:
+  pgdata:

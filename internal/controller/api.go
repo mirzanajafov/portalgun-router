@@ -69,6 +69,9 @@ func (a *API) Handler() http.Handler {
 		h, err := a.history.Rollouts(r.Context(), 20)
 		respond(w, h, err)
 	})
+	mux.HandleFunc("GET /api/admin", a.admin(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]bool{"admin": true})
+	}))
 	mux.HandleFunc("POST /api/rollouts", a.admin(a.startRollout))
 	mux.HandleFunc("POST /api/rollouts/abort", a.admin(a.abortRollout))
 	if a.extra != nil {

@@ -1,0 +1,34 @@
+{
+  "trustedHops": 1,
+  "routes": [
+    {
+      "name": "portal",
+      "pathPrefix": "/portal/",
+      "pool": "dimensions",
+      "timeout": "10s",
+      "perTryTimeout": "2s",
+      "versions": { "stable": "v1" }
+    },
+    {
+      "name": "fluid",
+      "pathPrefix": "/fluid/",
+      "pool": "dimensions",
+      "timeout": "10s",
+      "perTryTimeout": "2s",
+      "versions": { "stable": "v1" },
+      "rateLimit": { "design": "local-sync", "rate": 20, "burst": 40, "key": "header:X-Visitor", "instances": 2 }
+    }
+  ],
+  "pools": [
+    {
+      "name": "dimensions",
+      "healthCheck": { "interval": "1s", "timeout": "250ms" },
+      "dimensions": [
+        { "id": "c-137", "address": "toxiproxy:18080", "version": "v1", "maxInflight": 256 },
+        { "id": "j19-zeta-7", "address": "toxiproxy:18081", "version": "v1", "maxInflight": 256 },
+        { "id": "d-99", "address": "toxiproxy:18082", "version": "v1", "maxInflight": 256 },
+        { "id": "cronenberg", "address": "toxiproxy:18083", "version": "v2", "maxInflight": 256 }
+      ]
+    }
+  ]
+}

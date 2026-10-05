@@ -36,6 +36,24 @@ func TestSPRTAcceptsWhenErrorsFollowTheTrafficShare(t *testing.T) {
 	}
 }
 
+func TestSPRTAcceptanceSticksButRejectionStillWins(t *testing.T) {
+	s := NewSPRT(0.01, 0.05, 2)
+	for range 11 {
+		s.Update(950, 50, 19, 1)
+	}
+	if s.Verdict() != Promote {
+		t.Fatalf("not accepted at llr %.2f", s.LLR())
+	}
+	s.Update(950, 50, 0, 3)
+	if s.LLR() <= s.lower || s.Verdict() != Promote {
+		t.Fatalf("llr %.2f back above the lower bound, verdict %v; acceptance should stick", s.LLR(), s.Verdict())
+	}
+	s.Update(950, 50, 0, 20)
+	if s.Verdict() != Rollback {
+		t.Fatalf("llr %.2f, verdict %v; crossing the upper bound must still roll back", s.LLR(), s.Verdict())
+	}
+}
+
 func TestSPRTIgnoresBinsWithoutInformation(t *testing.T) {
 	s := NewSPRT(0.01, 0.05, 2)
 	s.Update(0, 100, 0, 50)
@@ -59,6 +77,31 @@ func TestSequentialRespectsTheMinimumStep(t *testing.T) {
 	}
 	if d.Verdict != Promote {
 		t.Fatalf("not promoted after 40s: %+v", d)
+	}
+}
+
+func TestSilenceIsEnoughWhenNothingFails(t *testing.T) {
+	s := NewSequential(0.01, 0.05, 2, 30*time.Second)
+	var d Decision
+	sec := 0
+	for ; sec < 600 && d.Verdict == Continue; sec++ {
+		b := bin(198, 2, 0, 0)
+		b.Slow = [2]int64{10, 0}
+		d = s.Observe(b, time.Duration(sec+1)*time.Second)
+	}
+	if d.Verdict != Promote || sec != SilentRequests/2 {
+		t.Fatalf("decision %+v after %ds, want a promotion once the canary served %d requests", d, sec, SilentRequests)
+	}
+	broken := NewSequential(0.01, 0.05, 2, 30*time.Second)
+	for i := range 200 {
+		b := bin(198, 2, 0, 0)
+		if i == 100 {
+			b.Errors = [2]int64{0, 1}
+		}
+		b.Slow = [2]int64{10, 0}
+		if d = broken.Observe(b, time.Duration(i+1)*time.Second); d.Verdict == Promote {
+			t.Fatalf("promoted at %ds although the canary failed once and the stable never did", i+1)
+		}
 	}
 }
 
