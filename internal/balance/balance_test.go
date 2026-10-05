@@ -92,7 +92,7 @@ func TestP2CPrefersTheCheaperTarget(t *testing.T) {
 	its[1].load.Observe(50*time.Millisecond, 0)
 	var b P2C[*item]
 	for range 100 {
-		got, ok := b.Pick(its, 0)
+		got, ok := b.Pick(its, 0, nil)
 		if !ok || got.name != "fast" {
 			t.Fatalf("picked %v", got)
 		}
@@ -104,7 +104,7 @@ func TestP2CSpreadsOverEqualTargets(t *testing.T) {
 	var b P2C[*item]
 	counts := map[string]int{}
 	for range 3000 {
-		got, _ := b.Pick(its, 0)
+		got, _ := b.Pick(its, 0, nil)
 		counts[got.name]++
 	}
 	for _, it := range its {
@@ -124,14 +124,14 @@ func TestBalancersSkipCappedTargets(t *testing.T) {
 			t.Fatal(err)
 		}
 		for range 50 {
-			got, ok := b.Pick(its, 0)
+			got, ok := b.Pick(its, 0, nil)
 			if !ok || got.name != "b" {
 				t.Fatalf("%s picked %v", name, got)
 			}
 		}
 		its[1].load = NewLoad(1)
 		its[1].load.Acquire()
-		if _, ok := b.Pick(its, 0); ok {
+		if _, ok := b.Pick(its, 0, nil); ok {
 			t.Fatalf("%s picked from a fully capped pool", name)
 		}
 	}
@@ -142,7 +142,7 @@ func TestRoundRobinIsEven(t *testing.T) {
 	b := &RoundRobin[*item]{}
 	counts := map[string]int{}
 	for range 300 {
-		got, _ := b.Pick(its, 0)
+		got, _ := b.Pick(its, 0, nil)
 		counts[got.name]++
 	}
 	if counts["a"] != 100 || counts["b"] != 100 || counts["c"] != 100 {
@@ -156,9 +156,26 @@ func TestLeastOutstandingPicksTheIdlest(t *testing.T) {
 		its[0].load.Acquire()
 	}
 	its[2].load.Acquire()
-	got, _ := LeastOutstanding[*item]{}.Pick(its, 0)
+	got, _ := LeastOutstanding[*item]{}.Pick(its, 0, nil)
 	if got.name != "b" {
 		t.Fatalf("picked %s", got.name)
+	}
+}
+
+func TestFilterExcludesTargets(t *testing.T) {
+	notA := func(it *item, _ int64) bool { return it.name != "a" }
+	for _, name := range []string{"p2c-ewma", "round-robin", "least-outstanding"} {
+		b, _ := New[*item](name)
+		its := items("a", "b", "c")
+		for range 60 {
+			got, ok := b.Pick(its, 0, notA)
+			if !ok || got.name == "a" {
+				t.Fatalf("%s picked %v", name, got)
+			}
+		}
+		if _, ok := b.Pick(its, 0, func(*item, int64) bool { return false }); ok {
+			t.Fatalf("%s picked through a filter that rejects everything", name)
+		}
 	}
 }
 

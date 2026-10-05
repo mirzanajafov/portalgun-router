@@ -39,10 +39,11 @@ func run(ctx context.Context, logger *slog.Logger, configPath, addr, adminAddr, 
 	if err != nil {
 		return err
 	}
-	g, err := proxy.New(cfg, proxy.Options{})
+	g, err := proxy.New(cfg, proxy.Options{Logger: logger})
 	if err != nil {
 		return err
 	}
+	defer g.Close()
 	traffic := &http.Server{
 		Addr:              addr,
 		Handler:           g,

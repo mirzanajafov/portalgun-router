@@ -23,6 +23,10 @@ type Metrics struct {
 	duration   *prometheus.HistogramVec
 	noUpstream *prometheus.CounterVec
 	clientGone *prometheus.CounterVec
+	retries    *prometheus.CounterVec
+	exhausted  *prometheus.CounterVec
+	panics     *prometheus.CounterVec
+	changes    *prometheus.CounterVec
 	unrouted   prometheus.Counter
 	gateway    atomic.Pointer[Gateway]
 	inflight   *prometheus.Desc
@@ -49,6 +53,22 @@ func NewMetrics() *Metrics {
 			Name: "portal_client_gone_total",
 			Help: "Requests the client abandoned before the upstream answered.",
 		}, []string{"route"}),
+		retries: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_retries_total",
+			Help: "Attempts after the first one.",
+		}, []string{"route"}),
+		exhausted: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_retry_budget_exhausted_total",
+			Help: "Retries skipped because the route's retry budget was spent.",
+		}, []string{"route"}),
+		panics: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_panic_routing_total",
+			Help: "Picks made while too little of the pool was healthy, ignoring health.",
+		}, []string{"route"}),
+		changes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_dimension_transitions_total",
+			Help: "Health and ejection state changes by dimension and new state.",
+		}, []string{"dimension", "state"}),
 		unrouted: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "portal_unrouted_total",
 			Help: "Requests that matched no route.",
@@ -56,7 +76,7 @@ func NewMetrics() *Metrics {
 		inflight: prometheus.NewDesc("portal_dimension_inflight", "Requests in flight to a dimension.", []string{"dimension", "version"}, nil),
 		latency:  prometheus.NewDesc("portal_dimension_latency_seconds", "Peak EWMA latency the balancer sees for a dimension.", []string{"dimension", "version"}, nil),
 	}
-	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.unrouted, m,
+	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.unrouted, m,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -81,24 +101,35 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 
 func (m *Metrics) forget(dimension string) {
 	m.requests.DeletePartialMatch(prometheus.Labels{"dimension": dimension})
+	m.changes.DeletePartialMatch(prometheus.Labels{"dimension": dimension})
+}
+
+func (m *Metrics) transition(dimension, state string) {
+	m.changes.WithLabelValues(dimension, state).Inc()
 }
 
 type routeMetrics struct {
-	m          *Metrics
-	route      string
-	duration   prometheus.Observer
-	noUpstream prometheus.Counter
-	clientGone prometheus.Counter
-	counters   sync.Map
+	m               *Metrics
+	route           string
+	duration        prometheus.Observer
+	noUpstream      prometheus.Counter
+	clientGone      prometheus.Counter
+	retries         prometheus.Counter
+	budgetExhausted prometheus.Counter
+	panics          prometheus.Counter
+	counters        sync.Map
 }
 
 func (m *Metrics) forRoute(route string) *routeMetrics {
 	return &routeMetrics{
-		m:          m,
-		route:      route,
-		duration:   m.duration.WithLabelValues(route),
-		noUpstream: m.noUpstream.WithLabelValues(route),
-		clientGone: m.clientGone.WithLabelValues(route),
+		m:               m,
+		route:           route,
+		duration:        m.duration.WithLabelValues(route),
+		noUpstream:      m.noUpstream.WithLabelValues(route),
+		clientGone:      m.clientGone.WithLabelValues(route),
+		retries:         m.retries.WithLabelValues(route),
+		budgetExhausted: m.exhausted.WithLabelValues(route),
+		panics:          m.panics.WithLabelValues(route),
 	}
 }
 
