@@ -1,0 +1,60 @@
+package proxy
+
+import (
+	"crypto/subtle"
+	"encoding/json"
+	"io"
+	"net/http"
+
+	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+func AdminHandler(g *Gateway, token string) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok\n")
+	})
+	mux.Handle("GET /metrics", promhttp.HandlerFor(g.metrics.Registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("GET /state", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, g.State())
+	})
+	mux.HandleFunc("GET /config", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, g.Config())
+	})
+	mux.HandleFunc("PUT /config", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(r, token) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "config writes need the admin token"})
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		cfg, err := config.Parse(body)
+		if err == nil {
+			err = g.Apply(cfg)
+		}
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]int64{"version": g.Version()})
+	})
+	return mux
+}
+
+func authorized(r *http.Request, token string) bool {
+	if token == "" {
+		return false
+	}
+	got := []byte(r.Header.Get("Authorization"))
+	return subtle.ConstantTimeCompare(got, []byte("Bearer "+token)) == 1
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
