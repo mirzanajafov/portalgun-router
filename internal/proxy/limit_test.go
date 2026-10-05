@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -25,9 +26,7 @@ func limited(t *testing.T, rl *config.RateLimit, hops int) *config.Config {
 func hit(t *testing.T, url string, header http.Header) (int, string) {
 	t.Helper()
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	for k, v := range header {
-		req.Header[k] = v
-	}
+	maps.Copy(req.Header, header)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
