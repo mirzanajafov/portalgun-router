@@ -75,7 +75,7 @@ func TestClientIPTrustsOnlyTheConfiguredHops(t *testing.T) {
 	req.Header.Add("X-Forwarded-For", "6.6.6.6, 1.2.3.4")
 	req.Header.Add("X-Forwarded-For", "10.0.0.1")
 	for hops, want := range map[int]string{0: "10.0.0.2", 1: "10.0.0.1", 2: "1.2.3.4", 3: "6.6.6.6", 4: "10.0.0.2"} {
-		if got := clientIP(req, hops); got != want {
+		if got := ClientIP(req, hops); got != want {
 			t.Errorf("hops %d: %s, want %s", hops, got, want)
 		}
 	}

@@ -157,7 +157,7 @@ func keyFor(req *http.Request, header string, hops int) string {
 			return "key:" + v
 		}
 	}
-	return "ip:" + clientIP(req, hops)
+	return "ip:" + ClientIP(req, hops)
 }
 
 func (r *route) limitKey(req *http.Request, hops int) string {
@@ -174,7 +174,7 @@ func (r *route) pick(req *http.Request, hops int) *httputil.ReverseProxy {
 	return r.proxy
 }
 
-func clientIP(req *http.Request, hops int) string {
+func ClientIP(req *http.Request, hops int) string {
 	host, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
 		host = req.RemoteAddr

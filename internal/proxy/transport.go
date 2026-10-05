@@ -73,6 +73,7 @@ func (g *Gateway) errorHandler(r *route) func(http.ResponseWriter, *http.Request
 			r.metrics.clientGone.Inc()
 			return
 		}
+		r.stats.failed.Add(1)
 		w.WriteHeader(status)
 	}
 }
@@ -181,7 +182,7 @@ func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
 				r.metrics.noUpstream.Inc()
 				return nil, errNoUpstream
 			}
-			return finish(resp, err, len(tried))
+			return a.finish(resp, err, len(tried))
 		}
 		if len(tried) > 0 {
 			discard(resp)
@@ -191,18 +192,21 @@ func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
 		var f failure
 		resp, err, f = a.try(req, u, body)
 		if f == failNone || len(tried) >= limit || !f.retryable(safe) {
-			return finish(resp, err, len(tried))
+			return a.finish(resp, err, len(tried))
 		}
 		if !r.budget.TryRetry(g.now()) {
 			r.metrics.budgetExhausted.Inc()
-			return finish(resp, err, len(tried))
+			return a.finish(resp, err, len(tried))
 		}
 	}
 }
 
-func finish(resp *http.Response, err error, attempts int) (*http.Response, error) {
+func (a *attempt) finish(resp *http.Response, err error, attempts int) (*http.Response, error) {
 	if resp == nil {
 		return nil, err
+	}
+	if resp.StatusCode >= 500 {
+		a.r.stats.failed.Add(1)
 	}
 	resp.Header[AttemptsHeader] = attemptHeaders[min(attempts, len(attemptHeaders)-1)]
 	return resp, nil

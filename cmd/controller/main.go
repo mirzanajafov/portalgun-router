@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/controller"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
@@ -24,18 +26,45 @@ func main() {
 	postgres := flag.String("postgres", os.Getenv("PORTAL_POSTGRES"), "Postgres URL")
 	redisAddr := flag.String("redis", os.Getenv("PORTAL_REDIS"), "Redis address")
 	bootstrap := flag.String("bootstrap", "", "config used when Postgres has none yet")
+	toxiproxy := flag.String("toxiproxy", "", "Toxiproxy API URL for the chaos controls")
+	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch")
+	hops := flag.Int("trusted-hops", 1, "proxies in front of the controller whose X-Forwarded-For entries are trusted")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, logger, *addr, *postgres, *redisAddr, *bootstrap, os.Getenv("PORTAL_ADMIN_TOKEN")); err != nil {
+	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, hops: *hops, token: os.Getenv("PORTAL_ADMIN_TOKEN")}
+	if err := run(ctx, logger, o); err != nil {
 		logger.Error("controller stopped", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, logger *slog.Logger, addr, postgres, redisAddr, bootstrapPath, token string) error {
+type options struct {
+	addr, postgres, redis, bootstrap, toxiproxy, targets, token string
+	hops                                                        int
+}
+
+func chaosTargets(spec string) ([]string, map[string]*chaos.DimensionControl, error) {
+	var names []string
+	controls := map[string]*chaos.DimensionControl{}
+	for item := range strings.SplitSeq(spec, ",") {
+		if item = strings.TrimSpace(item); item == "" {
+			continue
+		}
+		name, url, ok := strings.Cut(item, "=")
+		if !ok || name == "" || url == "" {
+			return nil, nil, fmt.Errorf("target %q is not name=controlURL", item)
+		}
+		names = append(names, name)
+		controls[name] = &chaos.DimensionControl{BaseURL: url, Client: &http.Client{Timeout: 2 * time.Second}}
+	}
+	return names, controls, nil
+}
+
+func run(ctx context.Context, logger *slog.Logger, o options) error {
+	addr, postgres, redisAddr, bootstrapPath, token := o.addr, o.postgres, o.redis, o.bootstrap, o.token
 	if postgres == "" || redisAddr == "" {
 		return errors.New("-postgres and -redis are required")
 	}
@@ -68,10 +97,30 @@ func run(ctx context.Context, logger *slog.Logger, addr, postgres, redisAddr, bo
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	api := controller.NewAPI(cfgs, engine, st, hub, token)
+	var chaosSvc *controller.ChaosService
+	if o.toxiproxy != "" {
+		names, controls, err := chaosTargets(o.targets)
+		if err != nil {
+			return err
+		}
+		inj := chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
+		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, o.hops, logger)
+		if err := chaosSvc.Reset(ctx); err != nil {
+			logger.Warn("clearing faults left from before", "err", err)
+		}
+		api.Extend(func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc) {
+			chaosSvc.Routes(mux, admin, token)
+		})
+	}
 	agg := controller.NewAggregator(func(m controller.Merged) {
 		api.SetLatest(m)
 		engine.Observe(ctx, m)
-		hub.Broadcast("tick", map[string]any{"latest": m, "rollout": engine.Status(), "viewers": hub.Viewers()})
+		tick := map[string]any{"latest": m, "rollout": engine.Status(), "viewers": hub.Viewers()}
+		if chaosSvc != nil {
+			chaosSvc.Observe(m)
+			tick["chaos"] = chaosSvc.View()
+		}
+		hub.Broadcast("tick", tick)
 	})
 	go controller.Consume(ctx, rdb, agg, logger)
 	go controller.FlushLoop(ctx, agg)

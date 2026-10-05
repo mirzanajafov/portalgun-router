@@ -27,6 +27,7 @@ type versionCounters struct {
 type routeStats struct {
 	requests  atomic.Int64
 	limited   atomic.Int64
+	failed    atomic.Int64
 	versions  [2]versionCounters
 	stable    stats.Histogram
 	threshold atomic.Int64
@@ -98,6 +99,7 @@ func (rs *routeStats) tick() RouteSnapshot {
 	snap := RouteSnapshot{
 		Requests: rs.requests.Swap(0),
 		Limited:  rs.limited.Swap(0),
+		Failed:   rs.failed.Swap(0),
 		Brake:    rs.brakeOn.Load(),
 	}
 	for i := range rs.versions {
@@ -138,6 +140,7 @@ type VersionSnapshot struct {
 type RouteSnapshot struct {
 	Requests        int64              `json:"requests"`
 	Limited         int64              `json:"limited"`
+	Failed          int64              `json:"failed"`
 	Stable          string             `json:"stable,omitempty"`
 	Canary          string             `json:"canary,omitempty"`
 	Weight          float64            `json:"weight"`
