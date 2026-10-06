@@ -47,6 +47,13 @@ type Config struct {
 	KeepRecords bool
 	Label       string
 	Watch       map[string]string
+	Weights     []float64
+	ShiftEvery  time.Duration
+	KeyHeader   string
+	KeyPrefix   string
+	Keys        int
+	ZipfS       float64
+	Burst       *Burst
 }
 
 func (c Config) normalize() (Config, []*url.URL, error) {
@@ -104,6 +111,7 @@ type sample struct {
 type generator struct {
 	cfg      Config
 	urls     []*url.URL
+	pick     *picker
 	body     []byte
 	client   *http.Client
 	start    time.Time
@@ -121,6 +129,15 @@ func Run(ctx context.Context, cfg Config) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Burst != nil {
+		if err := sched.WithBurst(*cfg.Burst); err != nil {
+			return nil, err
+		}
+	}
+	pick, err := newPicker(cfg, urls)
+	if err != nil {
+		return nil, err
+	}
 	transport := &http.Transport{
 		DialContext:         (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		MaxIdleConns:        0,
@@ -134,6 +151,7 @@ func Run(ctx context.Context, cfg Config) (*Result, error) {
 	g := &generator{
 		cfg:  cfg,
 		urls: urls,
+		pick: pick,
 		client: &http.Client{
 			Transport:     transport,
 			Timeout:       cfg.Timeout,
@@ -170,7 +188,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 		if at >= total || !g.waitUntil(ctx, at) {
 			break
 		}
-		u := g.urls[i%len(g.urls)]
+		u, key := g.pick.url(i, at), g.pick.key()
 		if !measuring && at >= warm {
 			measuring = true
 			watch.begin()
@@ -183,7 +201,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 			continue
 		}
 		g.inflight.Add(1)
-		wg.Go(func() { g.fire(ctx, u, at) })
+		wg.Go(func() { g.fire(ctx, u, key, at) })
 	}
 	windowEnd := g.now()
 	cpuEnd, cpuEndOK := processCPU()
@@ -242,7 +260,7 @@ func (g *generator) waitUntil(ctx context.Context, at int64) bool {
 	}
 }
 
-func (g *generator) newRequest(ctx context.Context, u *url.URL) *http.Request {
+func (g *generator) newRequest(ctx context.Context, u *url.URL, key string) *http.Request {
 	req := &http.Request{
 		Method:     g.cfg.Method,
 		URL:        u,
@@ -255,6 +273,9 @@ func (g *generator) newRequest(ctx context.Context, u *url.URL) *http.Request {
 	if req.Header == nil {
 		req.Header = http.Header{}
 	}
+	if key != "" {
+		req.Header.Set(g.cfg.KeyHeader, key)
+	}
 	if g.body != nil {
 		req.Body = io.NopCloser(bytes.NewReader(g.body))
 		req.ContentLength = int64(len(g.body))
@@ -262,13 +283,13 @@ func (g *generator) newRequest(ctx context.Context, u *url.URL) *http.Request {
 	return req.WithContext(ctx)
 }
 
-func (g *generator) fire(ctx context.Context, u *url.URL, scheduled int64) {
+func (g *generator) fire(ctx context.Context, u *url.URL, key string, scheduled int64) {
 	defer g.inflight.Add(-1)
 	rec := Record{Scheduled: scheduled, Started: g.now()}
 	var connected atomic.Int64
 	trace := &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { connected.CompareAndSwap(0, g.now()) }}
 	var dim string
-	resp, err := g.client.Do(g.newRequest(httptrace.WithClientTrace(ctx, trace), u))
+	resp, err := g.client.Do(g.newRequest(httptrace.WithClientTrace(ctx, trace), u, key))
 	if err == nil {
 		var n int64
 		n, err = io.Copy(io.Discard, resp.Body)

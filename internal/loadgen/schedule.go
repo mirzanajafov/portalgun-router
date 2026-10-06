@@ -20,6 +20,7 @@ type Schedule struct {
 	rng      *rand.Rand
 	i        int64
 	t        float64
+	burst    *Burst
 }
 
 func NewSchedule(rate float64, arrival Arrival, seed uint64) (*Schedule, error) {
@@ -38,7 +39,27 @@ func NewSchedule(rate float64, arrival Arrival, seed uint64) (*Schedule, error) 
 	}, nil
 }
 
+func (s *Schedule) WithBurst(b Burst) error {
+	if !(b.Rate > 0) || math.IsInf(b.Rate, 0) || b.Length <= 0 || b.Every <= b.Length {
+		return errors.New("a burst needs a positive rate and a length shorter than its period")
+	}
+	s.burst = &b
+	return nil
+}
+
 func (s *Schedule) Next() int64 {
+	if s.burst != nil {
+		at := s.t
+		gap := s.interval
+		if int64(at)%int64(s.burst.Every) < int64(s.burst.Length) {
+			gap = 1e9 / s.burst.Rate
+		}
+		if s.poisson {
+			gap *= s.rng.ExpFloat64()
+		}
+		s.t += gap
+		return int64(at)
+	}
 	if s.poisson {
 		at := s.t
 		s.t += s.rng.ExpFloat64() * s.interval

@@ -24,13 +24,14 @@ func main() {
 	adminAddr := flag.String("admin-addr", ":9090", "admin listener, never published")
 	redisAddr := flag.String("redis", os.Getenv("PORTAL_REDIS"), "Redis address for the shared rate limiters")
 	instance := flag.String("instance", "", "name of this gateway instance, defaults to the hostname")
+	decisions := flag.Int("record-decisions", 0, "keep this many rate limit decisions in memory for the accuracy benchmark, 0 for none")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	redis.SetLogger(redisLog{logger})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	opts := options{config: *configPath, addr: *addr, admin: *adminAddr, token: os.Getenv("PORTAL_ADMIN_TOKEN"), redis: *redisAddr, instance: *instance}
+	opts := options{config: *configPath, addr: *addr, admin: *adminAddr, token: os.Getenv("PORTAL_ADMIN_TOKEN"), redis: *redisAddr, instance: *instance, decisions: *decisions}
 	if err := run(ctx, logger, opts); err != nil {
 		logger.Error("gateway stopped", "err", err)
 		os.Exit(1)
@@ -45,6 +46,7 @@ func (r redisLog) Printf(_ context.Context, format string, v ...any) {
 
 type options struct {
 	config, addr, admin, token, redis, instance string
+	decisions                                   int
 }
 
 func run(ctx context.Context, logger *slog.Logger, o options) error {
@@ -56,7 +58,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	if err != nil {
 		return err
 	}
-	popts := proxy.Options{Logger: logger, Instance: o.instance}
+	popts := proxy.Options{Logger: logger, Instance: o.instance, Decisions: o.decisions, Metrics: proxy.NewMetrics()}
 	var rdb *redis.Client
 	if o.redis != "" {
 		rdb = redis.NewClient(&redis.Options{
@@ -68,6 +70,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 			PoolSize:     64,
 		})
 		defer rdb.Close()
+		rdb.AddHook(popts.Metrics.RedisHook())
 		popts.Redis = rdb
 	}
 	g, err := proxy.New(cfg, popts)

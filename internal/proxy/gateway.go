@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -228,6 +229,7 @@ type Options struct {
 	Redis      limit.Pipeliner
 	Instance   string
 	ManualTick bool
+	Decisions  int
 }
 
 type Gateway struct {
@@ -239,6 +241,7 @@ type Gateway struct {
 	instance  string
 	epoch     time.Time
 	buffers   *bufferPool
+	decisions *decisionLog
 
 	cluster  atomic.Int64
 	latest   atomic.Pointer[Snapshot]
@@ -252,6 +255,41 @@ type Gateway struct {
 	routeStats  map[string]*routeStats
 	subscribers []func(Snapshot)
 	closed      bool
+
+	eventsMu sync.Mutex
+	events   []DimensionEvent
+}
+
+const eventLog = 4096
+
+type DimensionEvent struct {
+	UnixNano  int64  `json:"unixNano"`
+	Dimension string `json:"dimension"`
+	State     string `json:"state"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+func (g *Gateway) logEvent(id string, at int64, state, reason string) {
+	e := DimensionEvent{UnixNano: g.epoch.UnixNano() + at, Dimension: id, State: state, Reason: reason}
+	g.eventsMu.Lock()
+	defer g.eventsMu.Unlock()
+	if len(g.events) >= eventLog {
+		g.events = slices.Delete(g.events, 0, len(g.events)-eventLog+1)
+	}
+	g.events = append(g.events, e)
+}
+
+func (g *Gateway) Events(since int64) []DimensionEvent {
+	g.eventsMu.Lock()
+	defer g.eventsMu.Unlock()
+	out := []DimensionEvent{}
+	for _, e := range g.events {
+		if e.UnixNano >= since {
+			out = append(out, e)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b DimensionEvent) int { return cmp.Compare(a.UnixNano, b.UnixNano) })
+	return out
 }
 
 func New(cfg *config.Config, opts Options) (*Gateway, error) {
@@ -263,6 +301,7 @@ func New(cfg *config.Config, opts Options) (*Gateway, error) {
 		instance:   opts.Instance,
 		epoch:      time.Now(),
 		buffers:    newBufferPool(),
+		decisions:  newDecisionLog(opts.Decisions),
 		upstreams:  map[string]*upstream{},
 		limiters:   map[string]*routeLimiter{},
 		routeStats: map[string]*routeStats{},
@@ -649,17 +688,20 @@ func (g *Gateway) onOutlier(u *upstream, t health.Transition) {
 		u.readyAt.Store(t.At)
 	}
 	g.metrics.transition(u.id, t.To.String())
+	g.logEvent(u.id, t.At, t.To.String(), t.Reason)
 	g.logger.Info("dimension state", "dimension", u.id, "from", t.From.String(), "to", t.To.String(),
 		"reason", t.Reason, "ejected_for", time.Duration(t.Until-t.At).String())
 }
 
 func (g *Gateway) onHealth(u *upstream, healthy bool) {
+	now := g.now()
 	state := "unhealthy"
 	if healthy {
 		state = "healthy"
-		u.readyAt.Store(g.now())
+		u.readyAt.Store(now)
 	}
 	g.metrics.transition(u.id, state)
+	g.logEvent(u.id, now, state, "probes")
 	g.logger.Info("dimension health", "dimension", u.id, "state", state)
 }
 
@@ -673,7 +715,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rt.stats.requests.Add(1)
 	if rt.limiter != nil {
-		d := rt.limiter.Allow(r.Context(), rt.limitKey(r, s.trustedHops))
+		key := rt.limitKey(r, s.trustedHops)
+		d := rt.limiter.Allow(r.Context(), key)
+		g.decisions.add(key, d.Allowed)
 		if d.Degraded {
 			rt.metrics.limitDegraded.Inc()
 		}

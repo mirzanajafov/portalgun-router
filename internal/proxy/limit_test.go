@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -54,6 +55,55 @@ func TestStaticLimiterAnswers429(t *testing.T) {
 	}
 	if !strings.Contains(scrape(t, g), "portal_rate_limited_total{route=\"api\"} 2\n") {
 		t.Fatal("limited requests not counted")
+	}
+}
+
+func TestDecisionsAreRecordedAndDrained(t *testing.T) {
+	cfg := limited(t, &config.RateLimit{Design: config.LimitStaticSplit, Rate: 0.1, Burst: 2, Key: "header:X-Api-Key"}, 0)
+	g, err := New(cfg, Options{Decisions: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(g.Close)
+	srv := httptest.NewServer(g)
+	t.Cleanup(srv.Close)
+	admin := httptest.NewServer(AdminHandler(g, ""))
+	t.Cleanup(admin.Close)
+	before := time.Now().UnixNano()
+	for range 4 {
+		hit(t, srv.URL+"/", http.Header{"X-Api-Key": {"rick"}})
+	}
+	resp, err := http.Post(admin.URL+"/decisions/drain", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Decisions
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if !got.Recording || got.Dropped != 1 || len(got.Decisions) != 3 {
+		t.Fatalf("%+v", got)
+	}
+	for i, d := range got.Decisions {
+		if d.Allowed != (i < 2) || d.UnixNano < before || !strings.Contains(d.Key, "rick") {
+			t.Fatalf("decision %d: %+v", i, d)
+		}
+	}
+	if again := g.DrainDecisions(); len(again.Decisions) != 0 || again.Dropped != 0 {
+		t.Fatalf("second drain %+v", again)
+	}
+	hit(t, srv.URL+"/", http.Header{"X-Api-Key": {"morty"}})
+	if next := g.DrainDecisions(); len(next.Decisions) != 1 || !next.Decisions[0].Allowed {
+		t.Fatalf("after drain %+v", next)
+	}
+}
+
+func TestNoDecisionsUnlessAsked(t *testing.T) {
+	g, srv := serve(t, limited(t, &config.RateLimit{Design: config.LimitStaticSplit, Rate: 1, Burst: 1}, 0))
+	hit(t, srv.URL+"/", nil)
+	if d := g.DrainDecisions(); d.Recording || len(d.Decisions) != 0 {
+		t.Fatalf("%+v", d)
 	}
 }
 

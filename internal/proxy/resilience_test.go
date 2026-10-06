@@ -118,6 +118,40 @@ func TestOutlierEjectionStopsTheRetries(t *testing.T) {
 	}
 }
 
+func TestTransitionsAreLoggedOnTheWallClock(t *testing.T) {
+	failing := dim(t, "failing", func(b *dimension.Behavior) { b.ErrorRate = 1 })
+	cfg := resilient(t, config.BalancerRoundRobin, nil,
+		config.Dimension{ID: "failing", Address: failing},
+		config.Dimension{ID: "b", Address: dim(t, "b", nil)},
+	)
+	g, srv := serve(t, cfg)
+	before := time.Now().UnixNano()
+	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 20)
+	after := time.Now().UnixNano()
+	events := g.Events(before)
+	if len(events) != 1 {
+		t.Fatalf("events %+v, want one ejection", events)
+	}
+	e := events[0]
+	if e.Dimension != "failing" || e.State != "ejected" || e.Reason == "" || e.UnixNano < before || e.UnixNano > after {
+		t.Fatalf("event %+v outside [%d, %d]", e, before, after)
+	}
+	if late := g.Events(after + 1); len(late) != 0 {
+		t.Fatalf("events after the run: %+v", late)
+	}
+}
+
+func TestEventLogKeepsTheNewest(t *testing.T) {
+	g, _ := serve(t, resilient(t, config.BalancerRoundRobin, nil, config.Dimension{ID: "a", Address: deadAddr(t)}))
+	for i := range eventLog + 10 {
+		g.logEvent("a", int64(i), "ejected", "")
+	}
+	all := g.Events(0)
+	if len(all) != eventLog || all[0].UnixNano != g.epoch.UnixNano()+10 {
+		t.Fatalf("kept %d events starting at %d", len(all), all[0].UnixNano-g.epoch.UnixNano())
+	}
+}
+
 func TestRetryBudgetCapsRetries(t *testing.T) {
 	cfg := resilient(t, config.BalancerRoundRobin, func(p *config.Pool, r *config.Route) {
 		p.Outlier.Disabled = true

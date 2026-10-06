@@ -1,11 +1,13 @@
 package proxy
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/redis/go-redis/v9"
 )
 
 var classes = [6]string{"error", "1xx", "2xx", "3xx", "4xx", "5xx"}
@@ -30,6 +32,7 @@ type Metrics struct {
 	limited    *prometheus.CounterVec
 	degraded   *prometheus.CounterVec
 	unrouted   prometheus.Counter
+	redisTrips prometheus.Counter
 	gateway    atomic.Pointer[Gateway]
 	inflight   *prometheus.Desc
 	latency    *prometheus.Desc
@@ -83,10 +86,14 @@ func NewMetrics() *Metrics {
 			Name: "portal_unrouted_total",
 			Help: "Requests that matched no route.",
 		}),
+		redisTrips: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "portal_redis_round_trips_total",
+			Help: "Commands and pipelines sent to Redis, each one a round trip.",
+		}),
 		inflight: prometheus.NewDesc("portal_dimension_inflight", "Requests in flight to a dimension.", []string{"dimension", "version"}, nil),
 		latency:  prometheus.NewDesc("portal_dimension_latency_seconds", "Peak EWMA latency the balancer sees for a dimension.", []string{"dimension", "version"}, nil),
 	}
-	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m,
+	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.redisTrips, m,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -158,3 +165,23 @@ func (rm *routeMetrics) result(u *upstream, status int) {
 	}
 	c.(*[6]prometheus.Counter)[class(status)].Inc()
 }
+
+type redisHook struct{ trips prometheus.Counter }
+
+func (h redisHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+
+func (h redisHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		h.trips.Inc()
+		return next(ctx, cmd)
+	}
+}
+
+func (h redisHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		h.trips.Inc()
+		return next(ctx, cmds)
+	}
+}
+
+func (m *Metrics) RedisHook() redis.Hook { return redisHook{m.redisTrips} }
