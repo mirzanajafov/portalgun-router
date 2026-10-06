@@ -1,0 +1,51 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+
+  gateway-1:
+    ports: !reset []
+
+  controller:
+    ports: !reset []
+    environment:
+      PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/portal?sslmode=disable
+      PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:?set PORTAL_ADMIN_TOKEN}
+
+  web:
+    container_name: portalgun-web
+    ports: !reset []
+    networks:
+      - default
+      - edge
+
+  backup:
+    build: ./deploy/backup
+    image: portalgun-backup
+    container_name: portalgun-backup
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    environment:
+      PGHOST: postgres
+      PGUSER: portal
+      PGDATABASE: portal
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      RUN_AT: ${BACKUP_AT:-04:30}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 32
+    cpus: 0.1
+    mem_limit: 64m
+
+networks:
+  edge:
+    name: ${EDGE_NETWORK:?set EDGE_NETWORK}
+    external: true
