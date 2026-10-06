@@ -1,0 +1,58 @@
+name: pglimiter
+
+x-go: &go
+  image: pglimiter
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+
+x-gateway: &gateway
+  <<: *go
+  volumes:
+    - ${E2_CONFIGS:-./configs}:/etc/portalgun:ro
+  depends_on: [toxiproxy, dim]
+  cpus: 1
+  mem_limit: 256m
+
+services:
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    cpus: 1
+    mem_limit: 128m
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    depends_on: [redis]
+    cpus: 1
+    mem_limit: 128m
+
+  dim:
+    <<: *go
+    command: ["dimension", "-id", "dim"]
+    cpus: 1
+    mem_limit: 64m
+
+  gateway-1:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/${E2_CELL:-default}.json", "-redis", "toxiproxy:16379", "-instance", "gw-1", "-record-decisions", "2000000"]
+  gateway-2:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/${E2_CELL:-default}.json", "-redis", "toxiproxy:16379", "-instance", "gw-2", "-record-decisions", "2000000"]
+  gateway-3:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/${E2_CELL:-default}.json", "-redis", "toxiproxy:16379", "-instance", "gw-3", "-record-decisions", "2000000"]
+    profiles: ["four"]
+  gateway-4:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/${E2_CELL:-default}.json", "-redis", "toxiproxy:16379", "-instance", "gw-4", "-record-decisions", "2000000"]
+    profiles: ["four"]
+
+  loadgen:
+    <<: *go
+    entrypoint: ["sleep", "infinity"]
+    cpus: 3
+    mem_limit: 512m

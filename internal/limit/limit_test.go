@@ -183,6 +183,22 @@ func TestLeaseFetchesInBatches(t *testing.T) {
 	}
 }
 
+func TestLeaseKeepsBatchingWhenTheBucketRunsDry(t *testing.T) {
+	rdb := testRedis(t)
+	rule := Rule{Rate: 200, Burst: 20}
+	l, _ := NewLease(rdb, prefix(t), rule, 1, 20*time.Millisecond, time.Second, time.Second, wall)
+	began := time.Now()
+	allowed := hammer(t, []Limiter{l}, "k", 1000, 2*time.Millisecond)
+	exact := rule.Burst + rule.Rate*time.Since(began).Seconds()
+	fetches := l.(*lease).Fetches()
+	if float64(allowed) > exact || float64(allowed) < 0.8*exact {
+		t.Fatalf("admitted %d against an exact %.0f", allowed, exact)
+	}
+	if float64(fetches) > 0.5*float64(allowed) {
+		t.Fatalf("%d Redis calls for %d admitted requests: over the limit every grant is short, and asking again a token later is a call per request", fetches, allowed)
+	}
+}
+
 func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	rdb := testRedis(t)
 	p := prefix(t)
@@ -204,6 +220,50 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	}
 	if ls[0].(*localSync).Syncs() == 0 {
 		t.Fatal("never synced")
+	}
+}
+
+func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
+	rdb := testRedis(t)
+	if err := rdb.ScriptFlush(context.Background()).Err(); err != nil {
+		t.Fatal(err)
+	}
+	p := prefix(t)
+	rule := Rule{Rate: 200, Burst: 20}
+	var ls []Limiter
+	for i := range 2 {
+		l, err := NewLocalSync(rdb, p, rule, 2, fmt.Sprint("gw-", i), 20*time.Millisecond, time.Second, wall)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(l.Close)
+		ls = append(ls, l)
+	}
+	var allowed, degraded int
+	began := time.Now()
+	for i := 0; time.Since(began) < 2*time.Second; i++ {
+		l := ls[0]
+		if i%10 == 9 {
+			l = ls[1]
+		}
+		d := l.Allow(context.Background(), "k")
+		if d.Allowed {
+			allowed++
+		}
+		if d.Degraded {
+			degraded++
+		}
+		time.Sleep(2500 * time.Microsecond)
+	}
+	exact := rule.Burst + rule.Rate*time.Since(began).Seconds()
+	if degraded > 0 {
+		t.Fatalf("%d decisions fell back with Redis up", degraded)
+	}
+	if float64(allowed) < 0.85*exact || float64(allowed) > 1.15*exact {
+		t.Fatalf("admitted %d against an exact %.0f; a static split would admit about two thirds at 90/10", allowed, exact)
+	}
+	if ls[0].(*localSync).Syncs() == 0 || ls[1].(*localSync).Syncs() == 0 {
+		t.Fatal("an instance never synced")
 	}
 }
 

@@ -140,8 +140,8 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 		}
 		st.tokens = grant
 		st.expires = now + int64(l.ttl)
-		if grant < 1 {
-			st.emptyUntil = now + int64(1e9/l.rule.Rate)
+		if grant < want {
+			st.emptyUntil = now + int64((want-grant)/l.rule.Rate*1e9)
 		}
 	}
 }

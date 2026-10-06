@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -34,6 +35,25 @@ func main() {
 	flag.DurationVar(&cfg.Timeout, "timeout", 10*time.Second, "per-request timeout")
 	flag.BoolVar(&cfg.NoKeepAlive, "no-keepalive", false, "open a new connection for every request")
 	flag.StringVar(&cfg.Label, "label", "", "label copied into the summary")
+	flag.Func("weights", "comma-separated share of requests per url, in -url order", func(v string) error {
+		for w := range strings.SplitSeq(v, ",") {
+			f, err := strconv.ParseFloat(strings.TrimSpace(w), 64)
+			if err != nil {
+				return err
+			}
+			cfg.Weights = append(cfg.Weights, f)
+		}
+		return nil
+	})
+	flag.DurationVar(&cfg.ShiftEvery, "shift-every", 0, "reverse the weights every period, 0 for never")
+	flag.StringVar(&cfg.KeyHeader, "key-header", "", "send a client key in this header")
+	flag.StringVar(&cfg.KeyPrefix, "key-prefix", "k", "prefix of every client key")
+	flag.IntVar(&cfg.Keys, "keys", 1, "number of distinct client keys")
+	flag.Float64Var(&cfg.ZipfS, "zipf", 0, "zipf exponent over the keys, above 1, or 0 for uniform")
+	burst := loadgen.Burst{}
+	flag.Float64Var(&burst.Rate, "burst-rate", 0, "rate inside bursts, 0 for no bursts")
+	flag.DurationVar(&burst.Length, "burst-length", 200*time.Millisecond, "length of each burst")
+	flag.DurationVar(&burst.Every, "burst-every", 2*time.Second, "time from one burst to the next")
 	records := flag.String("records", "", "write every request to this file")
 	cgroupRoot := flag.String("cgroup-root", "", "host cgroup mount used to resolve -watch containers")
 	watch := map[string]string{}
@@ -56,6 +76,9 @@ func main() {
 	})
 	flag.Parse()
 	cfg.Arrival = loadgen.Arrival(*arrival)
+	if burst.Rate > 0 {
+		cfg.Burst = &burst
+	}
 	if len(header) > 0 {
 		cfg.Header = header
 	}

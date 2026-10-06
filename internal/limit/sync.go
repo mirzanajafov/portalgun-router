@@ -2,6 +2,7 @@ package limit
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -156,15 +157,12 @@ func (s *localSync) sync(ctx context.Context) {
 
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	window := strconv.FormatFloat(float64(3*s.interval/time.Microsecond), 'f', 0, 64)
-	ttl := ttlMillis(s.rule)
-	pipe := s.rdb.Pipeline()
-	for i := range batch {
-		p := &batch[i]
-		keys := []string{s.prefix + p.key, s.prefix + p.key + ":demand"}
-		p.cmd = syncScript.Run(ctx, pipe, keys, s.rule.Rate/1e6, s.rule.Burst, ttl, p.spent, s.instance, p.demand, window)
+	s.send(ctx, batch)
+	if slices.ContainsFunc(batch, func(p pending) bool { return redis.HasErrorPrefix(p.cmd.Err(), "NOSCRIPT") }) {
+		if err := syncScript.Load(ctx, s.rdb).Err(); err == nil {
+			s.send(ctx, batch)
+		}
 	}
-	_, _ = pipe.Exec(ctx)
 
 	failed := false
 	refill := s.rule.Rate * s.interval.Seconds()
@@ -191,5 +189,19 @@ func (s *localSync) sync(ctx context.Context) {
 		p.st.mu.Unlock()
 	}
 	s.degraded.Store(failed)
-	s.syncs.Add(1)
+	if !failed {
+		s.syncs.Add(1)
+	}
+}
+
+func (s *localSync) send(ctx context.Context, batch []pending) {
+	window := strconv.FormatFloat(float64(3*s.interval/time.Microsecond), 'f', 0, 64)
+	ttl := ttlMillis(s.rule)
+	pipe := s.rdb.Pipeline()
+	for i := range batch {
+		p := &batch[i]
+		keys := []string{s.prefix + p.key, s.prefix + p.key + ":demand"}
+		p.cmd = syncScript.EvalSha(ctx, pipe, keys, s.rule.Rate/1e6, s.rule.Burst, ttl, p.spent, s.instance, p.demand, window)
+	}
+	_, _ = pipe.Exec(ctx)
 }

@@ -71,7 +71,15 @@ func (d *DimensionControl) Patch(ctx context.Context, fields map[string]any) err
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, d.BaseURL+"/state", bytes.NewReader(b))
+	return d.send(ctx, http.MethodPatch, "/state", b)
+}
+
+func (d *DimensionControl) Reset(ctx context.Context) error {
+	return d.send(ctx, http.MethodPost, "/reset", nil)
+}
+
+func (d *DimensionControl) send(ctx context.Context, method, path string, b []byte) error {
+	req, err := http.NewRequestWithContext(ctx, method, d.BaseURL+path, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
