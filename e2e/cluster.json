@@ -1,0 +1,34 @@
+{
+  "trustedHops": 1,
+  "routes": [
+    {
+      "name": "api",
+      "pathPrefix": "/",
+      "pool": "dimensions",
+      "timeout": "5s",
+      "perTryTimeout": "1s",
+      "versions": { "stable": "v1" }
+    },
+    {
+      "name": "limited",
+      "pathPrefix": "/limited/",
+      "pool": "dimensions",
+      "timeout": "5s",
+      "perTryTimeout": "1s",
+      "versions": { "stable": "v1" },
+      "rateLimit": { "design": "local-sync", "rate": 50, "burst": 50, "key": "header:X-Client", "instances": 2 }
+    }
+  ],
+  "pools": [
+    {
+      "name": "dimensions",
+      "healthCheck": { "interval": "1s", "timeout": "250ms" },
+      "dimensions": [
+        { "id": "a", "address": "toxiproxy:18080", "version": "v1", "maxInflight": 256 },
+        { "id": "b", "address": "toxiproxy:18081", "version": "v1", "maxInflight": 256 },
+        { "id": "c", "address": "toxiproxy:18082", "version": "v1", "maxInflight": 256 },
+        { "id": "d", "address": "toxiproxy:18083", "version": "v2", "maxInflight": 256 }
+      ]
+    }
+  ]
+}

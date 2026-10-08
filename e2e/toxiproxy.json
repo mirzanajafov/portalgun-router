@@ -1,0 +1,6 @@
+[
+  { "name": "a", "listen": "0.0.0.0:18080", "upstream": "dim-a:8080", "enabled": true },
+  { "name": "b", "listen": "0.0.0.0:18081", "upstream": "dim-b:8080", "enabled": true },
+  { "name": "c", "listen": "0.0.0.0:18082", "upstream": "dim-c:8080", "enabled": true },
+  { "name": "d", "listen": "0.0.0.0:18083", "upstream": "dim-d:8080", "enabled": true }
+]
