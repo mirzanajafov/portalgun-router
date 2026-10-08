@@ -138,6 +138,33 @@ func TestSummarize(t *testing.T) {
 	}
 }
 
+func TestDeath(t *testing.T) {
+	for in, want := range map[string]string{
+		"true false 0\n":   "",
+		"false true 137\n": "OOM-killed",
+		"false false 2\n":  "exited with 2",
+		"":                 "",
+	} {
+		if got := death(in); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSummarizeCountsDeaths(t *testing.T) {
+	gone := Point{Workload: "w1", System: "envoy", Rate: 6000, Rep: 1, Saturated: true, Died: "OOM-killed"}
+	hit := point("envoy", 6000, 0, 4000, 900000, true)
+	hit.Died, hit.Loadgen.Scheduled, hit.MemoryPeakMB = "OOM-killed", 120000, 255
+	r := Summarize([]Point{point("envoy", 5000, 0, 500, 2000, false), hit, gone})
+	c := r.Cells[1]
+	if c.Runs != 2 || c.Saturated != 2 || c.Died != 2 || c.GeneratorIssues != 0 || c.P50Us.Median != 4000 || c.MemoryPeakMB.Max != 255 {
+		t.Fatalf("cell %+v", c)
+	}
+	if r.MaxRate["envoy"] != 5000 {
+		t.Fatalf("max rates %v", r.MaxRate)
+	}
+}
+
 func TestLoadPoints(t *testing.T) {
 	dir := t.TempDir()
 	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))

@@ -69,6 +69,30 @@ func TestWatcherMeasuresTheWindow(t *testing.T) {
 	}
 }
 
+func writeMemory(t *testing.T, dir string, current, swap int64) {
+	t.Helper()
+	for name, v := range map[string]int64{"memory.current": current, "memory.swap.current": swap} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(fmt.Sprintf("%d\n", v)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestWatcherKeepsThePeakMemory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "docker", "sut")
+	writeCgroup(t, dir, 0, 0, 0, "0")
+	writeMemory(t, dir, 100<<20, 0)
+	w := newWatcher(map[string]string{"system": dir})
+	w.begin()
+	writeMemory(t, dir, 300<<20, 8<<20)
+	w.readMemory()
+	writeMemory(t, dir, 120<<20, 0)
+	got := w.end(1)["system"]
+	if got.MemoryPeakMB != 300 || got.SwapPeakMB != 8 {
+		t.Fatalf("watched %+v", got)
+	}
+}
+
 func TestRunReportsWatchedCgroups(t *testing.T) {
 	srv := dimensionServer(t, nil)
 	dir := filepath.Join(t.TempDir(), "docker", "sut")
