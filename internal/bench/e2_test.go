@@ -111,3 +111,20 @@ func TestLimiterSummaryComparesWithTheRunWithoutALimiter(t *testing.T) {
 		}
 	}
 }
+
+func TestLimiterSummaryLeavesACellWithoutValidRunsBlank(t *testing.T) {
+	lagged := limiterRun("lease-5ms/over-even-2gw", 1700, 3_200_000, &limit.Verdict{Requests: 1000})
+	lagged.Report.Generator.Valid = false
+	sums := SummarizeLimiter([]LimiterRun{limiterRun("none/over-even-2gw", 300, 900, nil), lagged})
+	if s := sums[1]; s.InvalidRuns != 1 || s.AddedP50Us != nil || s.AddedP99Us != nil {
+		t.Fatalf("%+v", s)
+	}
+	var b bytes.Buffer
+	if err := WriteLimiterText(&b, sums); err != nil {
+		t.Fatal(err)
+	}
+	line := strings.Fields(strings.Split(b.String(), "\n")[2])
+	if strings.Join(line[1:], " ") != "1 (1 invalid) - - - - - - - - - - - - - -" {
+		t.Fatalf("row %q", line)
+	}
+}

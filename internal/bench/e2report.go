@@ -115,7 +115,7 @@ func SummarizeLimiter(runs []LimiterRun) []LimiterSummary {
 	for i := range out {
 		base := baselineOf(out[i].Cell)
 		j, ok := index[base]
-		if !ok || base == out[i].Cell || out[j].Runs == out[j].InvalidRuns {
+		if !ok || base == out[i].Cell || out[j].Runs == out[j].InvalidRuns || out[i].Runs == out[i].InvalidRuns {
 			continue
 		}
 		out[i].Baseline = base
@@ -148,7 +148,7 @@ func WriteLimiterText(w io.Writer, sums []LimiterSummary) error {
 			added50, added99 = fmt.Sprintf("%+.0f", s.AddedP50Us.Median), fmt.Sprintf("%+.0f", s.AddedP99Us.Median)
 		}
 		over, ahead, behind, worst, fa, fr := "-", "-", "-", "-", "-", "-"
-		if !strings.HasPrefix(s.Cell, NoLimiter+"/") {
+		if !strings.HasPrefix(s.Cell, NoLimiter+"/") && valid > 0 {
 			over, worst = pctOf(s.OverAdmission), rangeOf(s.WorstRatio, valid, valid, 2)
 			ahead, behind = rangeOf(s.MaxAhead, valid, valid, 0), rangeOf(s.MaxBehind, valid, valid, 0)
 			fa, fr = pctOf(s.FalseAdmits), pctOf(s.FalseRejects)
