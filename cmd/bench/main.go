@@ -42,6 +42,11 @@ func main() {
 		err = hotpath(ctx, os.Args[2:])
 	case "report-hotpath":
 		err = reportHotpath(os.Args[2:])
+	case "merge":
+		if len(os.Args) < 3 {
+			usage()
+		}
+		err = bench.MergeRuns(os.Args[2], os.Args[3:])
 	default:
 		usage()
 	}
@@ -52,7 +57,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|hotpath [flags] | bench report|report-e2|report-e3|report-hotpath <dir>")
+	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|hotpath [flags] | bench report|report-e2|report-e3|report-hotpath <dir> | bench merge <out> <dir>...")
 	os.Exit(2)
 }
 
