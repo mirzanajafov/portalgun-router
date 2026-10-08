@@ -193,7 +193,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 			measuring = true
 			watch.begin()
 			windowStart = g.now()
-			cpuStart, cpuOK = processCPU()
+			cpuStart, cpuOK = ProcessCPU()
 		}
 		if g.inflight.Load() >= int64(g.cfg.MaxInflight) {
 			now := g.now()
@@ -204,7 +204,7 @@ func (g *generator) run(ctx context.Context, sched *Schedule) *Result {
 		wg.Go(func() { g.fire(ctx, u, key, at) })
 	}
 	windowEnd := g.now()
-	cpuEnd, cpuEndOK := processCPU()
+	cpuEnd, cpuEndOK := ProcessCPU()
 	watched := watch.end(time.Duration(windowEnd - windowStart).Seconds())
 	wg.Wait()
 	close(g.results)

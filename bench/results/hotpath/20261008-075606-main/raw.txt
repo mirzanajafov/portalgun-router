@@ -1,0 +1,350 @@
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  195656	      5249 ns/op	      5264 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  189842	      8431 ns/op	      8481 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  118716	      9879 ns/op	      9940 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   45253	     26590 ns/op	     26739 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   19771	     60406 ns/op	     60695 cpu-ns/op	   12302 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   15764	     82061 ns/op	     82466 cpu-ns/op	   14783 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   14786	     84027 ns/op	     84539 cpu-ns/op	   14816 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  188980	      6734 ns/op	      6773 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  183385	      7043 ns/op	      7034 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  349426	      4167 ns/op	      4178 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   15696	     67333 ns/op	     67533 cpu-ns/op	   12304 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   21469	     64663 ns/op	     64745 cpu-ns/op	   14780 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   17246	     59568 ns/op	     59724 cpu-ns/op	   14814 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   64420	     27939 ns/op	     28097 cpu-ns/op	    5397 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  142392	      7611 ns/op	      7655 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  360747	      2925 ns/op	      2938 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	   90025	     12290 ns/op	     12552 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   20775	     58536 ns/op	     58724 cpu-ns/op	   14781 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   14791	     71040 ns/op	     70989 cpu-ns/op	   14816 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   50697	     22579 ns/op	     22684 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   29356	     50396 ns/op	     50756 cpu-ns/op	   12300 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  326104	      4423 ns/op	      4446 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  198565	      6080 ns/op	      6094 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  166870	      7878 ns/op	      7970 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   15619	     77965 ns/op	     78750 cpu-ns/op	   14815 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   52714	     22251 ns/op	     22195 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   29281	     55001 ns/op	     54984 cpu-ns/op	   12300 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   22360	     61538 ns/op	     61717 cpu-ns/op	   14780 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  183716	      9705 ns/op	      9798 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  143857	      7608 ns/op	      7716 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  457158	      3415 ns/op	      3412 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   36552	     28798 ns/op	     28726 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   29287	     45210 ns/op	     45071 cpu-ns/op	   12300 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   15577	     71698 ns/op	     71901 cpu-ns/op	   14783 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   19897	     57086 ns/op	     57295 cpu-ns/op	   14813 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  201946	      7052 ns/op	      7081 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  367743	      4492 ns/op	      4514 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  175863	      6701 ns/op	      6767 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   30632	     51498 ns/op	     51580 cpu-ns/op	   12300 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   18841	     56185 ns/op	     56260 cpu-ns/op	   14782 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   19405	     63593 ns/op	     63386 cpu-ns/op	   14813 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   48411	     25902 ns/op	     26027 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  478888	      2644 ns/op	      2652 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  180922	      9250 ns/op	      9286 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  183720	      6256 ns/op	      6260 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   22743	     51830 ns/op	     51884 cpu-ns/op	   14780 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   24056	     52841 ns/op	     52793 cpu-ns/op	   14812 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   53450	     20991 ns/op	     20954 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   25452	     47110 ns/op	     47148 cpu-ns/op	   12301 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  205609	      6156 ns/op	      6128 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  194013	      8291 ns/op	      8350 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  272439	      4853 ns/op	      4845 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   13328	     80499 ns/op	     81032 cpu-ns/op	   14817 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   41907	     27704 ns/op	     27919 cpu-ns/op	    5398 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   20180	     56220 ns/op	     56492 cpu-ns/op	   12302 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   17197	     63335 ns/op	     63965 cpu-ns/op	   14782 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  151904	      7419 ns/op	      7439 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  463311	      2527 ns/op	      2525 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  207193	      5468 ns/op	      5502 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   64210	     24940 ns/op	     24918 cpu-ns/op	    5397 B/op	      63 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   23900	     48724 ns/op	     48536 cpu-ns/op	   12301 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   25312	     50656 ns/op	     50569 cpu-ns/op	   14779 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   19012	     64964 ns/op	     64696 cpu-ns/op	   14813 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/bare         	  299008	      3388 ns/op	      3411 cpu-ns/op	    2232 B/op	      22 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun         	  171445	      6382 ns/op	      6358 cpu-ns/op	    4128 B/op	      46 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkServeHTTP/portalgun-full         	  203136	      5897 ns/op	      5907 cpu-ns/op	    4192 B/op	      50 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/bare         	   24526	     42937 ns/op	     42812 cpu-ns/op	   12301 B/op	     138 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun         	   26142	     53531 ns/op	     53554 cpu-ns/op	   14779 B/op	     171 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/portalgun-full         	   20316	     53321 ns/op	     53652 cpu-ns/op	   14813 B/op	     173 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/mirzanajafov/portalgun-router/internal/proxy
+cpu: 12th Gen Intel(R) Core(TM) i7-1270P
+BenchmarkLoopback/direct         	   64410	     19755 ns/op	     19873 cpu-ns/op	    5397 B/op	      63 allocs/op

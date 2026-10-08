@@ -104,7 +104,18 @@ func (p *subset) panicking(now int64) bool {
 	return float64(healthy) < p.panic*float64(len(p.upstreams))
 }
 
-func (p *subset) acquire(now int64, tried []*upstream) (*upstream, bool, bool) {
+type tried struct {
+	n  int
+	at [8]*upstream
+}
+
+func (t *tried) add(u *upstream) { t.at[t.n], t.n = u, t.n+1 }
+
+func excluding(f balance.Filter[*upstream], t tried) balance.Filter[*upstream] {
+	return func(u *upstream, now int64) bool { return !slices.Contains(t.at[:t.n], u) && f(u, now) }
+}
+
+func (p *subset) acquire(now int64, t tried) (*upstream, bool, bool) {
 	panicking := p.panicking(now)
 	filters := normalFilters
 	if panicking {
@@ -112,8 +123,8 @@ func (p *subset) acquire(now int64, tried []*upstream) (*upstream, bool, bool) {
 	}
 	for _, f := range filters {
 		ok := f
-		if len(tried) > 0 {
-			ok = func(u *upstream, now int64) bool { return !slices.Contains(tried, u) && f(u, now) }
+		if t.n > 0 {
+			ok = excluding(f, t)
 		}
 		for range 3 {
 			u, found := p.balancer.Pick(p.upstreams, now, ok)
@@ -144,8 +155,7 @@ type route struct {
 	retries       int
 	budget        *health.Budget
 	limiter       limit.Limiter
-	limitHeader   string
-	stickyHeader  string
+	keyHeader     string
 	proxy         *httputil.ReverseProxy
 	canaryProxy   *httputil.ReverseProxy
 	stats         *routeStats
@@ -161,15 +171,12 @@ func keyFor(req *http.Request, header string, hops int) string {
 	return "ip:" + ClientIP(req, hops)
 }
 
-func (r *route) limitKey(req *http.Request, hops int) string {
-	return keyFor(req, r.limitHeader, hops)
+func (r *route) splitting() bool {
+	return r.canary != nil && r.canaryCut != 0 && !r.stats.brakeOn.Load()
 }
 
-func (r *route) pick(req *http.Request, hops int) *httputil.ReverseProxy {
-	if r.canary == nil || r.canaryCut == 0 || r.stats.brakeOn.Load() {
-		return r.proxy
-	}
-	if sticky(r.rollout, keyFor(req, r.stickyHeader, hops)) < r.canaryCut {
+func (r *route) pick(key string, split bool) *httputil.ReverseProxy {
+	if split && sticky(r.rollout, key) < r.canaryCut {
 		return r.canaryProxy
 	}
 	return r.proxy
@@ -183,16 +190,23 @@ func ClientIP(req *http.Request, hops int) string {
 	if hops <= 0 {
 		return host
 	}
-	var hopsSeen []string
-	for _, v := range req.Header.Values("X-Forwarded-For") {
-		for part := range strings.SplitSeq(v, ",") {
+	values := req.Header["X-Forwarded-For"]
+	seen := 0
+	for i := len(values) - 1; i >= 0; i-- {
+		rest := values[i]
+		for rest != "" {
+			part := rest
+			if j := strings.LastIndexByte(rest, ','); j >= 0 {
+				part, rest = rest[j+1:], rest[:j]
+			} else {
+				rest = ""
+			}
 			if p := strings.TrimSpace(part); p != "" {
-				hopsSeen = append(hopsSeen, p)
+				if seen++; seen == hops {
+					return p
+				}
 			}
 		}
-	}
-	if len(hopsSeen) >= hops {
-		return hopsSeen[len(hopsSeen)-hops]
 	}
 	return host
 }
@@ -210,8 +224,10 @@ type snapshot struct {
 }
 
 func (s *snapshot) match(host, path string) *route {
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
+	if strings.IndexByte(host, ':') >= 0 {
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
 	}
 	host = strings.ToLower(host)
 	for _, r := range s.routes {
@@ -593,12 +609,11 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 		}
 		if l, ok := limiters[rc.Name]; ok {
 			r.limiter = l.l
-			r.limitHeader, _ = strings.CutPrefix(rc.RateLimit.Key, "header:")
+			r.keyHeader, _ = strings.CutPrefix(rc.RateLimit.Key, "header:")
 			if rc.RateLimit.Key == "ip" {
-				r.limitHeader = ""
+				r.keyHeader = ""
 			}
 		}
-		r.stickyHeader = r.limitHeader
 		r.proxy = g.newReverseProxy(r, stable)
 		if v.Canary != "" {
 			if r.canary, err = newSubset(pools[rc.Pool], v.Canary); err != nil {
@@ -714,8 +729,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rt.stats.requests.Add(1)
+	split := rt.splitting()
+	var key string
+	if rt.limiter != nil || split {
+		key = keyFor(r, rt.keyHeader, s.trustedHops)
+	}
 	if rt.limiter != nil {
-		key := rt.limitKey(r, s.trustedHops)
 		d := rt.limiter.Allow(r.Context(), key)
 		g.decisions.add(key, d.Allowed)
 		if d.Degraded {
@@ -732,7 +751,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	began := time.Now()
 	ctx, cancel := context.WithTimeout(r.Context(), rt.timeout)
 	defer cancel()
-	rt.pick(r, s.trustedHops).ServeHTTP(w, r.WithContext(ctx))
+	rt.pick(key, split).ServeHTTP(w, r.WithContext(ctx))
 	rt.metrics.duration.Observe(time.Since(began).Seconds())
 }
 

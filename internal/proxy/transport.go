@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -41,12 +42,19 @@ func DefaultTransport(string) http.RoundTripper {
 
 type bufferPool struct{ p sync.Pool }
 
+const bufferSize = 32 << 10
+
 func newBufferPool() *bufferPool {
-	return &bufferPool{p: sync.Pool{New: func() any { b := make([]byte, 32<<10); return &b }}}
+	return &bufferPool{p: sync.Pool{New: func() any { return new([bufferSize]byte) }}}
 }
 
-func (b *bufferPool) Get() []byte  { return *b.p.Get().(*[]byte) }
-func (b *bufferPool) Put(v []byte) { b.p.Put(&v) }
+func (b *bufferPool) Get() []byte { return b.p.Get().(*[bufferSize]byte)[:] }
+
+func (b *bufferPool) Put(v []byte) {
+	if len(v) == bufferSize {
+		b.p.Put((*[bufferSize]byte)(v))
+	}
+}
 
 func (g *Gateway) newReverseProxy(r *route, first *subset) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
@@ -165,38 +173,37 @@ func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	safe := idempotent(req)
 
-	var triedBuf [8]*upstream
-	tried := triedBuf[:0]
+	var t tried
 	var resp *http.Response
 	for {
 		from := a.first
-		if len(tried) > 0 {
+		if t.n > 0 {
 			from = r.stable
 		}
-		u, ok, panicking := from.acquire(g.now(), tried)
+		u, ok, panicking := from.acquire(g.now(), t)
 		if panicking {
 			r.metrics.panics.Inc()
 		}
 		if !ok {
-			if len(tried) == 0 {
+			if t.n == 0 {
 				r.metrics.noUpstream.Inc()
 				return nil, errNoUpstream
 			}
-			return a.finish(resp, err, len(tried))
+			return a.finish(resp, err, t.n)
 		}
-		if len(tried) > 0 {
+		if t.n > 0 {
 			discard(resp)
 			r.metrics.retries.Inc()
 		}
-		tried = append(tried, u)
+		t.add(u)
 		var f failure
 		resp, err, f = a.try(req, u, body)
-		if f == failNone || len(tried) >= limit || !f.retryable(safe) {
-			return a.finish(resp, err, len(tried))
+		if f == failNone || t.n >= limit || !f.retryable(safe) {
+			return a.finish(resp, err, t.n)
 		}
 		if !r.budget.TryRetry(g.now()) {
 			r.metrics.budgetExhausted.Inc()
-			return a.finish(resp, err, len(tried))
+			return a.finish(resp, err, t.n)
 		}
 	}
 }
@@ -225,16 +232,12 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 	trial := u.outlier != nil && u.outlier.Begin()
 
 	ctx, cancel := context.WithCancel(req.Context())
-	var timedOut atomic.Bool
-	timer := time.AfterFunc(r.perTry, func() {
-		timedOut.Store(true)
-		cancel()
-	})
+	t := &tracked{u: u, cancel: cancel, url: *req.URL}
+	timer := time.AfterFunc(r.perTry, t.expire)
 	out := req.WithContext(ctx)
-	target := *req.URL
-	target.Scheme = "http"
-	target.Host = u.address
-	out.URL = &target
+	t.url.Scheme = "http"
+	t.url.Host = u.address
+	out.URL = &t.url
 	if body != nil {
 		out.Body = io.NopCloser(bytes.NewReader(body))
 		out.ContentLength = int64(len(body))
@@ -251,7 +254,7 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 	if resp != nil {
 		status = resp.StatusCode
 	}
-	f := classify(err, status, timedOut.Load(), req.Context())
+	f := classify(err, status, t.timedOut.Load(), req.Context())
 	if f != failCanceled {
 		if u.outlier != nil {
 			u.outlier.Record(finished, f != failNone, errors.Is(err, syscall.ECONNREFUSED), trial)
@@ -270,9 +273,8 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 		}
 	}
 	if err != nil {
-		cancel()
-		u.load.Release()
-		if timedOut.Load() {
+		t.release()
+		if t.timedOut.Load() {
 			err = errPerTryTimeout
 		}
 		r.metrics.result(u, 0)
@@ -288,22 +290,34 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 		u.load.Release()
 		return resp, nil, f
 	}
-	resp.Body = &trackedBody{ReadCloser: resp.Body, release: u.load.Release, cancel: cancel}
+	t.ReadCloser = resp.Body
+	resp.Body = t
 	return resp, nil, f
 }
 
-type trackedBody struct {
+type tracked struct {
 	io.ReadCloser
-	once    sync.Once
-	release func()
-	cancel  context.CancelFunc
+	u        *upstream
+	cancel   context.CancelFunc
+	url      url.URL
+	timedOut atomic.Bool
+	released atomic.Bool
 }
 
-func (b *trackedBody) Close() error {
-	err := b.ReadCloser.Close()
-	b.once.Do(func() {
-		b.release()
-		b.cancel()
-	})
+func (t *tracked) expire() {
+	t.timedOut.Store(true)
+	t.cancel()
+}
+
+func (t *tracked) release() {
+	if t.released.CompareAndSwap(false, true) {
+		t.u.load.Release()
+		t.cancel()
+	}
+}
+
+func (t *tracked) Close() error {
+	err := t.ReadCloser.Close()
+	t.release()
 	return err
 }

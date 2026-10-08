@@ -34,7 +34,7 @@ func dim(t *testing.T, id string, mutate func(*dimension.Behavior)) string {
 	return srv.Listener.Addr().String()
 }
 
-func parse(t *testing.T, c config.Config) *config.Config {
+func parse(t testing.TB, c config.Config) *config.Config {
 	t.Helper()
 	raw, err := json.Marshal(c)
 	if err != nil {

@@ -17,8 +17,15 @@ import (
 
 type bufferPool struct{ p sync.Pool }
 
-func (b *bufferPool) Get() []byte  { return *b.p.Get().(*[]byte) }
-func (b *bufferPool) Put(v []byte) { b.p.Put(&v) }
+const bufferSize = 32 << 10
+
+func (b *bufferPool) Get() []byte { return b.p.Get().(*[bufferSize]byte)[:] }
+
+func (b *bufferPool) Put(v []byte) {
+	if len(v) == bufferSize {
+		b.p.Put((*[bufferSize]byte)(v))
+	}
+}
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
@@ -51,7 +58,7 @@ func main() {
 			IdleConnTimeout:     90 * time.Second,
 			DisableCompression:  true,
 		},
-		BufferPool: &bufferPool{p: sync.Pool{New: func() any { b := make([]byte, 32<<10); return &b }}},
+		BufferPool: &bufferPool{p: sync.Pool{New: func() any { return new([bufferSize]byte) }}},
 	}
 	srv := &http.Server{Addr: *addr, Handler: proxy, ReadHeaderTimeout: 10 * time.Second}
 	log.Fatal(srv.ListenAndServe())
