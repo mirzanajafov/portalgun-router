@@ -405,7 +405,7 @@ func (g *Gateway) Tick(second int64) Snapshot {
 			Outlier:  "disabled",
 		}
 		if u.outlier != nil {
-			d.Outlier = u.outlier.State().String()
+			d.Outlier = u.outlier.StateAt(now).String()
 			if left := u.outlier.Until() - now; d.Outlier == "ejected" && left > 0 {
 				d.EjectedMs = float64(left) / 1e6
 			}
@@ -789,7 +789,7 @@ func (g *Gateway) State() State {
 			Outlier:     "disabled",
 		}
 		if u.outlier != nil {
-			v.Outlier = u.outlier.State().String()
+			v.Outlier = u.outlier.StateAt(now).String()
 			if left := u.outlier.Until() - now; v.Outlier == "ejected" && left > 0 {
 				v.EjectedMs = float64(left) / 1e6
 			}

@@ -70,6 +70,14 @@ func NewOutlier(cfg OutlierConfig, onChange func(Transition)) *Outlier {
 
 func (o *Outlier) State() State { return State(o.state.Load()) }
 
+func (o *Outlier) StateAt(now int64) State {
+	s := State(o.state.Load())
+	if s == Ejected && now >= o.until.Load() {
+		return HalfOpen
+	}
+	return s
+}
+
 func (o *Outlier) Until() int64 { return o.until.Load() }
 
 func (o *Outlier) Eligible(now int64) bool {
