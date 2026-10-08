@@ -1,0 +1,124 @@
+name: pge2e
+
+x-go: &go
+  image: pge2e
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+
+x-dimension: &dimension
+  <<: *go
+  cpus: 0.25
+  mem_limit: 32m
+
+x-gateway: &gateway
+  <<: *go
+  volumes:
+    - ./cluster.json:/etc/portalgun/cluster.json:ro
+  depends_on: [redis, toxiproxy]
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/healthz"]
+    interval: 2s
+    timeout: 2s
+    retries: 15
+  cpus: 0.5
+  mem_limit: 128m
+
+services:
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    cpus: 0.25
+    mem_limit: 64m
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: e2e
+      POSTGRES_DB: portal
+    tmpfs: ["/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "portal"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    cpus: 0.5
+    mem_limit: 256m
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    cpus: 0.5
+    mem_limit: 64m
+
+  dim-a:
+    <<: *dimension
+    command: ["dimension", "-id", "a", "-version", "v1", "-delay-ms", "2"]
+  dim-b:
+    <<: *dimension
+    command: ["dimension", "-id", "b", "-version", "v1", "-delay-ms", "2"]
+  dim-c:
+    <<: *dimension
+    command: ["dimension", "-id", "c", "-version", "v1", "-delay-ms", "2"]
+  dim-d:
+    <<: *dimension
+    command: ["dimension", "-id", "d", "-version", "v2", "-delay-ms", "2"]
+
+  gateway-1:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/cluster.json", "-redis", "redis:6379", "-instance", "gw-1"]
+    ports:
+      - "127.0.0.1:${E2E_GATEWAY_1_PORT:-3131}:8080"
+  gateway-2:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/cluster.json", "-redis", "redis:6379", "-instance", "gw-2"]
+    ports:
+      - "127.0.0.1:${E2E_GATEWAY_2_PORT:-3132}:8080"
+
+  controller:
+    <<: *go
+    command:
+      - controller
+      - -bootstrap=/etc/portalgun/cluster.json
+      - -toxiproxy=http://toxiproxy:8474
+      - -targets=a=http://dim-a:8081,b=http://dim-b:8081,c=http://dim-c:8081,d=http://dim-d:8081
+    environment:
+      PORTAL_POSTGRES: postgres://portal:e2e@postgres:5432/portal?sslmode=disable
+      PORTAL_REDIS: redis:6379
+      PORTAL_ADMIN_TOKEN: e2e-token
+    volumes:
+      - ./cluster.json:/etc/portalgun/cluster.json:ro
+    ports:
+      - "127.0.0.1:${E2E_CONTROLLER_PORT:-3133}:9100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9100/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    cpus: 0.5
+    mem_limit: 128m
