@@ -277,3 +277,35 @@ func grep(s, substr string) string {
 	}
 	return strings.Join(out, "\n")
 }
+
+func TestAnIdleDimensionIsNotReportedEjectedAfterItsEjectionEnds(t *testing.T) {
+	cfg := resilient(t, config.BalancerRoundRobin, func(p *config.Pool, _ *config.Route) {
+		p.Outlier = config.Outlier{Consecutive: 1, BaseEjection: config.Duration(50 * time.Millisecond), MaxEjection: config.Duration(50 * time.Millisecond)}
+	},
+		config.Dimension{ID: "a", Address: dim(t, "a", nil)},
+		config.Dimension{ID: "b", Address: dim(t, "b", func(b *dimension.Behavior) { b.ErrorRate = 1 })},
+	)
+	g, srv := manual(t, cfg)
+	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 4)
+	outlier := func(snap Snapshot) string {
+		for _, d := range snap.Dimensions {
+			if d.ID == "b" {
+				return d.Outlier
+			}
+		}
+		return ""
+	}
+	if got := outlier(g.Tick(1)); got != "ejected" {
+		t.Fatalf("b is %q after failing, want ejected", got)
+	}
+	time.Sleep(80 * time.Millisecond)
+	snap := g.Tick(2)
+	if got := outlier(snap); got != "half-open" {
+		t.Fatalf("b is %q with no traffic after its ejection ended, want half-open", got)
+	}
+	for _, u := range g.State().Upstreams {
+		if u.ID == "b" && (u.Outlier != "half-open" || u.EjectedMs != 0) {
+			t.Fatalf("state reports %+v", u)
+		}
+	}
+}

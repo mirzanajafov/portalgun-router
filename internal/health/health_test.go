@@ -52,6 +52,21 @@ func TestConsecutiveFailuresEject(t *testing.T) {
 	}
 }
 
+func TestStateAtSeesTheEndOfAnEjectionWithoutTraffic(t *testing.T) {
+	var rec recorder
+	o := NewOutlier(outlierConfig(), rec.add)
+	for i := range 5 {
+		o.Record(int64(i), true, false, false)
+	}
+	if o.StateAt(4+5*sec-1) != Ejected {
+		t.Fatalf("not ejected before the ejection ends: %v", o.StateAt(4+5*sec-1))
+	}
+	if o.StateAt(4+5*sec) != HalfOpen || o.State() != Ejected || len(rec.ts) != 1 {
+		t.Fatalf("StateAt %v, State %v, %d transitions: StateAt should report half-open without changing anything",
+			o.StateAt(4+5*sec), o.State(), len(rec.ts))
+	}
+}
+
 func TestSuccessBreaksTheStreak(t *testing.T) {
 	o := NewOutlier(outlierConfig(), nil)
 	for i := range 19 {
