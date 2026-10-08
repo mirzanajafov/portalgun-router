@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -99,15 +100,24 @@ type Watched struct {
 	SystemSeconds float64 `json:"systemSeconds"`
 	Cores         int     `json:"cores"`
 	Utilization   float64 `json:"utilization,omitempty"`
+	MemoryPeakMB  float64 `json:"memoryPeakMb,omitempty"`
+	SwapPeakMB    float64 `json:"swapPeakMb,omitempty"`
 }
+
+const memoryInterval = 100 * time.Millisecond
 
 type watcher struct {
 	dirs  map[string]string
 	start map[string]CgroupCPU
+	mu    sync.Mutex
+	mem   map[string]int64
+	swap  map[string]int64
+	stop  chan struct{}
+	done  chan struct{}
 }
 
 func newWatcher(dirs map[string]string) *watcher {
-	return &watcher{dirs: dirs, start: map[string]CgroupCPU{}}
+	return &watcher{dirs: dirs, start: map[string]CgroupCPU{}, mem: map[string]int64{}, swap: map[string]int64{}}
 }
 
 func (w *watcher) begin() {
@@ -116,12 +126,56 @@ func (w *watcher) begin() {
 			w.start[name] = c
 		}
 	}
+	if len(w.start) == 0 {
+		return
+	}
+	w.stop, w.done = make(chan struct{}), make(chan struct{})
+	go w.sampleMemory()
+}
+
+func (w *watcher) sampleMemory() {
+	defer close(w.done)
+	t := time.NewTicker(memoryInterval)
+	defer t.Stop()
+	for {
+		w.readMemory()
+		select {
+		case <-w.stop:
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func (w *watcher) readMemory() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for name := range w.start {
+		if v, ok := readCounter(filepath.Join(w.dirs[name], "memory.current")); ok {
+			w.mem[name] = max(w.mem[name], v)
+		}
+		if v, ok := readCounter(filepath.Join(w.dirs[name], "memory.swap.current")); ok {
+			w.swap[name] = max(w.swap[name], v)
+		}
+	}
+}
+
+func readCounter(path string) (int64, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	return n, err == nil
 }
 
 func (w *watcher) end(window float64) map[string]Watched {
 	if len(w.start) == 0 {
 		return nil
 	}
+	close(w.stop)
+	<-w.done
+	w.readMemory()
 	out := map[string]Watched{}
 	for name, before := range w.start {
 		after, err := ReadCgroupCPU(w.dirs[name])
@@ -134,6 +188,8 @@ func (w *watcher) end(window float64) map[string]Watched {
 			UserSeconds:   round(d.User.Seconds(), 3),
 			SystemSeconds: round(d.System.Seconds(), 3),
 			Cores:         CgroupCores(w.dirs[name]),
+			MemoryPeakMB:  round(float64(w.mem[name])/(1<<20), 1),
+			SwapPeakMB:    round(float64(w.swap[name])/(1<<20), 1),
 		}
 		if v.Cores > 0 && window > 0 {
 			v.Utilization = round(d.Usage.Seconds()/(window*float64(v.Cores)), 3)

@@ -35,6 +35,7 @@ type Cell struct {
 	Rate             float64 `json:"rate"`
 	Runs             int     `json:"runs"`
 	Saturated        int     `json:"saturated"`
+	Died             int     `json:"died,omitempty"`
 	GeneratorIssues  int     `json:"generatorIssues"`
 	P50Us            Stat    `json:"p50Us"`
 	P99Us            Stat    `json:"p99Us"`
@@ -42,6 +43,7 @@ type Cell struct {
 	ThroughputRps    Stat    `json:"throughputRps"`
 	CPUPerRequestUs  Stat    `json:"cpuPerRequestUs"`
 	UserPerRequestUs Stat    `json:"userPerRequestUs"`
+	MemoryPeakMB     Stat    `json:"memoryPeakMb"`
 	OverheadP50Us    float64 `json:"overheadP50Us"`
 	OverheadP99Us    float64 `json:"overheadP99Us"`
 }
@@ -98,10 +100,19 @@ func Summarize(points []Point) Report {
 	for k, ps := range groups {
 		c := Cell{System: k.system, Rate: k.rate, Runs: len(ps)}
 		clean := slices.ContainsFunc(ps, func(p Point) bool { return p.GeneratorOK })
-		var p50, p99, p999, tput, cpu, user []float64
+		var p50, p99, p999, tput, cpu, user, mem []float64
 		for _, p := range ps {
 			if p.Saturated {
 				c.Saturated++
+			}
+			if p.MemoryPeakMB > 0 {
+				mem = append(mem, p.MemoryPeakMB)
+			}
+			if p.Died != "" {
+				c.Died++
+				if p.Loadgen.Scheduled == 0 {
+					continue
+				}
 			}
 			if !p.GeneratorOK {
 				c.GeneratorIssues++
@@ -120,6 +131,7 @@ func Summarize(points []Point) Report {
 		}
 		c.P50Us, c.P99Us, c.P999Us = statOf(p50), statOf(p99), statOf(p999)
 		c.ThroughputRps, c.CPUPerRequestUs, c.UserPerRequestUs = statOf(tput), statOf(cpu), statOf(user)
+		c.MemoryPeakMB = statOf(mem)
 		rep.Cells = append(rep.Cells, c)
 	}
 	direct := map[float64]Cell{}
@@ -159,13 +171,13 @@ func Summarize(points []Point) Report {
 
 func (r Report) WriteText(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(tw, "rate\tsystem\truns\tsat\tp50 us\t+p50\tp99 us (min-max)\t+p99\tp99.9 us\tcpu us/req\tuser\t\n")
+	fmt.Fprintf(tw, "rate\tsystem\truns\tsat\tdied\tp50 us\t+p50\tp99 us (min-max)\t+p99\tp99.9 us\tcpu us/req\tuser\tmem MB\t\n")
 	for _, c := range r.Cells {
-		fmt.Fprintf(tw, "%.0f\t%s\t%d\t%d\t%.1f\t%+.1f\t%.0f (%.0f-%.0f)\t%+.0f\t%.0f\t%.1f\t%.1f\t\n",
-			c.Rate, c.System, c.Runs, c.Saturated,
+		fmt.Fprintf(tw, "%.0f\t%s\t%d\t%d\t%d\t%.1f\t%+.1f\t%.0f (%.0f-%.0f)\t%+.0f\t%.0f\t%.1f\t%.1f\t%.0f\t\n",
+			c.Rate, c.System, c.Runs, c.Saturated, c.Died,
 			c.P50Us.Median, c.OverheadP50Us,
 			c.P99Us.Median, c.P99Us.Min, c.P99Us.Max, c.OverheadP99Us,
-			c.P999Us.Median, c.CPUPerRequestUs.Median, c.UserPerRequestUs.Median)
+			c.P999Us.Median, c.CPUPerRequestUs.Median, c.UserPerRequestUs.Median, c.MemoryPeakMB.Max)
 	}
 	if err := tw.Flush(); err != nil {
 		return err

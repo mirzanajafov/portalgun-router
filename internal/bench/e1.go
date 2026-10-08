@@ -98,9 +98,12 @@ type Point struct {
 	CPUPerRequestUs    float64            `json:"cpuPerRequestUs"`
 	UserPerRequestUs   float64            `json:"userPerRequestUs"`
 	KernelPerRequestUs float64            `json:"kernelPerRequestUs"`
+	MemoryPeakMB       float64            `json:"memoryPeakMb,omitempty"`
+	SwapPeakMB         float64            `json:"swapPeakMb,omitempty"`
 	DimensionCPU       map[string]float64 `json:"dimensionCpuSec"`
 	DimensionUtil      float64            `json:"dimensionUtil"`
 	Saturated          bool               `json:"saturated"`
+	Died               string             `json:"died,omitempty"`
 	Reasons            []string           `json:"reasons,omitempty"`
 	GeneratorOK        bool               `json:"generatorOk"`
 	Attempt            int                `json:"attempt"`
@@ -223,8 +226,17 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 				saturated := true
 				for _, confirmation := range []bool{false, true} {
 					p, err := r.measure(ctx, compose, plan, sys, rate, rep, slot)
-					if err != nil {
-						return dir, err
+					if err != nil || p.Saturated {
+						died, rerr := r.revive(ctx, compose, plan, sys)
+						switch {
+						case rerr != nil:
+							return dir, errors.Join(err, rerr)
+						case died != "":
+							p.Died, p.Saturated = died, true
+							p.Reasons = append(p.Reasons, sys.Name+" "+died)
+						case err != nil:
+							return dir, err
+						}
 					}
 					p.Confirmation = confirmation
 					if err := enc.Encode(p); err != nil {
@@ -232,6 +244,9 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 					}
 					r.logf("[%d/%d] rep %d %-8s %7.0f rps  p50 %7.1f us  p99 %8.1f us  cpu %6.1f us/req  %s",
 						done, total, rep+1, sys.Name, rate, p.Loadgen.LatencyUs.P50, p.Loadgen.LatencyUs.P99, p.CPUPerRequestUs, strings.Join(p.Reasons, ", "))
+					if p.Died != "" {
+						break
+					}
 					if !p.Saturated {
 						saturated = false
 						break
@@ -285,8 +300,44 @@ func (r *Runner) point(ctx context.Context, compose Compose, plan Plan, sys Syst
 		p.UserPerRequestUs = w.UserSeconds / served * 1e6
 		p.KernelPerRequestUs = w.SystemSeconds / served * 1e6
 	}
+	if w, ok := sum.Watched["system"]; ok {
+		p.MemoryPeakMB, p.SwapPeakMB = w.MemoryPeakMB, w.SwapPeakMB
+	}
 	judge(&p)
 	return p, nil
+}
+
+func (r *Runner) revive(ctx context.Context, compose Compose, plan Plan, sys System) (string, error) {
+	id, ok := r.ids[sys.Service]
+	if !ok {
+		return "", nil
+	}
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}} {{.State.OOMKilled}} {{.State.ExitCode}}", id).Output()
+	if err != nil {
+		return "", fmt.Errorf("inspecting %s: %w", sys.Name, err)
+	}
+	died := death(string(out))
+	if died == "" {
+		return "", nil
+	}
+	r.logf("  %s %s, starting it again", sys.Name, died)
+	if _, err := compose.run(ctx, "start", sys.Service); err != nil {
+		return died, err
+	}
+	p := plan
+	p.Systems = []System{sys}
+	return died, r.waitReady(ctx, compose, p)
+}
+
+func death(state string) string {
+	f := strings.Fields(state)
+	switch {
+	case len(f) != 3 || f[0] == "true":
+		return ""
+	case f[1] == "true":
+		return "OOM-killed"
+	}
+	return "exited with " + f[2]
 }
 
 func watchArgs(ids map[string]string, sys System) []string {
