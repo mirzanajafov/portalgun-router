@@ -1,0 +1,156 @@
+{
+  "cpuMeasured": true,
+  "cells": [
+    {
+      "group": "ServeHTTP",
+      "system": "bare",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 3795,
+        "min": 2525,
+        "max": 5264
+      },
+      "nsPerOp": {
+        "median": 3791,
+        "min": 2527,
+        "max": 5249
+      },
+      "bytesPerOp": 2232,
+      "allocsPerOp": 22
+    },
+    {
+      "group": "ServeHTTP",
+      "system": "portalgun",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 6770,
+        "min": 5502,
+        "max": 12552
+      },
+      "nsPerOp": {
+        "median": 6717.5,
+        "min": 5468,
+        "max": 12290
+      },
+      "bytesPerOp": 4128,
+      "allocsPerOp": 46
+    },
+    {
+      "group": "ServeHTTP",
+      "system": "portalgun-full",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 7547,
+        "min": 5907,
+        "max": 9940
+      },
+      "nsPerOp": {
+        "median": 7513.5,
+        "min": 5897,
+        "max": 9879
+      },
+      "bytesPerOp": 4192,
+      "allocsPerOp": 50
+    },
+    {
+      "group": "Loopback",
+      "system": "direct",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 25472.5,
+        "min": 19873,
+        "max": 28726
+      },
+      "nsPerOp": {
+        "median": 25421,
+        "min": 19755,
+        "max": 28798
+      },
+      "bytesPerOp": 5398,
+      "allocsPerOp": 63
+    },
+    {
+      "group": "Loopback",
+      "system": "bare",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 51168,
+        "min": 42812,
+        "max": 67533
+      },
+      "nsPerOp": {
+        "median": 50947,
+        "min": 42937,
+        "max": 67333
+      },
+      "bytesPerOp": 12301,
+      "allocsPerOp": 138
+    },
+    {
+      "group": "Loopback",
+      "system": "portalgun",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 60220.5,
+        "min": 50569,
+        "max": 82466
+      },
+      "nsPerOp": {
+        "median": 60037,
+        "min": 50656,
+        "max": 82061
+      },
+      "bytesPerOp": 14780.5,
+      "allocsPerOp": 171
+    },
+    {
+      "group": "Loopback",
+      "system": "portalgun-full",
+      "runs": 10,
+      "cpuNsPerOp": {
+        "median": 64041,
+        "min": 52793,
+        "max": 84539
+      },
+      "nsPerOp": {
+        "median": 64278.5,
+        "min": 52841,
+        "max": 84027
+      },
+      "bytesPerOp": 14813.5,
+      "allocsPerOp": 173
+    }
+  ],
+  "ratios": [
+    {
+      "system": "portalgun",
+      "handler": {
+        "median": 1.7425400448160073,
+        "min": 1.2648090815273478,
+        "max": 4.272294077603812
+      },
+      "loopback": {
+        "median": 1.2334419353130948,
+        "min": 0.9293031747641749,
+        "max": 2.641480575099419
+      },
+      "estimate": 1.1157790274561694
+    },
+    {
+      "system": "portalgun-full",
+      "handler": {
+        "median": 1.840460227218346,
+        "min": 1.568675232609659,
+        "max": 2.946138613861386
+      },
+      "loopback": {
+        "median": 1.693213373887859,
+        "min": 0.8019829597322243,
+        "max": 1.8588527630980296
+      },
+      "estimate": 1.1460177852153102
+    }
+  ],
+  "gate": 1.5,
+  "passed": true
+}

@@ -9,7 +9,7 @@ import (
 
 const clockTicks = 100
 
-func processCPU() (time.Duration, bool) {
+func ProcessCPU() (time.Duration, bool) {
 	data, err := os.ReadFile("/proc/self/stat")
 	if err != nil {
 		return 0, false

@@ -38,6 +38,10 @@ func main() {
 		err = e3(ctx, os.Args[2:])
 	case "report-e3":
 		err = reportE3(os.Args[2:])
+	case "hotpath":
+		err = hotpath(ctx, os.Args[2:])
+	case "report-hotpath":
+		err = reportHotpath(os.Args[2:])
 	default:
 		usage()
 	}
@@ -48,7 +52,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3 [flags] | bench report|report-e2|report-e3 <dir>")
+	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|hotpath [flags] | bench report|report-e2|report-e3|report-hotpath <dir>")
 	os.Exit(2)
 }
 
@@ -250,4 +254,35 @@ func reportE2(args []string) error {
 		return err
 	}
 	return writeSummary(filepath.Join(args[0], "summary.json"), sums)
+}
+
+func hotpath(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("hotpath", flag.ExitOnError)
+	reps := fs.Int("reps", 10, "repetitions, each one running every system once in rotated order")
+	benchtime := fs.String("benchtime", "1s", "go test -benchtime for each run")
+	pkg := fs.String("package", "./internal/proxy/", "package holding the benchmarks")
+	out := fs.String("out", filepath.Join("bench", "results", "hotpath"), "results directory")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	dir, err := bench.RunHotpath(ctx, bench.HotpathPlan{Package: *pkg, Reps: *reps, BenchTime: *benchtime, Out: *out, Log: os.Stdout})
+	if dir != "" && err == nil {
+		err = reportHotpath([]string{dir})
+	}
+	return err
+}
+
+func reportHotpath(args []string) error {
+	if len(args) != 1 {
+		return errors.New("report-hotpath needs a results directory")
+	}
+	rows, err := bench.LoadHotpathRows(args[0])
+	if err != nil {
+		return err
+	}
+	sum := bench.SummarizeHotpath(rows)
+	if err := bench.WriteHotpathText(os.Stdout, sum); err != nil {
+		return err
+	}
+	return writeSummary(filepath.Join(args[0], "summary.json"), sum)
 }
