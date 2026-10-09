@@ -14,6 +14,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
+	"github.com/mirzanajafov/portalgun-router/internal/limit"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/redis/go-redis/v9"
 )
@@ -61,14 +62,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	popts := proxy.Options{Logger: logger, Instance: o.instance, Decisions: o.decisions, Metrics: proxy.NewMetrics()}
 	var rdb *redis.Client
 	if o.redis != "" {
-		rdb = redis.NewClient(&redis.Options{
-			Addr:         o.redis,
-			MaxRetries:   -1,
-			DialTimeout:  time.Second,
-			ReadTimeout:  time.Second,
-			WriteTimeout: time.Second,
-			PoolSize:     64,
-		})
+		rdb = redis.NewClient(limit.ClientOptions(o.redis))
 		defer rdb.Close()
 		rdb.AddHook(popts.Metrics.RedisHook())
 		popts.Redis = rdb

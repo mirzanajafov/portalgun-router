@@ -2,7 +2,10 @@ package limit
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -133,6 +136,81 @@ func TestRedisExactFallsBackWhenRedisIsGone(t *testing.T) {
 	}
 	if allowed != 2 {
 		t.Fatalf("fallback allowed %d, want half of the burst", allowed)
+	}
+}
+
+func silentRedis(t *testing.T) (string, *atomic.Int64) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var accepted atomic.Int64
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			go func() {
+				_, _ = io.Copy(io.Discard, c)
+				c.Close()
+			}()
+		}
+	}()
+	return ln.Addr().String(), &accepted
+}
+
+func TestRedisLimitersGiveUpOnARedisThatNeverAnswers(t *testing.T) {
+	addr, accepted := silentRedis(t)
+	rdb := redis.NewClient(ClientOptions(addr))
+	t.Cleanup(func() { rdb.Close() })
+	rule := Rule{Rate: 10, Burst: 4}
+	e, _ := NewRedisExact(rdb, "x:", rule, 2, 5*time.Millisecond, wall)
+	l, _ := NewLease(rdb, "y:", rule, 2, 20*time.Millisecond, time.Second, 5*time.Millisecond, wall)
+	for name, lim := range map[string]Limiter{"redis-exact": e, "lease": l} {
+		before := accepted.Load()
+		began := time.Now()
+		for range 50 {
+			if d := lim.Allow(context.Background(), "k"); !d.Degraded {
+				t.Fatalf("%s: decision %+v not degraded", name, d)
+			}
+		}
+		if took := time.Since(began); took > 500*time.Millisecond {
+			t.Fatalf("%s: 50 decisions took %v; the timeout has to bound the reply, not only the wait for a connection", name, took)
+		}
+		if n := accepted.Load() - before; n > 2*tripAfter {
+			t.Fatalf("%s: %d connections for 50 decisions; a timed-out connection is closed, so without the breaker every request dials", name, n)
+		}
+	}
+}
+
+func TestBreakerOpensOnFailuresInARowOnly(t *testing.T) {
+	var clk fakeClock
+	b := breaker{now: clk.now}
+	ctx := context.Background()
+	fail := errors.New("i/o timeout")
+	for _, err := range []error{fail, fail, nil, fail, fail} {
+		b.record(ctx, err)
+	}
+	if b.open() {
+		t.Fatal("open after a success broke the run of failures")
+	}
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	b.record(gone, fail)
+	if b.open() {
+		t.Fatal("a request its client gave up on counted against Redis")
+	}
+	b.record(ctx, fail)
+	if !b.open() {
+		t.Fatalf("still closed after %d failures in a row", tripAfter)
+	}
+	clk.advance(openFor)
+	if b.open() {
+		t.Fatal("still open after the cool-down")
 	}
 }
 
