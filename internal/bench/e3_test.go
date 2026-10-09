@@ -2,7 +2,9 @@ package bench
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -78,13 +80,14 @@ func TestFailoverSummaryKeepsMissesVisible(t *testing.T) {
 		run("crash/both", true, ms(290), nil, 200),
 		run("crash/both", true, nil, ms(600), 80),
 		run("crash/both", false, ms(1), ms(1), 0),
+		{Cell: "crash/both", Error: "toxiproxy POST /reset: context deadline exceeded"},
 		run("slow/both", true, nil, nil, 0),
 	})
 	if len(sums) != 2 || sums[0].Cell != "crash/both" {
 		t.Fatalf("%+v", sums)
 	}
 	c := sums[0]
-	if c.Runs != 4 || c.InvalidRuns != 1 || c.Detected != 2 || c.Moved != 2 {
+	if c.Runs != 4 || c.InvalidRuns != 1 || c.Failed != 1 || c.Detected != 2 || c.Moved != 2 {
 		t.Fatalf("%+v", c)
 	}
 	if c.DetectMs.Median != 300 || c.Lost.Median != 120 || c.MoveMs.Min != 400 || c.MoveMs.Max != 600 {
@@ -95,10 +98,69 @@ func TestFailoverSummaryKeepsMissesVisible(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := b.String()
-	for _, want := range []string{"4 (1 invalid)", "300 (290-310) [2/3]", "500 (400-600) [2/3]"} {
+	for _, want := range []string{"4 (1 invalid) (1 failed)", "300 (290-310) [2/3]", "500 (400-600) [2/3]"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("report lacks %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestACellGetsOneMoreTryAfterHealing(t *testing.T) {
+	ctx := context.Background()
+	boom := errors.New("toxiproxy POST /reset: context deadline exceeded")
+	cases := []struct {
+		name       string
+		fails      int
+		healErr    error
+		tries      int
+		heals      int
+		wantFailed bool
+	}{
+		{"fine", 0, nil, 1, 0, false},
+		{"fails once", 1, nil, 2, 1, false},
+		{"fails twice", 2, nil, 2, 1, true},
+		{"cannot heal", 1, errors.New("docker is gone"), 1, 1, true},
+	}
+	for _, c := range cases {
+		tries, heals := 0, 0
+		got, err := tryTwice(ctx, func() (FailoverRun, error) {
+			tries++
+			if tries <= c.fails {
+				return FailoverRun{}, boom
+			}
+			return FailoverRun{Cell: "crash/both"}, nil
+		}, func(error) error {
+			heals++
+			return c.healErr
+		})
+		if tries != c.tries || heals != c.heals || (err != nil) != c.wantFailed || (err == nil && got.Cell != "crash/both") {
+			t.Fatalf("%s: %d tries, %d heals, run %+v, err %v", c.name, tries, heals, got, err)
+		}
+	}
+	stopped, cancel := context.WithCancel(ctx)
+	cancel()
+	heals := 0
+	_, err := tryTwice(stopped, func() (FailoverRun, error) { return FailoverRun{}, boom }, func(error) error {
+		heals++
+		return nil
+	})
+	if err == nil || heals != 0 {
+		t.Fatalf("a stopped run was healed and tried again: %d heals, err %v", heals, err)
+	}
+}
+
+func TestLoadFailoverRunsKeepsFailedCells(t *testing.T) {
+	dir := t.TempDir()
+	lines := `{"cell":"crash/both","report":{"result":{"lost":3}}}` + "\n" + `{"cell":"crash/both","error":"reset timed out"}` + "\n" + `{"cell":"crash/both"}` + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "runs.jsonl"), []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := LoadFailoverRuns(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 || runs[1].Error != "reset timed out" {
+		t.Fatalf("%+v", runs)
 	}
 }
 
