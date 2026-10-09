@@ -223,6 +223,27 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	}
 }
 
+func TestLocalSyncKeepsTheRateWhenAnIntervalRefillsMoreThanTheBurst(t *testing.T) {
+	rdb := testRedis(t)
+	p := prefix(t)
+	rule := Rule{Rate: 200, Burst: 10}
+	var ls []Limiter
+	for i := range 2 {
+		l, err := NewLocalSync(rdb, p, rule, 2, fmt.Sprint("gw-", i), 200*time.Millisecond, time.Second, wall)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(l.Close)
+		ls = append(ls, l)
+	}
+	began := time.Now()
+	allowed := hammer(t, ls, "k", 3000, time.Millisecond)
+	exact := rule.Burst + rule.Rate*time.Since(began).Seconds()
+	if float64(allowed) < 0.85*exact || float64(allowed) > 1.15*exact {
+		t.Fatalf("admitted %d against an exact %.0f; capping the refill at the burst before charging what was spent loses tokens whenever rate x interval is above the burst", allowed, exact)
+	}
+}
+
 func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 	rdb := testRedis(t)
 	if err := rdb.ScriptFlush(context.Background()).Err(); err != nil {

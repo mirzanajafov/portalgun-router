@@ -20,7 +20,7 @@ redis.call('SET', KEYS[1], string.format('%.0f', nextTat), 'PX', math.ceil(ahead
 return {1, 0}
 `)
 
-const refill = `
+const bucketState = `
 local t = redis.call('TIME')
 local now = tonumber(t[1]) * 1000000 + tonumber(t[2])
 local rate = tonumber(ARGV[1])
@@ -33,12 +33,14 @@ if level == nil or ts == nil then
   level = burst
   ts = now
 end
+local gained = 0
 if now > ts then
-  level = math.min(burst, level + (now - ts) * rate)
+  gained = (now - ts) * rate
 end
 `
 
-var leaseScript = redis.NewScript(refill + `
+var leaseScript = redis.NewScript(bucketState + `
+level = math.min(burst, level + gained)
 local want = tonumber(ARGV[4])
 local grant = math.min(want, math.max(0, math.floor(level)))
 level = level - grant
@@ -47,12 +49,12 @@ redis.call('PEXPIRE', KEYS[1], ttl)
 return grant
 `)
 
-var syncScript = redis.NewScript(refill + `
+var syncScript = redis.NewScript(bucketState + `
 local spent = tonumber(ARGV[4])
 local instance = ARGV[5]
 local demand = tonumber(ARGV[6])
 local window = tonumber(ARGV[7])
-level = level - spent
+level = math.min(burst, level + gained - spent)
 redis.call('HSET', KEYS[1], 'level', string.format('%.6f', level), 'ts', string.format('%.0f', now))
 redis.call('PEXPIRE', KEYS[1], ttl)
 redis.call('HSET', KEYS[2], instance, string.format('%.6f', demand) .. ':' .. string.format('%.0f', now))
