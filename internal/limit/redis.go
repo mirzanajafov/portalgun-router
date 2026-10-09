@@ -19,6 +19,7 @@ type exact struct {
 	timeout   time.Duration
 	fallback  *Buckets
 	now       Clock
+	guard     breaker
 }
 
 func NewRedisExact(rdb Redis, prefix string, rule Rule, instances int, timeout time.Duration, now Clock) (Limiter, error) {
@@ -34,18 +35,27 @@ func NewRedisExact(rdb Redis, prefix string, rule Rule, instances int, timeout t
 		timeout:   timeout,
 		fallback:  NewBuckets(split(rule, instances)),
 		now:       now,
+		guard:     breaker{now: now},
 	}, nil
 }
 
 func (e *exact) Allow(ctx context.Context, key string) Decision {
-	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	if e.guard.open() {
+		return e.degraded(key)
+	}
+	rctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
-	res, err := gcraScript.Run(ctx, e.rdb, []string{e.prefix + key}, e.interval, e.tolerance).Int64Slice()
+	res, err := gcraScript.Run(rctx, e.rdb, []string{e.prefix + key}, e.interval, e.tolerance).Int64Slice()
+	e.guard.record(ctx, err)
 	if err != nil || len(res) != 2 {
-		ok, after := e.fallback.Take(key, e.now())
-		return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
+		return e.degraded(key)
 	}
 	return Decision{Allowed: res[0] == 1, RetryAfter: time.Duration(res[1]) * time.Microsecond}
+}
+
+func (e *exact) degraded(key string) Decision {
+	ok, after := e.fallback.Take(key, e.now())
+	return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
 }
 
 func (e *exact) Close() {}

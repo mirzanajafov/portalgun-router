@@ -49,6 +49,7 @@ type lease struct {
 	timeout  time.Duration
 	fallback *Buckets
 	now      Clock
+	guard    breaker
 
 	mu      sync.Mutex
 	keys    map[string]*leaseKey
@@ -69,6 +70,7 @@ func NewLease(rdb Redis, prefix string, rule Rule, instances int, target, ttl, t
 		timeout:  timeout,
 		fallback: NewBuckets(split(rule, instances)),
 		now:      now,
+		guard:    breaker{now: now},
 		keys:     map[string]*leaseKey{},
 	}, nil
 }
@@ -121,6 +123,11 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 			now = l.now()
 			continue
 		}
+		if l.guard.open() {
+			st.mu.Unlock()
+			ok, after := l.fallback.Take(key, now)
+			return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
+		}
 		want := math.Ceil(max(st.thisSecond, st.lastSecond) * l.target.Seconds())
 		want = min(max(want, 1), l.rule.Burst)
 		done := make(chan struct{})
@@ -147,10 +154,11 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 }
 
 func (l *lease) fetch(ctx context.Context, key string, want float64) (float64, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.timeout)
+	rctx, cancel := context.WithTimeout(ctx, l.timeout)
 	defer cancel()
 	l.fetches.Add(1)
-	n, err := leaseScript.Run(ctx, l.rdb, []string{l.prefix + key}, l.rule.Rate/1e6, l.rule.Burst, ttlMillis(l.rule), want).Int64()
+	n, err := leaseScript.Run(rctx, l.rdb, []string{l.prefix + key}, l.rule.Rate/1e6, l.rule.Burst, ttlMillis(l.rule), want).Int64()
+	l.guard.record(ctx, err)
 	return float64(n), err
 }
 
