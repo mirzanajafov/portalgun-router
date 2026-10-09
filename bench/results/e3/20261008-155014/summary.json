@@ -1,0 +1,1486 @@
+[
+  {
+    "cell": "crash/probes",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1105.876,
+      "min": 1105.876,
+      "max": 1105.876
+    },
+    "moveMs": {
+      "median": 1100,
+      "min": 1100,
+      "max": 1100
+    },
+    "lost": {
+      "median": 1261,
+      "min": 1261,
+      "max": 1261
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.416318,
+      "min": 6.416318,
+      "max": 6.416318
+    },
+    "p99FaultMs": {
+      "median": 7.006949,
+      "min": 7.006949,
+      "max": 7.006949
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 10600,
+      "min": 10600,
+      "max": 10600
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "crash/passive",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 8.965,
+      "min": 8.965,
+      "max": 8.965
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 11,
+      "min": 11,
+      "max": 11
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.619569,
+      "min": 6.619569,
+      "max": 6.619569
+    },
+    "p99FaultMs": {
+      "median": 6.395764,
+      "min": 6.395764,
+      "max": 6.395764
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 15600,
+      "min": 15600,
+      "max": 15600
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "crash/both",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 6.022,
+      "min": 6.022,
+      "max": 6.022
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 5,
+      "min": 5,
+      "max": 5
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.540654,
+      "min": 6.540654,
+      "max": 6.540654
+    },
+    "p99FaultMs": {
+      "median": 6.336109,
+      "min": 6.336109,
+      "max": 6.336109
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 9200,
+      "min": 9200,
+      "max": 9200
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "crash/both-retries",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 9.644,
+      "min": 9.644,
+      "max": 9.644
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.518549,
+      "min": 6.518549,
+      "max": 6.518549
+    },
+    "p99FaultMs": {
+      "median": 6.460334,
+      "min": 6.460334,
+      "max": 6.460334
+    },
+    "attemptsFault": {
+      "median": 1.0001335403208307,
+      "min": 1.0001335403208307,
+      "max": 1.0001335403208307
+    },
+    "recoverMs": {
+      "median": 7100,
+      "min": 7100,
+      "max": 7100
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "reset/probes",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1279.756,
+      "min": 1279.756,
+      "max": 1279.756
+    },
+    "moveMs": {
+      "median": 1300,
+      "min": 1300,
+      "max": 1300
+    },
+    "lost": {
+      "median": 532,
+      "min": 532,
+      "max": 532
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 7.427538,
+      "min": 7.427538,
+      "max": 7.427538
+    },
+    "p99FaultMs": {
+      "median": 66.979458,
+      "min": 66.979458,
+      "max": 66.979458
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 9900,
+      "min": 9900,
+      "max": 9900
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "reset/passive",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 37.288,
+      "min": 37.288,
+      "max": 37.288
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 16,
+      "min": 16,
+      "max": 16
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.75643,
+      "min": 6.75643,
+      "max": 6.75643
+    },
+    "p99FaultMs": {
+      "median": 6.481379,
+      "min": 6.481379,
+      "max": 6.481379
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 10600,
+      "min": 10600,
+      "max": 10600
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "reset/both",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 61.983,
+      "min": 61.983,
+      "max": 61.983
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 12,
+      "min": 12,
+      "max": 12
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.485724,
+      "min": 6.485724,
+      "max": 6.485724
+    },
+    "p99FaultMs": {
+      "median": 7.050164,
+      "min": 7.050164,
+      "max": 7.050164
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 4000,
+      "min": 4000,
+      "max": 4000
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "reset/both-retries",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 25.394,
+      "min": 25.394,
+      "max": 25.394
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.660899,
+      "min": 6.660899,
+      "max": 6.660899
+    },
+    "p99FaultMs": {
+      "median": 6.868346,
+      "min": 6.868346,
+      "max": 6.868346
+    },
+    "attemptsFault": {
+      "median": 1.0001502353687444,
+      "min": 1.0001502353687444,
+      "max": 1.0001502353687444
+    },
+    "recoverMs": {
+      "median": 7600,
+      "min": 7600,
+      "max": 7600
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "blackhole/probes",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1833.739,
+      "min": 1833.739,
+      "max": 1833.739
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 18,
+      "min": 18,
+      "max": 18
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.390489,
+      "min": 6.390489,
+      "max": 6.390489
+    },
+    "p99FaultMs": {
+      "median": 6.33027,
+      "min": 6.33027,
+      "max": 6.33027
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 7900,
+      "min": 7900,
+      "max": 7900
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "blackhole/passive",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1010.573,
+      "min": 1010.573,
+      "max": 1010.573
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 14,
+      "min": 14,
+      "max": 14
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.338014,
+      "min": 6.338014,
+      "max": 6.338014
+    },
+    "p99FaultMs": {
+      "median": 6.326891,
+      "min": 6.326891,
+      "max": 6.326891
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 14300,
+      "min": 14300,
+      "max": 14300
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "blackhole/both",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1020.55,
+      "min": 1020.55,
+      "max": 1020.55
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 10,
+      "min": 10,
+      "max": 10
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.412299,
+      "min": 6.412299,
+      "max": 6.412299
+    },
+    "p99FaultMs": {
+      "median": 6.394054,
+      "min": 6.394054,
+      "max": 6.394054
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 9000,
+      "min": 9000,
+      "max": 9000
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "blackhole/both-retries",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1062.828,
+      "min": 1062.828,
+      "max": 1062.828
+    },
+    "moveMs": {
+      "median": 100,
+      "min": 100,
+      "max": 100
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 98.012639,
+      "min": 98.012639,
+      "max": 98.012639
+    },
+    "p99FaultMs": {
+      "median": 7.402432,
+      "min": 7.402432,
+      "max": 7.402432
+    },
+    "attemptsFault": {
+      "median": 1.000133547008547,
+      "min": 1.000133547008547,
+      "max": 1.000133547008547
+    },
+    "recoverMs": {
+      "median": 6900,
+      "min": 6900,
+      "max": 6900
+    },
+    "falseEjections": {
+      "median": 2,
+      "min": 2,
+      "max": 2
+    }
+  },
+  {
+    "cell": "slow/probes",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 2389.982,
+      "min": 2389.982,
+      "max": 2389.982
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.501577,
+      "min": 6.501577,
+      "max": 6.501577
+    },
+    "p99FaultMs": {
+      "median": 6.360234,
+      "min": 6.360234,
+      "max": 6.360234
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 9500,
+      "min": 9500,
+      "max": 9500
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "slow/passive",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 0,
+    "moved": 1,
+    "recovered": 0,
+    "detectMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 14.704654,
+      "min": 14.704654,
+      "max": 14.704654
+    },
+    "p99FaultMs": {
+      "median": 6.471397,
+      "min": 6.471397,
+      "max": 6.471397
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "slow/both",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 2258.956,
+      "min": 2258.956,
+      "max": 2258.956
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.415362,
+      "min": 6.415362,
+      "max": 6.415362
+    },
+    "p99FaultMs": {
+      "median": 6.188446,
+      "min": 6.188446,
+      "max": 6.188446
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 11800,
+      "min": 11800,
+      "max": 11800
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "slow/both-retries",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1784.5,
+      "min": 1784.5,
+      "max": 1784.5
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.428602,
+      "min": 6.428602,
+      "max": 6.428602
+    },
+    "p99FaultMs": {
+      "median": 6.277153,
+      "min": 6.277153,
+      "max": 6.277153
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 13900,
+      "min": 13900,
+      "max": 13900
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "partial/probes",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 0,
+    "moved": 0,
+    "recovered": 1,
+    "detectMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 6064,
+      "min": 6064,
+      "max": 6064
+    },
+    "lostAfter": {
+      "median": 2,
+      "min": 2,
+      "max": 2
+    },
+    "p99BeforeMs": {
+      "median": 6.3374,
+      "min": 6.3374,
+      "max": 6.3374
+    },
+    "p99FaultMs": {
+      "median": 6.402986,
+      "min": 6.402986,
+      "max": 6.402986
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "partial/passive",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 228.148,
+      "min": 228.148,
+      "max": 228.148
+    },
+    "moveMs": {
+      "median": 18100,
+      "min": 18100,
+      "max": 18100
+    },
+    "lost": {
+      "median": 212,
+      "min": 212,
+      "max": 212
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.422303,
+      "min": 6.422303,
+      "max": 6.422303
+    },
+    "p99FaultMs": {
+      "median": 6.20207,
+      "min": 6.20207,
+      "max": 6.20207
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 15900,
+      "min": 15900,
+      "max": 15900
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "partial/both",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 2111.504,
+      "min": 2111.504,
+      "max": 2111.504
+    },
+    "moveMs": {
+      "median": 20400,
+      "min": 20400,
+      "max": 20400
+    },
+    "lost": {
+      "median": 653,
+      "min": 653,
+      "max": 653
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.432219,
+      "min": 6.432219,
+      "max": 6.432219
+    },
+    "p99FaultMs": {
+      "median": 6.373624,
+      "min": 6.373624,
+      "max": 6.373624
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 19000,
+      "min": 19000,
+      "max": 19000
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "partial/both-retries",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 0,
+    "detectMs": {
+      "median": 33.961,
+      "min": 33.961,
+      "max": 33.961
+    },
+    "moveMs": {
+      "median": 100,
+      "min": 100,
+      "max": 100
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.39595,
+      "min": 6.39595,
+      "max": 6.39595
+    },
+    "p99FaultMs": {
+      "median": 6.202098,
+      "min": 6.202098,
+      "max": 6.202098
+    },
+    "attemptsFault": {
+      "median": 1.0002002636805127,
+      "min": 1.0002002636805127,
+      "max": 1.0002002636805127
+    },
+    "recoverMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "flapping/probes",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 0,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1211.216,
+      "min": 1211.216,
+      "max": 1211.216
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 3263,
+      "min": 3263,
+      "max": 3263
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.659546,
+      "min": 6.659546,
+      "max": 6.659546
+    },
+    "p99FaultMs": {
+      "median": 6.687799,
+      "min": 6.687799,
+      "max": 6.687799
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 18400,
+      "min": 18400,
+      "max": 18400
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "flapping/passive",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 0,
+    "detectMs": {
+      "median": 6.105,
+      "min": 6.105,
+      "max": 6.105
+    },
+    "moveMs": {
+      "median": 15900,
+      "min": 15900,
+      "max": 15900
+    },
+    "lost": {
+      "median": 12,
+      "min": 12,
+      "max": 12
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.455787,
+      "min": 6.455787,
+      "max": 6.455787
+    },
+    "p99FaultMs": {
+      "median": 6.236688,
+      "min": 6.236688,
+      "max": 6.236688
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "flapping/both",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 11.474,
+      "min": 11.474,
+      "max": 11.474
+    },
+    "moveMs": {
+      "median": 15900,
+      "min": 15900,
+      "max": 15900
+    },
+    "lost": {
+      "median": 12,
+      "min": 12,
+      "max": 12
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.853569,
+      "min": 6.853569,
+      "max": 6.853569
+    },
+    "p99FaultMs": {
+      "median": 6.368337,
+      "min": 6.368337,
+      "max": 6.368337
+    },
+    "attemptsFault": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "recoverMs": {
+      "median": 12300,
+      "min": 12300,
+      "max": 12300
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "flapping/both-retries",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 7.481,
+      "min": 7.481,
+      "max": 7.481
+    },
+    "moveMs": {
+      "median": 15900,
+      "min": 15900,
+      "max": 15900
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 7.173467,
+      "min": 7.173467,
+      "max": 7.173467
+    },
+    "p99FaultMs": {
+      "median": 6.412332,
+      "min": 6.412332,
+      "max": 6.412332
+    },
+    "attemptsFault": {
+      "median": 1.000217006643742,
+      "min": 1.000217006643742,
+      "max": 1.000217006643742
+    },
+    "recoverMs": {
+      "median": 15700,
+      "min": 15700,
+      "max": 15700
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "blackhole/both-retries-try100ms",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 130.378,
+      "min": 130.378,
+      "max": 130.378
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.593752,
+      "min": 6.593752,
+      "max": 6.593752
+    },
+    "p99FaultMs": {
+      "median": 6.402899,
+      "min": 6.402899,
+      "max": 6.402899
+    },
+    "attemptsFault": {
+      "median": 1.0001502278455658,
+      "min": 1.0001502278455658,
+      "max": 1.0001502278455658
+    },
+    "recoverMs": {
+      "median": 7100,
+      "min": 7100,
+      "max": 7100
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "blackhole/both-retries-try250ms",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 263.692,
+      "min": 263.692,
+      "max": 263.692
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.552777,
+      "min": 6.552777,
+      "max": 6.552777
+    },
+    "p99FaultMs": {
+      "median": 6.599429,
+      "min": 6.599429,
+      "max": 6.599429
+    },
+    "attemptsFault": {
+      "median": 1.0001502278455658,
+      "min": 1.0001502278455658,
+      "max": 1.0001502278455658
+    },
+    "recoverMs": {
+      "median": 5400,
+      "min": 5400,
+      "max": 5400
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "crash/both-retries-refused",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 12.699,
+      "min": 12.699,
+      "max": 12.699
+    },
+    "moveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 38.158621,
+      "min": 38.158621,
+      "max": 38.158621
+    },
+    "p99FaultMs": {
+      "median": 6.15716,
+      "min": 6.15716,
+      "max": 6.15716
+    },
+    "attemptsFault": {
+      "median": 1.0001001585844254,
+      "min": 1.0001001585844254,
+      "max": 1.0001001585844254
+    },
+    "recoverMs": {
+      "median": 7600,
+      "min": 7600,
+      "max": 7600
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  {
+    "cell": "slow/both-retries-round-robin",
+    "runs": 1,
+    "invalidRuns": 0,
+    "detected": 1,
+    "moved": 1,
+    "recovered": 1,
+    "detectMs": {
+      "median": 1481.793,
+      "min": 1481.793,
+      "max": 1481.793
+    },
+    "moveMs": {
+      "median": 1500,
+      "min": 1500,
+      "max": 1500
+    },
+    "lost": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "lostAfter": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "p99BeforeMs": {
+      "median": 6.285297,
+      "min": 6.285297,
+      "max": 6.285297
+    },
+    "p99FaultMs": {
+      "median": 554.018931,
+      "min": 554.018931,
+      "max": 554.018931
+    },
+    "attemptsFault": {
+      "median": 1.0004840917437319,
+      "min": 1.0004840917437319,
+      "max": 1.0004840917437319
+    },
+    "recoverMs": {
+      "median": 10300,
+      "min": 10300,
+      "max": 10300
+    },
+    "falseEjections": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  }
+]

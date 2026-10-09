@@ -1,0 +1,7229 @@
+[
+  {
+    "cell": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 438.79999999999995,
+      "min": 392.7,
+      "max": 484.9
+    },
+    "p99Us": {
+      "median": 1907.1999999999998,
+      "min": 1655.8,
+      "max": 2158.6
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.002794555632714747,
+      "min": 0.002782699694378709,
+      "max": 0.002806411571050785
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.007237182536004858,
+      "min": 0.0072064786956987075,
+      "max": 0.007267886376311008
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.8120482483351577,
+      "min": 2.553162645230231,
+      "max": 3.0709338514400844
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 395.9,
+      "min": 380.2,
+      "max": 411.6
+    },
+    "p99Us": {
+      "median": 1598.4499999999998,
+      "min": 1454.1,
+      "max": 1742.8
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.002758879995607328,
+      "min": 0.0027113484201638704,
+      "max": 0.002806411571050785
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.007201810897316311,
+      "min": 0.00706377614726903,
+      "max": 0.007339845647363592
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.5410926156324716,
+      "min": 2.4332925045482634,
+      "max": 2.6488927267166797
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 482.04999999999995,
+      "min": 467.7,
+      "max": 496.4
+    },
+    "p99Us": {
+      "median": 2022.4,
+      "min": 2007,
+      "max": 2037.8
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0014714374266327182,
+      "min": 0.0014539842676351393,
+      "max": 0.001488890585630297
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0038410165881384295,
+      "min": 0.0037880116446283893,
+      "max": 0.0038940215316484693
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.5555544631856482,
+      "min": 1.4836031152170681,
+      "max": 1.6275058111542282
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 436.65,
+      "min": 422.7,
+      "max": 450.6
+    },
+    "p99Us": {
+      "median": 1975.3,
+      "min": 1941.5,
+      "max": 2009.1
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0014905687985752856,
+      "min": 0.001488890585630297,
+      "max": 0.0014922470115202745
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.003860147960080997,
+      "min": 0.0038262743885135245,
+      "max": 0.0038940215316484693
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.4655291305464493,
+      "min": 1.3756394594182657,
+      "max": 1.5554188016746326
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 449,
+      "min": 425.2,
+      "max": 472.8
+    },
+    "p99Us": {
+      "median": 3027.45,
+      "min": 1541.1,
+      "max": 4513.8
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0018119812153961094,
+      "min": 0.0017857632375574205,
+      "max": 0.0018381991932347984
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.004682926989736713,
+      "min": 0.004605389402121769,
+      "max": 0.004760464577351658
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.7414542506457977,
+      "min": 1.6295559480407713,
+      "max": 1.8533525532508242
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 453.15,
+      "min": 429.1,
+      "max": 477.2
+    },
+    "p99Us": {
+      "median": 35545.1,
+      "min": 31965.2,
+      "max": 39125
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0018354781001008124,
+      "min": 0.0018327570069668262,
+      "max": 0.0018381991932347984
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.004753417643850822,
+      "min": 0.004746370710349986,
+      "max": 0.004760464577351658
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.8304813736402359,
+      "min": 1.69823734203218,
+      "max": 1.962725405248292
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 430.85,
+      "min": 396.3,
+      "max": 465.4
+    },
+    "p99Us": {
+      "median": 1855.5,
+      "min": 1505.3,
+      "max": 2205.7
+    },
+    "addedP50Us": {
+      "median": -7.949999999999932,
+      "min": -88.59999999999997,
+      "max": 72.69999999999999
+    },
+    "addedP99Us": {
+      "median": -51.69999999999982,
+      "min": -653.3,
+      "max": 549.8999999999999
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0027974459600956965,
+      "min": 0.0027813436029097134,
+      "max": 0.0028135483172816796
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.007226838617152254,
+      "min": 0.007167308515190415,
+      "max": 0.007286368719114093
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.642246965444654,
+      "min": 2.4204820995579226,
+      "max": 2.8640118313313856
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 384,
+      "min": 366.3,
+      "max": 401.7
+    },
+    "p99Us": {
+      "median": 1657.85,
+      "min": 1373.2,
+      "max": 1942.5
+    },
+    "addedP50Us": {
+      "median": -11.899999999999977,
+      "min": -45.30000000000001,
+      "max": 21.5
+    },
+    "addedP99Us": {
+      "median": 59.40000000000009,
+      "min": -369.5999999999999,
+      "max": 488.4000000000001
+    },
+    "overAdmission": {
+      "median": -0.26149539870802374,
+      "min": -0.2651904150620454,
+      "max": -0.2578003823540021
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 7292,
+      "min": 7147,
+      "max": 7437
+    },
+    "worstRatio": {
+      "median": 0.5881818181818181,
+      "min": 0.5854545454545454,
+      "max": 0.5909090909090909
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0.26149539870802374,
+      "min": 0.2578003823540021,
+      "max": 0.2651904150620454
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0028154815262321177,
+      "min": 0.0027813436029097134,
+      "max": 0.0028496194495545215
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.007299187322174681,
+      "min": 0.007131650263871059,
+      "max": 0.0074667243804783035
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.5752063370638405,
+      "min": 2.277599486521722,
+      "max": 2.8728131876059595
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 387.6,
+      "min": 384.8,
+      "max": 390.4
+    },
+    "p99Us": {
+      "median": 1946.6,
+      "min": 1926.1,
+      "max": 1967.1
+    },
+    "addedP50Us": {
+      "median": -94.44999999999993,
+      "min": -111.59999999999997,
+      "max": -77.30000000000001
+    },
+    "addedP99Us": {
+      "median": -75.80000000000018,
+      "min": -111.70000000000005,
+      "max": -39.90000000000009
+    },
+    "overAdmission": {
+      "median": 0.000042739913380442215,
+      "min": 0.000028493275586961478,
+      "max": 0.000056986551173922956
+    },
+    "maxAhead": {
+      "median": 1.5,
+      "min": 1,
+      "max": 2
+    },
+    "maxBehind": {
+      "median": 3,
+      "min": 3,
+      "max": 3
+    },
+    "worstRatio": {
+      "median": 0.9981818181818182,
+      "min": 0.9981818181818182,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.12389082361073082,
+      "min": 0.12340945077166676,
+      "max": 0.12437219644979489
+    },
+    "falseRejects": {
+      "median": 0.1238621617714909,
+      "min": 0.12337129666723898,
+      "max": 0.12435302687574282
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0014916184243723024,
+      "min": 0.001488010072683569,
+      "max": 0.0014952267760610359
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0038819863050754957,
+      "min": 0.0038722539585170418,
+      "max": 0.0038917186516339497
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.5326340802324503,
+      "min": 1.5189395391634397,
+      "max": 1.5463286213014606
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 327.4,
+      "min": 324.6,
+      "max": 330.2
+    },
+    "p99Us": {
+      "median": 1688.6,
+      "min": 1624.1,
+      "max": 1753.1
+    },
+    "addedP50Us": {
+      "median": -109.25,
+      "min": -126,
+      "max": -92.5
+    },
+    "addedP99Us": {
+      "median": -286.70000000000005,
+      "min": -385,
+      "max": -188.4000000000001
+    },
+    "overAdmission": {
+      "median": -0.34483008535428683,
+      "min": -0.3463357647595168,
+      "max": -0.34332440594905694
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 12102.5,
+      "min": 12050,
+      "max": 12155
+    },
+    "worstRatio": {
+      "median": 0.6531818181818182,
+      "min": 0.65,
+      "max": 0.6563636363636364
+    },
+    "falseAdmits": {
+      "median": 0.07187166475458404,
+      "min": 0.07067821952996205,
+      "max": 0.07306510997920601
+    },
+    "falseRejects": {
+      "median": 0.30331399064470516,
+      "min": 0.3029435891566035,
+      "max": 0.3036843921328068
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0014725413721584104,
+      "min": 0.0014498559682557851,
+      "max": 0.0014952267760610359
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.003805585574381755,
+      "min": 0.003777256338350598,
+      "max": 0.0038339148104129125
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.3922789741254977,
+      "min": 1.3903164882962353,
+      "max": 1.3942414599547601
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 394.20000000000005,
+      "min": 390.1,
+      "max": 398.3
+    },
+    "p99Us": {
+      "median": 1884.65,
+      "min": 1771.5,
+      "max": 1997.8
+    },
+    "addedP50Us": {
+      "median": -54.799999999999955,
+      "min": -82.69999999999999,
+      "max": -26.899999999999977
+    },
+    "addedP99Us": {
+      "median": -1142.7999999999997,
+      "min": -2742.3,
+      "max": 456.70000000000005
+    },
+    "overAdmission": {
+      "median": -0.0005943538445835067,
+      "min": -0.000693069306930693,
+      "max": -0.0004956383822363204
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 19.5,
+      "min": 16,
+      "max": 23
+    },
+    "worstRatio": {
+      "median": 0.9063636363636364,
+      "min": 0.9018181818181819,
+      "max": 0.9109090909090909
+    },
+    "falseAdmits": {
+      "median": 0.04355252454283906,
+      "min": 0.042237151026290706,
+      "max": 0.04486789805938742
+    },
+    "falseRejects": {
+      "median": 0.04397195929917988,
+      "min": 0.042725307422301774,
+      "max": 0.045218611176057986
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.001818430267364014,
+      "min": 0.0018131523280410981,
+      "max": 0.00182370820668693
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0047210262314127845,
+      "min": 0.004672354076105906,
+      "max": 0.004769698386719663
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.7274358797358427,
+      "min": 1.6953206722610237,
+      "max": 1.7595510872106614
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 344.20000000000005,
+      "min": 331.3,
+      "max": 357.1
+    },
+    "p99Us": {
+      "median": 1539.5500000000002,
+      "min": 1353.7,
+      "max": 1725.4
+    },
+    "addedP50Us": {
+      "median": -108.94999999999993,
+      "min": -145.89999999999998,
+      "max": -72
+    },
+    "addedP99Us": {
+      "median": -34005.549999999996,
+      "min": -37771.3,
+      "max": -30239.8
+    },
+    "overAdmission": {
+      "median": -0.2731158685074272,
+      "min": -0.27539152844776316,
+      "max": -0.2708402085670913
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 8271,
+      "min": 8207,
+      "max": 8335
+    },
+    "worstRatio": {
+      "median": 0.6586363636363637,
+      "min": 0.6572727272727272,
+      "max": 0.66
+    },
+    "falseAdmits": {
+      "median": 0.05007582465573566,
+      "min": 0.04989478606499883,
+      "max": 0.05025686324647249
+    },
+    "falseRejects": {
+      "median": 0.24290370323886934,
+      "min": 0.24103303191613007,
+      "max": 0.2447743745616086
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.001818430267364014,
+      "min": 0.0018131523280410981,
+      "max": 0.00182370820668693
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.004709268128301677,
+      "min": 0.0046955996187731,
+      "max": 0.004722936637830255
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.6482750176837473,
+      "min": 1.5002208326553121,
+      "max": 1.7963292027121822
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 870.4,
+      "min": 810.5,
+      "max": 930.3
+    },
+    "p99Us": {
+      "median": 3546.1,
+      "min": 3397.6,
+      "max": 3694.6
+    },
+    "addedP50Us": {
+      "median": 431.6,
+      "min": 325.6,
+      "max": 537.5999999999999
+    },
+    "addedP99Us": {
+      "median": 1638.9,
+      "min": 1239,
+      "max": 2038.8
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0032811031981512,
+      "min": 1.0032103307722828,
+      "max": 1.0033518756240194
+    },
+    "redisCommandsPerRequest": {
+      "median": 4.007943306691168,
+      "min": 4.00786350683548,
+      "max": 4.008023106546855
+    },
+    "redisCpuPerRequestUs": {
+      "median": 113.23291957221026,
+      "min": 105.23844672657253,
+      "max": 121.227392417848
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 850.45,
+      "min": 819.2,
+      "max": 881.7
+    },
+    "p99Us": {
+      "median": 3677.15,
+      "min": 3405.8,
+      "max": 3948.5
+    },
+    "addedP50Us": {
+      "median": 454.55000000000007,
+      "min": 407.6,
+      "max": 501.50000000000006
+    },
+    "addedP99Us": {
+      "median": 2078.7000000000003,
+      "min": 1663.0000000000002,
+      "max": 2494.4
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0039434645737568,
+      "min": 1.00367925549183,
+      "max": 1.004207673655684
+    },
+    "redisCommandsPerRequest": {
+      "median": 4.007784083203091,
+      "min": 4.007488232777065,
+      "max": 4.008079933629117
+    },
+    "redisCpuPerRequestUs": {
+      "median": 112.19077508651921,
+      "min": 110.1815718157178,
+      "max": 114.19997835732063
+    },
+    "degraded": {
+      "median": 8.5,
+      "min": 4,
+      "max": 13
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 975.6,
+      "min": 943.6,
+      "max": 1007.6
+    },
+    "p99Us": {
+      "median": 3456,
+      "min": 3434.5,
+      "max": 3477.5
+    },
+    "addedP50Us": {
+      "median": 493.55000000000007,
+      "min": 447.20000000000005,
+      "max": 539.9000000000001
+    },
+    "addedP99Us": {
+      "median": 1433.6,
+      "min": 1396.7,
+      "max": 1470.5
+    },
+    "overAdmission": {
+      "median": 0.0001424635364821318,
+      "min": 0.00008547982676088443,
+      "max": 0.0001994472462033792
+    },
+    "maxAhead": {
+      "median": 6.5,
+      "min": 4,
+      "max": 9
+    },
+    "maxBehind": {
+      "median": 2.5,
+      "min": 2,
+      "max": 3
+    },
+    "worstRatio": {
+      "median": 1.000909090909091,
+      "min": 1.000909090909091,
+      "max": 1.000909090909091
+    },
+    "falseAdmits": {
+      "median": 0.11548378253559786,
+      "min": 0.11203952765218718,
+      "max": 0.11892803741900855
+    },
+    "falseRejects": {
+      "median": 0.11538825849177115,
+      "min": 0.11190598828668995,
+      "max": 0.11887052869685236
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0019791935178846,
+      "min": 1.0019552965533105,
+      "max": 1.0020030904824586
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6754927897961904,
+      "min": 3.673858715351304,
+      "max": 3.6771268642410764
+    },
+    "redisCpuPerRequestUs": {
+      "median": 110.94576665129955,
+      "min": 109.50701081668876,
+      "max": 112.38452248591034
+    },
+    "degraded": {
+      "median": 5,
+      "min": 3,
+      "max": 7
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 895.7,
+      "min": 876.5,
+      "max": 914.9
+    },
+    "p99Us": {
+      "median": 3440.65,
+      "min": 3366.9,
+      "max": 3514.4
+    },
+    "addedP50Us": {
+      "median": 459.05000000000007,
+      "min": 425.9,
+      "max": 492.2
+    },
+    "addedP99Us": {
+      "median": 1465.3500000000001,
+      "min": 1357.8000000000002,
+      "max": 1572.9
+    },
+    "overAdmission": {
+      "median": 0.0008691167616134774,
+      "min": 0.00017096939647803043,
+      "max": 0.0015672641267489244
+    },
+    "maxAhead": {
+      "median": 31.5,
+      "min": 7,
+      "max": 56
+    },
+    "maxBehind": {
+      "median": 1,
+      "min": 0,
+      "max": 2
+    },
+    "worstRatio": {
+      "median": 1.0245454545454544,
+      "min": 1,
+      "max": 1.049090909090909
+    },
+    "falseAdmits": {
+      "median": 0.09465177792374188,
+      "min": 0.0900818405539976,
+      "max": 0.09922171529348618
+    },
+    "falseRejects": {
+      "median": 0.09406738348066843,
+      "min": 0.08996737824071424,
+      "max": 0.09816738872062263
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0035205400532314,
+      "min": 1.0027470955188005,
+      "max": 1.0042939845876624
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6761131178195754,
+      "min": 3.6749651843797095,
+      "max": 3.677261051259441
+    },
+    "redisCpuPerRequestUs": {
+      "median": 104.07470361888957,
+      "min": 101.21747839523803,
+      "max": 106.93192884254111
+    },
+    "degraded": {
+      "median": 32,
+      "min": 5,
+      "max": 59
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 854.3,
+      "min": 805.9,
+      "max": 902.7
+    },
+    "p99Us": {
+      "median": 27701.25,
+      "min": 11690,
+      "max": 43712.5
+    },
+    "addedP50Us": {
+      "median": 405.29999999999995,
+      "min": 333.09999999999997,
+      "max": 477.50000000000006
+    },
+    "addedP99Us": {
+      "median": 24673.8,
+      "min": 7176.2,
+      "max": 42171.4
+    },
+    "overAdmission": {
+      "median": 0.027914661589868953,
+      "min": 0.018592997956088878,
+      "max": 0.03723632522364903
+    },
+    "maxAhead": {
+      "median": 847,
+      "min": 565,
+      "max": 1129
+    },
+    "maxBehind": {
+      "median": 5.5,
+      "min": 0,
+      "max": 11
+    },
+    "worstRatio": {
+      "median": 1.0718181818181818,
+      "min": 1.0545454545454545,
+      "max": 1.089090909090909
+    },
+    "falseAdmits": {
+      "median": 0.050189241924808545,
+      "min": 0.04342267370231758,
+      "max": 0.05695581014729951
+    },
+    "falseRejects": {
+      "median": 0.03044718570584677,
+      "min": 0.030312187638020408,
+      "max": 0.030582183773673135
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0076933588234631,
+      "min": 1.0076710290801738,
+      "max": 1.0077156885667524
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6555783753254887,
+      "min": 3.6411737198971244,
+      "max": 3.669983030753853
+    },
+    "redisCpuPerRequestUs": {
+      "median": 98.74808859055108,
+      "min": 97.77310025802528,
+      "max": 99.72307692307686
+    },
+    "degraded": {
+      "median": 923,
+      "min": 694,
+      "max": 1152
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 806.4,
+      "min": 780.8,
+      "max": 832
+    },
+    "p99Us": {
+      "median": 42590.2,
+      "min": 31965.2,
+      "max": 53215.2
+    },
+    "addedP50Us": {
+      "median": 353.25,
+      "min": 303.59999999999997,
+      "max": 402.9
+    },
+    "addedP99Us": {
+      "median": 7045.0999999999985,
+      "min": -7159.799999999999,
+      "max": 21249.999999999996
+    },
+    "overAdmission": {
+      "median": 0.014215937634004406,
+      "min": 0.011449122343935594,
+      "max": 0.016982752924073218
+    },
+    "maxAhead": {
+      "median": 431.5,
+      "min": 348,
+      "max": 515
+    },
+    "maxBehind": {
+      "median": 7,
+      "min": 4,
+      "max": 10
+    },
+    "worstRatio": {
+      "median": 0.9845454545454546,
+      "min": 0.97,
+      "max": 0.9990909090909091
+    },
+    "falseAdmits": {
+      "median": 0.045058290304304804,
+      "min": 0.04302749947697529,
+      "max": 0.047089081131634326
+    },
+    "falseRejects": {
+      "median": 0.03501630391925774,
+      "min": 0.03496129617145912,
+      "max": 0.03507131166705635
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0076933588234631,
+      "min": 1.0076710290801738,
+      "max": 1.0077156885667524
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6604295323004967,
+      "min": 3.6587795183539864,
+      "max": 3.662079546247007
+    },
+    "redisCpuPerRequestUs": {
+      "median": 89.6460902731003,
+      "min": 88.54794393175123,
+      "max": 90.74423661444938
+    },
+    "degraded": {
+      "median": 844.5,
+      "min": 798,
+      "max": 891
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 421.9,
+      "min": 417,
+      "max": 426.8
+    },
+    "p99Us": {
+      "median": 1806.3,
+      "min": 1741.8,
+      "max": 1870.8
+    },
+    "addedP50Us": {
+      "median": -16.899999999999977,
+      "min": -67.89999999999998,
+      "max": 34.10000000000002
+    },
+    "addedP99Us": {
+      "median": -100.89999999999986,
+      "min": -416.79999999999995,
+      "max": 215
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.2536529295076695,
+      "min": 0.25221081158180003,
+      "max": 0.25509504743353895
+    },
+    "redisCommandsPerRequest": {
+      "median": 2.013390722936954,
+      "min": 2.00167593781201,
+      "max": 2.0251055080618983
+    },
+    "redisCpuPerRequestUs": {
+      "median": 37.52013587032403,
+      "min": 35.59360290971336,
+      "max": 39.446668830934705
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 397.3,
+      "min": 396.3,
+      "max": 398.3
+    },
+    "p99Us": {
+      "median": 1766.9499999999998,
+      "min": 1709.1,
+      "max": 1824.8
+    },
+    "addedP50Us": {
+      "median": 1.400000000000034,
+      "min": -15.300000000000011,
+      "max": 18.100000000000023
+    },
+    "addedP99Us": {
+      "median": 168.5,
+      "min": -33.700000000000045,
+      "max": 370.70000000000005
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.19620223494080777,
+      "min": 0.19430181143916703,
+      "max": 0.1981026584424485
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.5609056495866844,
+      "min": 1.5452503209242618,
+      "max": 1.5765609782491072
+    },
+    "redisCpuPerRequestUs": {
+      "median": 29.87817515871746,
+      "min": 29.037658262092858,
+      "max": 30.718692055342068
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 390.9,
+      "min": 379.9,
+      "max": 401.9
+    },
+    "p99Us": {
+      "median": 1841.65,
+      "min": 1810.4,
+      "max": 1872.9
+    },
+    "addedP50Us": {
+      "median": -91.14999999999998,
+      "min": -116.5,
+      "max": -65.80000000000001
+    },
+    "addedP99Us": {
+      "median": -180.75,
+      "min": -227.39999999999986,
+      "max": -134.0999999999999
+    },
+    "overAdmission": {
+      "median": -0.00001424663779348074,
+      "min": -0.00011397310234784591,
+      "max": 0.00008547982676088443
+    },
+    "maxAhead": {
+      "median": 6.5,
+      "min": 6,
+      "max": 7
+    },
+    "maxBehind": {
+      "median": 10,
+      "min": 9,
+      "max": 11
+    },
+    "worstRatio": {
+      "median": 0.9981818181818182,
+      "min": 0.9963636363636363,
+      "max": 1
+    },
+    "falseAdmits": {
+      "median": 0.19040203051366272,
+      "min": 0.1896258990060856,
+      "max": 0.19117816202123988
+    },
+    "falseRejects": {
+      "median": 0.19041175408344602,
+      "min": 0.1895686678494439,
+      "max": 0.19125484031744813
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.13542171882072584,
+      "min": 0.1351036837787825,
+      "max": 0.13573975386266918
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.075055016831123,
+      "min": 1.0725691066216447,
+      "max": 1.0775409270406011
+    },
+    "redisCpuPerRequestUs": {
+      "median": 22.529514045457727,
+      "min": 21.09778896964866,
+      "max": 23.961239121266793
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 383.75,
+      "min": 382.2,
+      "max": 385.3
+    },
+    "p99Us": {
+      "median": 1794.05,
+      "min": 1731.6,
+      "max": 1856.5
+    },
+    "addedP50Us": {
+      "median": -52.89999999999998,
+      "min": -68.40000000000003,
+      "max": -37.39999999999998
+    },
+    "addedP99Us": {
+      "median": -181.25,
+      "min": -277.5,
+      "max": -85
+    },
+    "overAdmission": {
+      "median": -0.00017096939647803043,
+      "min": -0.0002849489941300507,
+      "max": -0.00005698979882601015
+    },
+    "maxAhead": {
+      "median": 2.5,
+      "min": 1,
+      "max": 4
+    },
+    "maxBehind": {
+      "median": 18,
+      "min": 14,
+      "max": 22
+    },
+    "worstRatio": {
+      "median": 0.9968181818181818,
+      "min": 0.9945454545454545,
+      "max": 0.9990909090909091
+    },
+    "falseAdmits": {
+      "median": 0.1877212971061143,
+      "min": 0.187056703600046,
+      "max": 0.1883858906121826
+    },
+    "falseRejects": {
+      "median": 0.18783622202858852,
+      "min": 0.18724839934056664,
+      "max": 0.1884240447166104
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.12022757575324788,
+      "min": 0.12022358305194682,
+      "max": 0.12023156845454894
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.9539031380406582,
+      "min": 0.9537438178123682,
+      "max": 0.9540624582689483
+    },
+    "redisCpuPerRequestUs": {
+      "median": 20.0210348762958,
+      "min": 19.946202712757266,
+      "max": 20.09586703983433
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 389.6,
+      "min": 389.1,
+      "max": 390.1
+    },
+    "p99Us": {
+      "median": 2541.05,
+      "min": 1977.3,
+      "max": 3104.8
+    },
+    "addedP50Us": {
+      "median": -59.39999999999998,
+      "min": -83.69999999999999,
+      "max": -35.099999999999966
+    },
+    "addedP99Us": {
+      "median": -486.39999999999964,
+      "min": -2536.5,
+      "max": 1563.7000000000003
+    },
+    "overAdmission": {
+      "median": -0.003319062385110016,
+      "min": -0.003832936822627544,
+      "max": -0.0028051879475924886
+    },
+    "maxAhead": {
+      "median": 18.5,
+      "min": 16,
+      "max": 21
+    },
+    "maxBehind": {
+      "median": 101,
+      "min": 85,
+      "max": 117
+    },
+    "worstRatio": {
+      "median": 0.9022727272727273,
+      "min": 0.8963636363636364,
+      "max": 0.9081818181818182
+    },
+    "falseAdmits": {
+      "median": 0.05724663243040823,
+      "min": 0.0567191241079523,
+      "max": 0.057774140752864155
+    },
+    "falseRejects": {
+      "median": 0.059590658711556804,
+      "min": 0.058694995234663754,
+      "max": 0.06048632218844985
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.16473079332689117,
+      "min": 0.1643692321997257,
+      "max": 0.1650923544540566
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.307751794976292,
+      "min": 1.3048652920802437,
+      "max": 1.3106382978723403
+    },
+    "redisCpuPerRequestUs": {
+      "median": 25.81195562935142,
+      "min": 24.976057984568687,
+      "max": 26.647853274134153
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 369.79999999999995,
+      "min": 369.7,
+      "max": 369.9
+    },
+    "p99Us": {
+      "median": 1676.8,
+      "min": 1614.8,
+      "max": 1738.8
+    },
+    "addedP50Us": {
+      "median": -83.35000000000002,
+      "min": -107.5,
+      "max": -59.200000000000045
+    },
+    "addedP99Us": {
+      "median": -33868.299999999996,
+      "min": -37510.2,
+      "max": -30226.4
+    },
+    "overAdmission": {
+      "median": -0.0044909255879022935,
+      "min": -0.004658846852800264,
+      "max": -0.004323004323004323
+    },
+    "maxAhead": {
+      "median": 5.5,
+      "min": 3,
+      "max": 8
+    },
+    "maxBehind": {
+      "median": 138.5,
+      "min": 136,
+      "max": 141
+    },
+    "worstRatio": {
+      "median": 0.8995454545454545,
+      "min": 0.8927272727272727,
+      "max": 0.9063636363636364
+    },
+    "falseAdmits": {
+      "median": 0.0574076595818597,
+      "min": 0.05718961889174655,
+      "max": 0.05762570027197285
+    },
+    "falseRejects": {
+      "median": 0.06057859427491252,
+      "min": 0.06048632218844985,
+      "max": 0.060670866361375204
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.1310430039658787,
+      "min": 0.1308491596736326,
+      "max": 0.13123684825812484
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.0419439808183673,
+      "min": 1.040609963039587,
+      "max": 1.0432779985971474
+    },
+    "redisCpuPerRequestUs": {
+      "median": 20.496588476386005,
+      "min": 19.657918594109564,
+      "max": 21.335258358662447
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 398.85,
+      "min": 396.5,
+      "max": 401.2
+    },
+    "p99Us": {
+      "median": 1573.35,
+      "min": 1545.2,
+      "max": 1601.5
+    },
+    "addedP50Us": {
+      "median": -39.94999999999993,
+      "min": -88.39999999999998,
+      "max": 8.5
+    },
+    "addedP99Us": {
+      "median": -333.8499999999999,
+      "min": -613.3999999999999,
+      "max": -54.299999999999955
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.053061914732566356,
+      "min": 0.052738553701326484,
+      "max": 0.05338527576380622
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.409343001677871,
+      "min": 0.4067536727998859,
+      "max": 0.41193233055585615
+    },
+    "redisCpuPerRequestUs": {
+      "median": 10.940588356285257,
+      "min": 10.79482242190933,
+      "max": 11.086354290661186
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 384.6,
+      "min": 383.2,
+      "max": 386
+    },
+    "p99Us": {
+      "median": 1509.85,
+      "min": 1473.5,
+      "max": 1546.2
+    },
+    "addedP50Us": {
+      "median": -11.299999999999955,
+      "min": -28.400000000000034,
+      "max": 5.800000000000011
+    },
+    "addedP99Us": {
+      "median": -88.59999999999991,
+      "min": -269.29999999999995,
+      "max": 92.10000000000014
+    },
+    "overAdmission": {
+      "median": -0.0057199022402858795,
+      "min": -0.005776636713735558,
+      "max": -0.005663167766836201
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 159.5,
+      "min": 157,
+      "max": 162
+    },
+    "worstRatio": {
+      "median": 0.7895454545454546,
+      "min": 0.7890909090909091,
+      "max": 0.79
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0.0057199022402858795,
+      "min": 0.005663167766836201,
+      "max": 0.005776636713735558
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.05259670594160079,
+      "min": 0.05209670517757809,
+      "max": 0.05309670670562349
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.405457979052535,
+      "min": 0.4017971758664955,
+      "max": 0.40911878223857445
+    },
+    "redisCpuPerRequestUs": {
+      "median": 10.480204368663529,
+      "min": 10.45977749251233,
+      "max": 10.500631244814729
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 390.54999999999995,
+      "min": 388.9,
+      "max": 392.2
+    },
+    "p99Us": {
+      "median": 1892.85,
+      "min": 1864.7,
+      "max": 1921
+    },
+    "addedP50Us": {
+      "median": -91.5,
+      "min": -107.5,
+      "max": -75.5
+    },
+    "addedP99Us": {
+      "median": -129.55000000000018,
+      "min": -173.0999999999999,
+      "max": -86
+    },
+    "overAdmission": {
+      "median": -0.00021370606220638547,
+      "min": -0.0002279591953040406,
+      "max": -0.00019945292910873033
+    },
+    "maxAhead": {
+      "median": 7.5,
+      "min": 7,
+      "max": 8
+    },
+    "maxBehind": {
+      "median": 20,
+      "min": 17,
+      "max": 23
+    },
+    "worstRatio": {
+      "median": 0.9959090909090909,
+      "min": 0.9954545454545455,
+      "max": 0.9963636363636363
+    },
+    "falseAdmits": {
+      "median": 0.21240537713899052,
+      "min": 0.2100985316106276,
+      "max": 0.21471222266735343
+    },
+    "falseRejects": {
+      "median": 0.21254877885702833,
+      "min": 0.21023271862899207,
+      "max": 0.21486483908506457
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0283312115369668,
+      "min": 0.028253114328773917,
+      "max": 0.02840930874515968
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.21835008187418367,
+      "min": 0.21778362807379004,
+      "max": 0.2189165356745773
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.51940177241565,
+      "min": 6.473416127739745,
+      "max": 6.565387417091554
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 363,
+      "min": 354.3,
+      "max": 371.7
+    },
+    "p99Us": {
+      "median": 1636.35,
+      "min": 1386.5,
+      "max": 1886.2
+    },
+    "addedP50Us": {
+      "median": -73.64999999999998,
+      "min": -96.30000000000001,
+      "max": -51
+    },
+    "addedP99Us": {
+      "median": -338.95000000000005,
+      "min": -622.5999999999999,
+      "max": -55.299999999999955
+    },
+    "overAdmission": {
+      "median": -0.0006126054251196717,
+      "min": -0.0006838386140870754,
+      "max": -0.000541372236152268
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 70,
+      "min": 60,
+      "max": 80
+    },
+    "worstRatio": {
+      "median": 0.9831818181818182,
+      "min": 0.9790909090909091,
+      "max": 0.9872727272727273
+    },
+    "falseAdmits": {
+      "median": 0.2129014642416147,
+      "min": 0.21171712546977242,
+      "max": 0.21408580301345703
+    },
+    "falseRejects": {
+      "median": 0.21331273112627147,
+      "min": 0.21207958946183636,
+      "max": 0.21454587279070658
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.028292918649781756,
+      "min": 0.028234037276560025,
+      "max": 0.028351800023003488
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.2182924806301893,
+      "min": 0.21782178217821782,
+      "max": 0.2187631790821608
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.000026217690306,
+      "min": 5.629504568954167,
+      "max": 6.3705478664264445
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 387.6,
+      "min": 382,
+      "max": 393.2
+    },
+    "p99Us": {
+      "median": 1977.35,
+      "min": 1769.5,
+      "max": 2185.2
+    },
+    "addedP50Us": {
+      "median": -61.39999999999998,
+      "min": -90.80000000000001,
+      "max": -32
+    },
+    "addedP99Us": {
+      "median": -1050.1,
+      "min": -2744.3,
+      "max": 644.0999999999999
+    },
+    "overAdmission": {
+      "median": -0.01684125927256611,
+      "min": -0.017490594680219126,
+      "max": -0.016191923864913093
+    },
+    "maxAhead": {
+      "median": 101.5,
+      "min": 80,
+      "max": 123
+    },
+    "maxBehind": {
+      "median": 510,
+      "min": 490,
+      "max": 530
+    },
+    "worstRatio": {
+      "median": 0.9245454545454546,
+      "min": 0.9109090909090909,
+      "max": 0.9381818181818182
+    },
+    "falseAdmits": {
+      "median": 0.05770425112929885,
+      "min": 0.05613798554127246,
+      "max": 0.05927051671732523
+    },
+    "falseRejects": {
+      "median": 0.06959263417505768,
+      "min": 0.06845812315488504,
+      "max": 0.0707271451952303
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.034515171434137966,
+      "min": 0.03442664869011367,
+      "max": 0.03460369417816226
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.2661787278522684,
+      "min": 0.2653478695460145,
+      "max": 0.2670095861585223
+    },
+    "redisCpuPerRequestUs": {
+      "median": 7.800186266799546,
+      "min": 7.699063204630055,
+      "max": 7.901309328969038
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 363,
+      "min": 357.4,
+      "max": 368.6
+    },
+    "p99Us": {
+      "median": 1852.8999999999999,
+      "min": 1498.1,
+      "max": 2207.7
+    },
+    "addedP50Us": {
+      "median": -90.14999999999998,
+      "min": -119.80000000000001,
+      "max": -60.5
+    },
+    "addedP99Us": {
+      "median": -33692.2,
+      "min": -37626.9,
+      "max": -29757.5
+    },
+    "overAdmission": {
+      "median": -0.023330488716839518,
+      "min": -0.02428547827523542,
+      "max": -0.022375499158443616
+    },
+    "maxAhead": {
+      "median": 45.5,
+      "min": 42,
+      "max": 49
+    },
+    "maxBehind": {
+      "median": 706.5,
+      "min": 678,
+      "max": 735
+    },
+    "worstRatio": {
+      "median": 0.89,
+      "min": 0.8736363636363637,
+      "max": 0.9063636363636364
+    },
+    "falseAdmits": {
+      "median": 0.057205132859309414,
+      "min": 0.05548281505728314,
+      "max": 0.05892745066133569
+    },
+    "falseRejects": {
+      "median": 0.07367784318191684,
+      "min": 0.07266775777414075,
+      "max": 0.07468792858969292
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0342123027205769,
+      "min": 0.034054720007438574,
+      "max": 0.03436988543371522
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.26384862498267114,
+      "min": 0.2626048955112857,
+      "max": 0.2650923544540566
+    },
+    "redisCpuPerRequestUs": {
+      "median": 7.419586829039865,
+      "min": 6.825472465655176,
+      "max": 8.013701192424554
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 393.85,
+      "min": 393.2,
+      "max": 394.5
+    },
+    "p99Us": {
+      "median": 1480.7,
+      "min": 1449,
+      "max": 1512.4
+    },
+    "addedP50Us": {
+      "median": -44.94999999999993,
+      "min": -91.69999999999999,
+      "max": 1.8000000000000114
+    },
+    "addedP99Us": {
+      "median": -426.4999999999998,
+      "min": -709.5999999999999,
+      "max": -143.39999999999986
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.028028359858889483,
+      "min": 0.02784909428041649,
+      "max": 0.02820762543736248
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.20860811525463002,
+      "min": 0.20721009841677365,
+      "max": 0.2100061320924864
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.87021249292563,
+      "min": 6.8697760661816965,
+      "max": 6.870648919669562
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 389.55,
+      "min": 382,
+      "max": 397.1
+    },
+    "p99Us": {
+      "median": 1584.65,
+      "min": 1552.4,
+      "max": 1616.9
+    },
+    "addedP50Us": {
+      "median": -6.349999999999966,
+      "min": -29.600000000000023,
+      "max": 16.900000000000034
+    },
+    "addedP99Us": {
+      "median": -13.799999999999727,
+      "min": -190.39999999999986,
+      "max": 162.80000000000018
+    },
+    "overAdmission": {
+      "median": -0.01228025067229753,
+      "min": -0.012801312223648552,
+      "max": -0.011759189120946506
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 342.5,
+      "min": 326,
+      "max": 359
+    },
+    "worstRatio": {
+      "median": 0.7909090909090909,
+      "min": 0.7890909090909091,
+      "max": 0.7927272727272727
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0.01228025067229753,
+      "min": 0.011759189120946506,
+      "max": 0.012801312223648552
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.027938594909160865,
+      "min": 0.027777777777777776,
+      "max": 0.028099412040543954
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.20840951758665266,
+      "min": 0.207245756668093,
+      "max": 0.2095732785052123
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.971695623435917,
+      "min": 6.583689915847217,
+      "max": 7.359701331024617
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 372.85,
+      "min": 372.5,
+      "max": 373.2
+    },
+    "p99Us": {
+      "median": 1824.8,
+      "min": 1795.1,
+      "max": 1854.5
+    },
+    "addedP50Us": {
+      "median": -109.19999999999993,
+      "min": -123.89999999999998,
+      "max": -94.5
+    },
+    "addedP99Us": {
+      "median": -197.60000000000014,
+      "min": -242.70000000000005,
+      "max": -152.5
+    },
+    "overAdmission": {
+      "median": -0.0007551306682639747,
+      "min": -0.0013108027241900094,
+      "max": -0.0001994586123379399
+    },
+    "maxAhead": {
+      "median": 10.5,
+      "min": 0,
+      "max": 21
+    },
+    "maxBehind": {
+      "median": 46.5,
+      "min": 30,
+      "max": 63
+    },
+    "worstRatio": {
+      "median": 0.9781818181818183,
+      "min": 0.9527272727272728,
+      "max": 1.0036363636363637
+    },
+    "falseAdmits": {
+      "median": 0.2150763407158366,
+      "min": 0.21412414216156117,
+      "max": 0.21602853927011198
+    },
+    "falseRejects": {
+      "median": 0.21558401060178267,
+      "min": 0.21500594256795613,
+      "max": 0.21616207863560924
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.014906599456696992,
+      "min": 0.014880100726835689,
+      "max": 0.014933098186558295
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.11118275751145912,
+      "min": 0.11099028978042313,
+      "max": 0.11137522524249512
+    },
+    "redisCpuPerRequestUs": {
+      "median": 3.726733719312642,
+      "min": 3.712686424107588,
+      "max": 3.7407810145176965
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 357.1,
+      "min": 356.6,
+      "max": 357.6
+    },
+    "p99Us": {
+      "median": 1704.45,
+      "min": 1685.5,
+      "max": 1723.4
+    },
+    "addedP50Us": {
+      "median": -79.54999999999995,
+      "min": -94,
+      "max": -65.09999999999997
+    },
+    "addedP99Us": {
+      "median": -270.8499999999999,
+      "min": -323.5999999999999,
+      "max": -218.0999999999999
+    },
+    "overAdmission": {
+      "median": -0.008162827847615945,
+      "min": -0.00923103222314026,
+      "max": -0.007094623472091632
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 317,
+      "min": 282,
+      "max": 352
+    },
+    "worstRatio": {
+      "median": 0.9518181818181818,
+      "min": 0.9454545454545454,
+      "max": 0.9581818181818181
+    },
+    "falseAdmits": {
+      "median": 0.21449213131643946,
+      "min": 0.2131464938849059,
+      "max": 0.21583776874797306
+    },
+    "falseRejects": {
+      "median": 0.21997269531350347,
+      "min": 0.2193574358777748,
+      "max": 0.22058795474923215
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.014887429882644927,
+      "min": 0.014880100726835689,
+      "max": 0.014894759038454166
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.11116358793740705,
+      "min": 0.11099028978042313,
+      "max": 0.11133688609439098
+    },
+    "redisCpuPerRequestUs": {
+      "median": 3.781704583355727,
+      "min": 3.732005570499232,
+      "max": 3.8314035962122213
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 421.1,
+      "min": 369.9,
+      "max": 472.3
+    },
+    "p99Us": {
+      "median": 2249.2,
+      "min": 1567.7,
+      "max": 2930.7
+    },
+    "addedP50Us": {
+      "median": -27.899999999999977,
+      "min": -102.90000000000003,
+      "max": 47.10000000000002
+    },
+    "addedP99Us": {
+      "median": -778.25,
+      "min": -2946.1000000000004,
+      "max": 1389.6
+    },
+    "overAdmission": {
+      "median": -0.03674072073091238,
+      "min": -0.04460450670719619,
+      "max": -0.02887693475462856
+    },
+    "maxAhead": {
+      "median": 112.5,
+      "min": 76,
+      "max": 149
+    },
+    "maxBehind": {
+      "median": 1112.5,
+      "min": 875,
+      "max": 1350
+    },
+    "worstRatio": {
+      "median": 0.9336363636363636,
+      "min": 0.9209090909090909,
+      "max": 0.9463636363636364
+    },
+    "falseAdmits": {
+      "median": 0.06483909217421821,
+      "min": 0.06275426700958615,
+      "max": 0.06692391733885028
+    },
+    "falseRejects": {
+      "median": 0.09079110734129076,
+      "min": 0.08726376717264464,
+      "max": 0.09431844750993687
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.01814929902786184,
+      "min": 0.01810827773774379,
+      "max": 0.018190320317979892
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.13537946375495147,
+      "min": 0.135103093981729,
+      "max": 0.13565583352817395
+    },
+    "redisCpuPerRequestUs": {
+      "median": 5.752384428795589,
+      "min": 4.538297031544903,
+      "max": 6.966471826046276
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 365.7,
+      "min": 363,
+      "max": 368.4
+    },
+    "p99Us": {
+      "median": 1882.1,
+      "min": 1622,
+      "max": 2142.2
+    },
+    "addedP50Us": {
+      "median": -87.44999999999999,
+      "min": -114.19999999999999,
+      "max": -60.700000000000045
+    },
+    "addedP99Us": {
+      "median": -33663,
+      "min": -37503,
+      "max": -29823
+    },
+    "overAdmission": {
+      "median": -0.044859521225836266,
+      "min": -0.04628956584946805,
+      "max": -0.043429476602204475
+    },
+    "maxAhead": {
+      "median": 69,
+      "min": 64,
+      "max": 74
+    },
+    "maxBehind": {
+      "median": 1361.5,
+      "min": 1316,
+      "max": 1407
+    },
+    "worstRatio": {
+      "median": 0.9031818181818182,
+      "min": 0.8927272727272727,
+      "max": 0.9136363636363637
+    },
+    "falseAdmits": {
+      "median": 0.06363324935027295,
+      "min": 0.05948534368534834,
+      "max": 0.06778115501519758
+    },
+    "falseRejects": {
+      "median": 0.09530711897380163,
+      "min": 0.09007647783537506,
+      "max": 0.1005377601122282
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.018207412884529824,
+      "min": 0.018190320317979892,
+      "max": 0.018224505451079755
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.13551893701095463,
+      "min": 0.13538204049373534,
+      "max": 0.13565583352817395
+    },
+    "redisCpuPerRequestUs": {
+      "median": 4.770814649418297,
+      "min": 4.764461070844162,
+      "max": 4.777168227992431
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 389,
+      "min": 381.7,
+      "max": 396.3
+    },
+    "p99Us": {
+      "median": 1622.5,
+      "min": 1588.2,
+      "max": 1656.8
+    },
+    "addedP50Us": {
+      "median": -49.799999999999955,
+      "min": -103.19999999999999,
+      "max": 3.6000000000000227
+    },
+    "addedP99Us": {
+      "median": -284.6999999999998,
+      "min": -570.3999999999999,
+      "max": 1
+    },
+    "overAdmission": {
+      "median": -0.141026931167312,
+      "min": -0.14523605762373412,
+      "max": -0.13681780471088986
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 3933,
+      "min": 3793,
+      "max": 4073
+    },
+    "worstRatio": {
+      "median": 0.6799999999999999,
+      "min": 0.6654545454545454,
+      "max": 0.6945454545454546
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0.141026931167312,
+      "min": 0.13681780471088986,
+      "max": 0.14523605762373412
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.007836538377685932,
+      "min": 0.007773498787619455,
+      "max": 0.007899577967752407
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.047485677699941616,
+      "min": 0.047068891741549,
+      "max": 0.047902463658334234
+    },
+    "redisCpuPerRequestUs": {
+      "median": 3.404957470869225,
+      "min": 3.3683944739027307,
+      "max": 3.4415204678357187
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 365.05,
+      "min": 364.5,
+      "max": 365.6
+    },
+    "p99Us": {
+      "median": 1280.5500000000002,
+      "min": 1231.9,
+      "max": 1329.2
+    },
+    "addedP50Us": {
+      "median": -30.849999999999966,
+      "min": -47.10000000000002,
+      "max": -14.599999999999966
+    },
+    "addedP99Us": {
+      "median": -317.89999999999964,
+      "min": -510.89999999999986,
+      "max": -124.89999999999986
+    },
+    "overAdmission": {
+      "median": -0.2397534002521522,
+      "min": -0.24077480792122063,
+      "max": -0.23873199258308372
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 6685,
+      "min": 6675,
+      "max": 6695
+    },
+    "worstRatio": {
+      "median": 0.6345454545454545,
+      "min": 0.6336363636363637,
+      "max": 0.6354545454545455
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0.2397534002521522,
+      "min": 0.23873199258308372,
+      "max": 0.24077480792122063
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.00781850281154951,
+      "min": 0.007773498787619455,
+      "max": 0.007863506835479565
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.04737705142216961,
+      "min": 0.04714020824418771,
+      "max": 0.0476138946001515
+    },
+    "redisCpuPerRequestUs": {
+      "median": 3.2132660568131866,
+      "min": 3.1814648409645234,
+      "max": 3.2450672726618497
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 327.45000000000005,
+      "min": 323.6,
+      "max": 331.3
+    },
+    "p99Us": {
+      "median": 1775.6,
+      "min": 1733.6,
+      "max": 1817.6
+    },
+    "addedP50Us": {
+      "median": -154.5999999999999,
+      "min": -172.79999999999995,
+      "max": -136.39999999999998
+    },
+    "addedP99Us": {
+      "median": -246.80000000000018,
+      "min": -304.20000000000005,
+      "max": -189.4000000000001
+    },
+    "overAdmission": {
+      "median": -0.3115739685434238,
+      "min": -0.31183040802370643,
+      "max": -0.3113175290631411
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 10997,
+      "min": 10995,
+      "max": 10999
+    },
+    "worstRatio": {
+      "median": 0.8177272727272727,
+      "min": 0.8063636363636364,
+      "max": 0.8290909090909091
+    },
+    "falseAdmits": {
+      "median": 0.15134023474130265,
+      "min": 0.15101790438216464,
+      "max": 0.15166256510044068
+    },
+    "falseRejects": {
+      "median": 0.3604540801986914,
+      "min": 0.36009843758942367,
+      "max": 0.3608097228079592
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.004168882262989256,
+      "min": 0.004158797382628436,
+      "max": 0.0041789671433500744
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.025261850387745165,
+      "min": 0.025219863026765103,
+      "max": 0.025303837748725223
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.9163805361166033,
+      "min": 1.8636468197675786,
+      "max": 1.9691142524656278
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 292.35,
+      "min": 290.6,
+      "max": 294.1
+    },
+    "p99Us": {
+      "median": 1631.25,
+      "min": 1590.3,
+      "max": 1672.2
+    },
+    "addedP50Us": {
+      "median": -144.29999999999995,
+      "min": -160,
+      "max": -128.59999999999997
+    },
+    "addedP99Us": {
+      "median": -344.04999999999995,
+      "min": -418.79999999999995,
+      "max": -269.29999999999995
+    },
+    "overAdmission": {
+      "median": -0.36143446958078423,
+      "min": -0.3625509360841193,
+      "max": -0.36031800307744916
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 12768.5,
+      "min": 12715,
+      "max": 12822
+    },
+    "worstRatio": {
+      "median": 0.6809090909090909,
+      "min": 0.6736363636363636,
+      "max": 0.6881818181818182
+    },
+    "falseAdmits": {
+      "median": 0.13906464058117957,
+      "min": 0.13876647780384974,
+      "max": 0.13936280335850937
+    },
+    "falseRejects": {
+      "median": 0.38162294018403115,
+      "min": 0.3814838131211965,
+      "max": 0.3817620672468658
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.00418805183704132,
+      "min": 0.004158797382628436,
+      "max": 0.004217306291454204
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.025357605736167313,
+      "min": 0.025258017131192887,
+      "max": 0.02545719434114174
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.8655478489715165,
+      "min": 1.8351991718743565,
+      "max": 1.8958965260686764
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 341.85,
+      "min": 336.1,
+      "max": 347.6
+    },
+    "p99Us": {
+      "median": 1587.1999999999998,
+      "min": 1484.8,
+      "max": 1689.6
+    },
+    "addedP50Us": {
+      "median": -107.14999999999998,
+      "min": -136.7,
+      "max": -77.59999999999997
+    },
+    "addedP99Us": {
+      "median": -1440.25,
+      "min": -3029,
+      "max": 148.5
+    },
+    "overAdmission": {
+      "median": -0.2457377847221677,
+      "min": -0.24953795379537955,
+      "max": -0.24193761564895586
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 7441.5,
+      "min": 7322,
+      "max": 7561
+    },
+    "worstRatio": {
+      "median": 0.6940909090909091,
+      "min": 0.6927272727272727,
+      "max": 0.6954545454545454
+    },
+    "falseAdmits": {
+      "median": 0.008108275726789665,
+      "min": 0.005695157953462424,
+      "max": 0.010521393500116905
+    },
+    "falseRejects": {
+      "median": 0.18158543112217712,
+      "min": 0.18145470606011296,
+      "max": 0.18171615618424128
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0050939699024192125,
+      "min": 0.005067528301448197,
+      "max": 0.005120411503390227
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.030890069002521045,
+      "min": 0.030777098491364282,
+      "max": 0.03100303951367781
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.2320156804635776,
+      "min": 2.0778260768495413,
+      "max": 2.386205284077614
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 331.8,
+      "min": 322.6,
+      "max": 341
+    },
+    "p99Us": {
+      "median": 1598.4499999999998,
+      "min": 1475.6,
+      "max": 1721.3
+    },
+    "addedP50Us": {
+      "median": -121.34999999999997,
+      "min": -154.59999999999997,
+      "max": -88.10000000000002
+    },
+    "addedP99Us": {
+      "median": -33946.65,
+      "min": -37649.4,
+      "max": -30243.9
+    },
+    "overAdmission": {
+      "median": -0.2884719857351761,
+      "min": -0.29257815081620514,
+      "max": -0.284365820654147
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 8735,
+      "min": 8616,
+      "max": 8854
+    },
+    "worstRatio": {
+      "median": 0.7045454545454546,
+      "min": 0.6772727272727272,
+      "max": 0.7318181818181818
+    },
+    "falseAdmits": {
+      "median": 0.009881130708197225,
+      "min": 0.004629413140051438,
+      "max": 0.015132848276343012
+    },
+    "falseRejects": {
+      "median": 0.21353005968517275,
+      "min": 0.21164367547346272,
+      "max": 0.21541644389688278
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.005105660339641565,
+      "min": 0.005067528301448197,
+      "max": 0.005143792377834931
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0308551330226315,
+      "min": 0.030730607406029894,
+      "max": 0.030979658639233108
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.224235244880944,
+      "min": 2.132197401148254,
+      "max": 2.316273088613634
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 641.25,
+      "min": 614.9,
+      "max": 667.6
+    },
+    "p99Us": {
+      "median": 2769.9,
+      "min": 2406.4,
+      "max": 3133.4
+    },
+    "addedP50Us": {
+      "median": 202.45000000000005,
+      "min": 130,
+      "max": 274.90000000000003
+    },
+    "addedP99Us": {
+      "median": 862.7000000000003,
+      "min": 247.80000000000018,
+      "max": 1477.6000000000001
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7963636363636364,
+      "min": 0.7927272727272727,
+      "max": 0.8
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.43729246268763955,
+      "min": 0.42953929539295393,
+      "max": 0.44504562998232516
+    },
+    "redisCommandsPerRequest": {
+      "median": 2.179181574563113,
+      "min": 2.14049351019826,
+      "max": 2.217869638927966
+    },
+    "redisCpuPerRequestUs": {
+      "median": 49.39870344151806,
+      "min": 45.69622735701076,
+      "max": 53.101179526025355
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 588.8,
+      "min": 570.9,
+      "max": 606.7
+    },
+    "p99Us": {
+      "median": 2735.1000000000004,
+      "min": 2322.4,
+      "max": 3147.8
+    },
+    "addedP50Us": {
+      "median": 192.89999999999998,
+      "min": 159.29999999999995,
+      "max": 226.50000000000006
+    },
+    "addedP99Us": {
+      "median": 1136.6500000000005,
+      "min": 579.6000000000001,
+      "max": 1693.7000000000003
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7945454545454546,
+      "min": 0.7918181818181819,
+      "max": 0.7972727272727272
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.3712541549136438,
+      "min": 0.370414457309815,
+      "max": 0.37209385251747257
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.848990035693134,
+      "min": 1.844713775565415,
+      "max": 1.853266295820853
+    },
+    "redisCpuPerRequestUs": {
+      "median": 43.801016803467405,
+      "min": 43.58511624589885,
+      "max": 44.016917361035965
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 570.1,
+      "min": 542.2,
+      "max": 598
+    },
+    "p99Us": {
+      "median": 2893.85,
+      "min": 2754.6,
+      "max": 3033.1
+    },
+    "addedP50Us": {
+      "median": 88.05000000000007,
+      "min": 45.80000000000007,
+      "max": 130.3
+    },
+    "addedP99Us": {
+      "median": 871.4499999999998,
+      "min": 716.8,
+      "max": 1026.1
+    },
+    "overAdmission": {
+      "median": 0.000028497335499130832,
+      "min": 0,
+      "max": 0.000056994670998261664
+    },
+    "maxAhead": {
+      "median": 2.5,
+      "min": 2,
+      "max": 3
+    },
+    "maxBehind": {
+      "median": 5.5,
+      "min": 5,
+      "max": 6
+    },
+    "worstRatio": {
+      "median": 0.9977272727272728,
+      "min": 0.9972727272727273,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.16722657299278898,
+      "min": 0.1648199976996511,
+      "max": 0.16963314828592685
+    },
+    "falseRejects": {
+      "median": 0.1672074959405751,
+      "min": 0.1648199976996511,
+      "max": 0.16959499418149906
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.3077894935706893,
+      "min": 0.30714054064365975,
+      "max": 0.30843844649771884
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.5349316646173592,
+      "min": 1.5316583681489537,
+      "max": 1.5382049610857647
+    },
+    "redisCpuPerRequestUs": {
+      "median": 38.879081485604445,
+      "min": 37.48278572250119,
+      "max": 40.275377248707706
+    },
+    "degraded": {
+      "median": 1,
+      "min": 0,
+      "max": 2
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 456.95,
+      "min": 447.5,
+      "max": 466.4
+    },
+    "p99Us": {
+      "median": 2929.7,
+      "min": 2754.6,
+      "max": 3104.8
+    },
+    "addedP50Us": {
+      "median": 20.30000000000001,
+      "min": -3.1000000000000227,
+      "max": 43.69999999999999
+    },
+    "addedP99Us": {
+      "median": 954.3999999999999,
+      "min": 745.5,
+      "max": 1163.3000000000002
+    },
+    "overAdmission": {
+      "median": -0.000056989798872283544,
+      "min": -0.00005699142279086997,
+      "max": -0.00005698817495369711
+    },
+    "maxAhead": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 10,
+      "min": 10,
+      "max": 10
+    },
+    "worstRatio": {
+      "median": 0.9977272727272728,
+      "min": 0.9963636363636363,
+      "max": 0.9990909090909091
+    },
+    "falseAdmits": {
+      "median": 0.1561498173856253,
+      "min": 0.15586780661733696,
+      "max": 0.15643182815391365
+    },
+    "falseRejects": {
+      "median": 0.15618806401189128,
+      "min": 0.1559061457654411,
+      "max": 0.15646998225834144
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.25245671902098626,
+      "min": 0.25172170396230376,
+      "max": 0.2531917340796688
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.2584589324783355,
+      "min": 1.2547931093687403,
+      "max": 1.262124755587931
+    },
+    "redisCpuPerRequestUs": {
+      "median": 29.31362923209739,
+      "min": 29.124248841068745,
+      "max": 29.50300962312604
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 459.4,
+      "min": 452.9,
+      "max": 465.9
+    },
+    "p99Us": {
+      "median": 5814.25,
+      "min": 5402.6,
+      "max": 6225.9
+    },
+    "addedP50Us": {
+      "median": 10.399999999999977,
+      "min": -19.900000000000034,
+      "max": 40.69999999999999
+    },
+    "addedP99Us": {
+      "median": 2786.8,
+      "min": 888.8000000000002,
+      "max": 4684.799999999999
+    },
+    "overAdmission": {
+      "median": -0.0007595187021737713,
+      "min": -0.0007920530675555262,
+      "max": -0.0007269843367920164
+    },
+    "maxAhead": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 24.5,
+      "min": 24,
+      "max": 25
+    },
+    "worstRatio": {
+      "median": 0.905,
+      "min": 0.9,
+      "max": 0.91
+    },
+    "falseAdmits": {
+      "median": 0.04795479633836559,
+      "min": 0.04793079261164367,
+      "max": 0.04797880006508752
+    },
+    "falseRejects": {
+      "median": 0.04849093246926367,
+      "min": 0.04844517184942717,
+      "max": 0.048536693089100164
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.24085848571795654,
+      "min": 0.24082382203212535,
+      "max": 0.2408931494037877
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.1996181641072592,
+      "min": 1.1994467560845208,
+      "max": 1.1997895721299976
+    },
+    "redisCpuPerRequestUs": {
+      "median": 30.999908251033652,
+      "min": 30.581719705247224,
+      "max": 31.41809679682008
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 421.1,
+      "min": 414.2,
+      "max": 428
+    },
+    "p99Us": {
+      "median": 21266.449999999997,
+      "min": 18071.6,
+      "max": 24461.3
+    },
+    "addedP50Us": {
+      "median": -32.049999999999955,
+      "min": -63,
+      "max": -1.1000000000000227
+    },
+    "addedP99Us": {
+      "median": -14278.650000000001,
+      "min": -21053.4,
+      "max": -7503.9000000000015
+    },
+    "overAdmission": {
+      "median": -0.000990762004288913,
+      "min": -0.0011234098793986454,
+      "max": -0.0008581141291791808
+    },
+    "maxAhead": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 33,
+      "min": 29,
+      "max": 37
+    },
+    "worstRatio": {
+      "median": 0.9072727272727272,
+      "min": 0.9018181818181819,
+      "max": 0.9127272727272727
+    },
+    "falseAdmits": {
+      "median": 0.044830826391868445,
+      "min": 0.044797755436053306,
+      "max": 0.04486389734768358
+    },
+    "falseRejects": {
+      "median": 0.04553049331210193,
+      "min": 0.045468281457030614,
+      "max": 0.04559270516717325
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.22049131924639678,
+      "min": 0.2194061257891045,
+      "max": 0.22157651270368905
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.097770708978127,
+      "min": 1.0923544540565817,
+      "max": 1.1031869638996723
+    },
+    "redisCpuPerRequestUs": {
+      "median": 27.051753672109644,
+      "min": 27.027238718728217,
+      "max": 27.07626862549107
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 410.5,
+      "min": 406.5,
+      "max": 414.5
+    },
+    "p99Us": {
+      "median": 1925.1,
+      "min": 1904.6,
+      "max": 1945.6
+    },
+    "addedP50Us": {
+      "median": -28.299999999999955,
+      "min": -78.39999999999998,
+      "max": 21.80000000000001
+    },
+    "addedP99Us": {
+      "median": 17.90000000000009,
+      "min": -254,
+      "max": 289.79999999999995
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.12855461367763316,
+      "min": 0.12822707174440165,
+      "max": 0.12888215561086463
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.635726378991901,
+      "min": 0.6340037084581372,
+      "max": 0.6374490495256646
+    },
+    "redisCpuPerRequestUs": {
+      "median": 16.668768927215496,
+      "min": 16.340928540864766,
+      "max": 16.99660931356623
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 405.75,
+      "min": 401.9,
+      "max": 409.6
+    },
+    "p99Us": {
+      "median": 1863.6999999999998,
+      "min": 1847.3,
+      "max": 1880.1
+    },
+    "addedP50Us": {
+      "median": 9.850000000000023,
+      "min": -9.700000000000045,
+      "max": 29.400000000000034
+    },
+    "addedP99Us": {
+      "median": 265.25,
+      "min": 104.5,
+      "max": 426
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.12755040230734238,
+      "min": 0.1272286407074597,
+      "max": 0.12787216390722506
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.6305436213666495,
+      "min": 0.6289045785194695,
+      "max": 0.6321826642138296
+    },
+    "redisCpuPerRequestUs": {
+      "median": 17.059646985858972,
+      "min": 16.95476680012978,
+      "max": 17.164527171588166
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 409.85,
+      "min": 402.4,
+      "max": 417.3
+    },
+    "p99Us": {
+      "median": 2310.15,
+      "min": 2295.8,
+      "max": 2324.5
+    },
+    "addedP50Us": {
+      "median": -72.19999999999993,
+      "min": -94,
+      "max": -50.39999999999998
+    },
+    "addedP99Us": {
+      "median": 287.75,
+      "min": 258.0000000000002,
+      "max": 317.5
+    },
+    "overAdmission": {
+      "median": -0.00018521156859951563,
+      "min": -0.000256446787291637,
+      "max": -0.00011397634990739422
+    },
+    "maxAhead": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 21,
+      "min": 21,
+      "max": 21
+    },
+    "worstRatio": {
+      "median": 0.9931818181818182,
+      "min": 0.9927272727272727,
+      "max": 0.9936363636363637
+    },
+    "falseAdmits": {
+      "median": 0.20096532484321933,
+      "min": 0.2008012881953763,
+      "max": 0.2011293614910624
+    },
+    "falseRejects": {
+      "median": 0.20108974203088142,
+      "min": 0.2009738143618449,
+      "max": 0.20120566969991796
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.10659172827105266,
+      "min": 0.10618027067438561,
+      "max": 0.10700318586771972
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.5290287311150577,
+      "min": 0.5269332515431507,
+      "max": 0.5311242106869647
+    },
+    "redisCpuPerRequestUs": {
+      "median": 14.815920552424805,
+      "min": 14.499513535168132,
+      "max": 15.132327569681477
+    },
+    "degraded": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 378.25,
+      "min": 376.3,
+      "max": 380.2
+    },
+    "p99Us": {
+      "median": 2349.05,
+      "min": 2158.6,
+      "max": 2539.5
+    },
+    "addedP50Us": {
+      "median": -58.39999999999998,
+      "min": -74.30000000000001,
+      "max": -42.5
+    },
+    "addedP99Us": {
+      "median": 373.7500000000002,
+      "min": 149.5,
+      "max": 598
+    },
+    "overAdmission": {
+      "median": -0.00031343942789419495,
+      "min": -0.0003134438935430558,
+      "max": -0.0003134349622453341
+    },
+    "maxAhead": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 27.5,
+      "min": 27,
+      "max": 28
+    },
+    "worstRatio": {
+      "median": 0.9922727272727273,
+      "min": 0.9890909090909091,
+      "max": 0.9954545454545455
+    },
+    "falseAdmits": {
+      "median": 0.19637582221314276,
+      "min": 0.19623892957098493,
+      "max": 0.19651271485530056
+    },
+    "falseRejects": {
+      "median": 0.1965861786576055,
+      "min": 0.19644979488555764,
+      "max": 0.19672256242965336
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.08600689264143373,
+      "min": 0.08588488906694138,
+      "max": 0.08612889621592608
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.42617146143246887,
+      "min": 0.4256090348919285,
+      "max": 0.42673388797300926
+    },
+    "redisCpuPerRequestUs": {
+      "median": 12.26863466873563,
+      "min": 12.166487750642247,
+      "max": 12.370781586829013
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 380.05,
+      "min": 374.3,
+      "max": 385.8
+    },
+    "p99Us": {
+      "median": 1888.75,
+      "min": 1851.4,
+      "max": 1926.1
+    },
+    "addedP50Us": {
+      "median": -68.94999999999999,
+      "min": -98.5,
+      "max": -39.39999999999998
+    },
+    "addedP99Us": {
+      "median": -1138.6999999999998,
+      "min": -2662.4,
+      "max": 385
+    },
+    "overAdmission": {
+      "median": -0.002972063441167327,
+      "min": -0.002973633780479746,
+      "max": -0.002970493101854908
+    },
+    "maxAhead": {
+      "median": 2.5,
+      "min": 1,
+      "max": 4
+    },
+    "maxBehind": {
+      "median": 91.5,
+      "min": 90,
+      "max": 93
+    },
+    "worstRatio": {
+      "median": 0.9031818181818181,
+      "min": 0.8972727272727272,
+      "max": 0.9090909090909091
+    },
+    "falseAdmits": {
+      "median": 0.057341373914184646,
+      "min": 0.05630070433994282,
+      "max": 0.05838204348842647
+    },
+    "falseRejects": {
+      "median": 0.05943956268422004,
+      "min": 0.05839280317999024,
+      "max": 0.06048632218844985
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.07454455951770103,
+      "min": 0.07413003556568028,
+      "max": 0.07495908346972177
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.3681646254875402,
+      "min": 0.3662567702643018,
+      "max": 0.3700724807107786
+    },
+    "redisCpuPerRequestUs": {
+      "median": 10.812155208395843,
+      "min": 10.69174085869028,
+      "max": 10.932569558101406
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 370.85,
+      "min": 369.7,
+      "max": 372
+    },
+    "p99Us": {
+      "median": 2953.25,
+      "min": 2785.3,
+      "max": 3121.2
+    },
+    "addedP50Us": {
+      "median": -82.29999999999995,
+      "min": -107.5,
+      "max": -57.10000000000002
+    },
+    "addedP99Us": {
+      "median": -32591.85,
+      "min": -36339.7,
+      "max": -28844
+    },
+    "overAdmission": {
+      "median": -0.005184933442174572,
+      "min": -0.0057822567321989095,
+      "max": -0.004587610152150236
+    },
+    "maxAhead": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 158,
+      "min": 141,
+      "max": 175
+    },
+    "worstRatio": {
+      "median": 0.9013636363636364,
+      "min": 0.8945454545454545,
+      "max": 0.9081818181818182
+    },
+    "falseAdmits": {
+      "median": 0.05445945218903036,
+      "min": 0.05437132429856575,
+      "max": 0.05454758007949497
+    },
+    "falseRejects": {
+      "median": 0.05812084391831193,
+      "min": 0.057602454729305655,
+      "max": 0.058639233107318216
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0747769472784842,
+      "min": 0.07461819196169135,
+      "max": 0.07493570259527706
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.3691287065152299,
+      "min": 0.3683953601896836,
+      "max": 0.3698620528407762
+    },
+    "redisCpuPerRequestUs": {
+      "median": 10.926050265494162,
+      "min": 10.279167640869701,
+      "max": 11.572932890118622
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/under-even-2gw",
+    "baseline": "none/under-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 409.35,
+      "min": 404.5,
+      "max": 414.2
+    },
+    "p99Us": {
+      "median": 1855.5,
+      "min": 1816.6,
+      "max": 1894.4
+    },
+    "addedP50Us": {
+      "median": -29.449999999999932,
+      "min": -80.39999999999998,
+      "max": 21.5
+    },
+    "addedP99Us": {
+      "median": -51.69999999999982,
+      "min": -342,
+      "max": 238.60000000000014
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.030413465083568417,
+      "min": 0.03020253886749394,
+      "max": 0.030624391299642895
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.14498311980596723,
+      "min": 0.1441306518328341,
+      "max": 0.14583558777910038
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.544514295026609,
+      "min": 6.052524604193333,
+      "max": 7.036503985859886
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/under-shift-2gw",
+    "baseline": "none/under-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 383.75,
+      "min": 381.2,
+      "max": 386.3
+    },
+    "p99Us": {
+      "median": 1542.15,
+      "min": 1496.1,
+      "max": 1588.2
+    },
+    "addedP50Us": {
+      "median": -12.149999999999977,
+      "min": -30.400000000000034,
+      "max": 6.100000000000023
+    },
+    "addedP99Us": {
+      "median": -56.29999999999973,
+      "min": -246.70000000000005,
+      "max": 134.10000000000014
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0.7959090909090909,
+      "min": 0.7927272727272727,
+      "max": 0.7990909090909091
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.03127318548429107,
+      "min": 0.03123662815575524,
+      "max": 0.0313097428128269
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.1493723125212161,
+      "min": 0.14922978177150192,
+      "max": 0.1495148432709303
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.393735841174046,
+      "min": 6.1430609042936375,
+      "max": 6.644410778054455
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/over-even-2gw",
+    "baseline": "none/over-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 394.6,
+      "min": 383.7,
+      "max": 405.5
+    },
+    "p99Us": {
+      "median": 2103.3,
+      "min": 2043.9,
+      "max": 2162.7
+    },
+    "addedP50Us": {
+      "median": -87.44999999999993,
+      "min": -112.69999999999999,
+      "max": -62.19999999999999
+    },
+    "addedP99Us": {
+      "median": 80.90000000000009,
+      "min": 6.100000000000136,
+      "max": 155.69999999999982
+    },
+    "overAdmission": {
+      "median": -0.0008405755805670324,
+      "min": -0.0009118107992591537,
+      "max": -0.000769340361874911
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 46.5,
+      "min": 45,
+      "max": 48
+    },
+    "worstRatio": {
+      "median": 0.9804545454545455,
+      "min": 0.9790909090909091,
+      "max": 0.9818181818181818
+    },
+    "falseAdmits": {
+      "median": 0.21261855549951755,
+      "min": 0.21147874094237626,
+      "max": 0.21375837005665885
+    },
+    "falseRejects": {
+      "median": 0.2131825775846427,
+      "min": 0.21199631944178202,
+      "max": 0.2143688357275034
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.029431102738087113,
+      "min": 0.029226043991682406,
+      "max": 0.029636161484491816
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.1434932373122534,
+      "min": 0.14254373414220034,
+      "max": 0.1444427404823065
+    },
+    "redisCpuPerRequestUs": {
+      "median": 5.9018372474280465,
+      "min": 5.606783799767313,
+      "max": 6.19689069508878
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/over-shift-2gw",
+    "baseline": "none/over-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 356.35,
+      "min": 352,
+      "max": 360.7
+    },
+    "p99Us": {
+      "median": 1852.9,
+      "min": 1759.2,
+      "max": 1946.6
+    },
+    "addedP50Us": {
+      "median": -80.29999999999995,
+      "min": -98.60000000000002,
+      "max": -62
+    },
+    "addedP99Us": {
+      "median": -122.39999999999986,
+      "min": -249.89999999999986,
+      "max": 5.099999999999909
+    },
+    "overAdmission": {
+      "median": -0.0011825066610318604,
+      "min": -0.0012537755741722232,
+      "max": -0.0011112377478914976
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 140,
+      "min": 139,
+      "max": 141
+    },
+    "worstRatio": {
+      "median": 1.0059090909090909,
+      "min": 0.9972727272727273,
+      "max": 1.0145454545454546
+    },
+    "falseAdmits": {
+      "median": 0.21494937917762474,
+      "min": 0.21289728942222905,
+      "max": 0.21700146893302047
+    },
+    "falseRejects": {
+      "median": 0.21574311232494106,
+      "min": 0.21374075068051987,
+      "max": 0.21774547396936225
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.02322514814770435,
+      "min": 0.023216772544306454,
+      "max": 0.02323352375110225
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.11250194229120102,
+      "min": 0.11244014574867892,
+      "max": 0.11256373883372311
+    },
+    "redisCpuPerRequestUs": {
+      "median": 4.5012407648423896,
+      "min": 4.405330128388913,
+      "max": 4.597151401295865
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/burst-even-2gw",
+    "baseline": "none/burst-even-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 376.7,
+      "min": 369.4,
+      "max": 384
+    },
+    "p99Us": {
+      "median": 1933.8000000000002,
+      "min": 1549.3,
+      "max": 2318.3
+    },
+    "addedP50Us": {
+      "median": -72.30000000000001,
+      "min": -103.40000000000003,
+      "max": -41.19999999999999
+    },
+    "addedP99Us": {
+      "median": -1093.6499999999996,
+      "min": -2964.5,
+      "max": 777.2000000000003
+    },
+    "overAdmission": {
+      "median": -0.020374966859555376,
+      "min": -0.0223109673586587,
+      "max": -0.01843896636045205
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 617,
+      "min": 558,
+      "max": 676
+    },
+    "worstRatio": {
+      "median": 0.9045454545454545,
+      "min": 0.8972727272727272,
+      "max": 0.9118181818181819
+    },
+    "falseAdmits": {
+      "median": 0.05859879852665327,
+      "min": 0.05806736558264953,
+      "max": 0.059130231470657005
+    },
+    "falseRejects": {
+      "median": 0.07297905591823717,
+      "min": 0.07217675941080197,
+      "max": 0.07378135242567238
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.019209610188880608,
+      "min": 0.019102174421323358,
+      "max": 0.019317045956437854
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0914210895378791,
+      "min": 0.09111526771101239,
+      "max": 0.09172691136474581
+    },
+    "redisCpuPerRequestUs": {
+      "median": 4.486978196740923,
+      "min": 4.260582533299464,
+      "max": 4.713373860182383
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/burst-shift-2gw",
+    "baseline": "none/burst-shift-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 358.65,
+      "min": 357.4,
+      "max": 359.9
+    },
+    "p99Us": {
+      "median": 1824.3000000000002,
+      "min": 1679.4,
+      "max": 1969.2
+    },
+    "addedP50Us": {
+      "median": -94.5,
+      "min": -119.80000000000001,
+      "max": -69.20000000000005
+    },
+    "addedP99Us": {
+      "median": -33720.799999999996,
+      "min": -37445.6,
+      "max": -29996
+    },
+    "overAdmission": {
+      "median": -0.02678113406581132,
+      "min": -0.02679691109497723,
+      "max": -0.02676535703664541
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 811,
+      "min": 810,
+      "max": 812
+    },
+    "worstRatio": {
+      "median": 0.9045454545454545,
+      "min": 0.8972727272727272,
+      "max": 0.9118181818181819
+    },
+    "falseAdmits": {
+      "median": 0.05659980142751981,
+      "min": 0.055155482815057284,
+      "max": 0.058044120039982335
+    },
+    "falseRejects": {
+      "median": 0.0755067459005056,
+      "min": 0.07409399111526771,
+      "max": 0.0769195006857435
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.020317292091787578,
+      "min": 0.020316604291127176,
+      "max": 0.020317979892447977
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.09716884426819622,
+      "min": 0.09709663172086752,
+      "max": 0.0972410568155249
+    },
+    "redisCpuPerRequestUs": {
+      "median": 4.27585290936954,
+      "min": 4.176034603694215,
+      "max": 4.375671215044866
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 410.9,
+      "min": 399.9,
+      "max": 421.9
+    },
+    "p99Us": {
+      "median": 1824.25,
+      "min": 1800.2,
+      "max": 1848.3
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0014714374266327182,
+      "min": 0.0014539842676351393,
+      "max": 0.001488890585630297
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0038410165881384295,
+      "min": 0.0037880116446283893,
+      "max": 0.0038940215316484693
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.3945090753024352,
+      "min": 1.3755265112987065,
+      "max": 1.4134916393061636
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 315.3,
+      "min": 307.5,
+      "max": 323.1
+    },
+    "p99Us": {
+      "median": 1561.1,
+      "min": 1357.8,
+      "max": 1764.4
+    },
+    "addedP50Us": {
+      "median": -95.59999999999997,
+      "min": -114.39999999999998,
+      "max": -76.79999999999995
+    },
+    "addedP99Us": {
+      "median": -263.1500000000001,
+      "min": -490.5,
+      "max": -35.799999999999955
+    },
+    "overAdmission": {
+      "median": -0.35235287069487675,
+      "min": -0.3526998147884314,
+      "max": -0.35200592660132207
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 12366.5,
+      "min": 12355,
+      "max": 12378
+    },
+    "worstRatio": {
+      "median": 0.63,
+      "min": 0.6263636363636363,
+      "max": 0.6336363636363637
+    },
+    "falseAdmits": {
+      "median": 0.0767104930765444,
+      "min": 0.06972662584177493,
+      "max": 0.08369436031131389
+    },
+    "falseRejects": {
+      "median": 0.3131899384099823,
+      "min": 0.3054045288921956,
+      "max": 0.32097534792776905
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0014916184243723024,
+      "min": 0.001488010072683569,
+      "max": 0.0014952267760610359
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0038629092528616035,
+      "min": 0.0038535645472061657,
+      "max": 0.0038722539585170418
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.3601218637165826,
+      "min": 1.314055131694922,
+      "max": 1.4061885957382432
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 882.15,
+      "min": 850.4,
+      "max": 913.9
+    },
+    "p99Us": {
+      "median": 3318.75,
+      "min": 3303.4,
+      "max": 3334.1
+    },
+    "addedP50Us": {
+      "median": 471.25,
+      "min": 428.5,
+      "max": 514
+    },
+    "addedP99Us": {
+      "median": 1494.5,
+      "min": 1455.1000000000001,
+      "max": 1533.8999999999999
+    },
+    "overAdmission": {
+      "median": 0.00007123968454921846,
+      "min": 0.00005698979882601015,
+      "max": 0.00008548957027242677
+    },
+    "maxAhead": {
+      "median": 2.5,
+      "min": 2,
+      "max": 3
+    },
+    "maxBehind": {
+      "median": 3.5,
+      "min": 3,
+      "max": 4
+    },
+    "worstRatio": {
+      "median": 1,
+      "min": 0.9990909090909091,
+      "max": 1.000909090909091
+    },
+    "falseAdmits": {
+      "median": 0.12581222846390147,
+      "min": 0.10633362726680214,
+      "max": 0.1452908296610008
+    },
+    "falseRejects": {
+      "median": 0.1257643970506095,
+      "min": 0.10627611854464594,
+      "max": 0.145252675556573
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0020843023487374,
+      "min": 1.0020319748495188,
+      "max": 1.002136629847956
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6757125922449214,
+      "min": 3.6741257940822982,
+      "max": 3.677299390407545
+    },
+    "redisCpuPerRequestUs": {
+      "median": 102.06860677899672,
+      "min": 100.59730250481707,
+      "max": 103.5399110531764
+    },
+    "degraded": {
+      "median": 2.5,
+      "min": 2,
+      "max": 3
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 360.85,
+      "min": 358.4,
+      "max": 363.3
+    },
+    "p99Us": {
+      "median": 1625.1,
+      "min": 1603.6,
+      "max": 1646.6
+    },
+    "addedP50Us": {
+      "median": -50.049999999999955,
+      "min": -63.5,
+      "max": -36.599999999999966
+    },
+    "addedP99Us": {
+      "median": -199.1500000000001,
+      "min": -244.70000000000005,
+      "max": -153.60000000000014
+    },
+    "overAdmission": {
+      "median": -0.00014246718991722544,
+      "min": -0.00017096452486109131,
+      "max": -0.00011396985497335954
+    },
+    "maxAhead": {
+      "median": 3,
+      "min": 2,
+      "max": 4
+    },
+    "maxBehind": {
+      "median": 15,
+      "min": 13,
+      "max": 17
+    },
+    "worstRatio": {
+      "median": 0.9954545454545454,
+      "min": 0.9945454545454545,
+      "max": 0.9963636363636363
+    },
+    "falseAdmits": {
+      "median": 0.1873216042280043,
+      "min": 0.18720311337492132,
+      "max": 0.1874400950810873
+    },
+    "falseRejects": {
+      "median": 0.18741717453275009,
+      "min": 0.18731757568820465,
+      "max": 0.18751677337729555
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.12024827193762978,
+      "min": 0.11959404032888837,
+      "max": 0.12090250354637119
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.9543372203351997,
+      "min": 0.9489688853278392,
+      "max": 0.9597055553425603
+    },
+    "redisCpuPerRequestUs": {
+      "median": 17.654139606561728,
+      "min": 17.33868803435193,
+      "max": 17.96959117877153
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 356.5,
+      "min": 354.6,
+      "max": 358.4
+    },
+    "p99Us": {
+      "median": 1640.45,
+      "min": 1558.5,
+      "max": 1722.4
+    },
+    "addedP50Us": {
+      "median": -54.39999999999998,
+      "min": -67.29999999999995,
+      "max": -41.5
+    },
+    "addedP99Us": {
+      "median": -183.79999999999995,
+      "min": -289.79999999999995,
+      "max": -77.79999999999995
+    },
+    "overAdmission": {
+      "median": -0.0009117848187827672,
+      "min": -0.001082744472304536,
+      "max": -0.0007408251652609984
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 47,
+      "min": 47,
+      "max": 47
+    },
+    "worstRatio": {
+      "median": 0.9695454545454545,
+      "min": 0.9654545454545455,
+      "max": 0.9736363636363636
+    },
+    "falseAdmits": {
+      "median": 0.2136040306482736,
+      "min": 0.21272476325576045,
+      "max": 0.21448329804078672
+    },
+    "falseRejects": {
+      "median": 0.21421569910301438,
+      "min": 0.21322317218111414,
+      "max": 0.21520822602491463
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.028273841597567864,
+      "min": 0.02819588317213224,
+      "max": 0.028351800023003488
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.21813986421247816,
+      "min": 0.21751654934279555,
+      "max": 0.2187631790821608
+    },
+    "redisCpuPerRequestUs": {
+      "median": 5.7484763966296235,
+      "min": 5.62830271466393,
+      "max": 5.8686500785953175
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 352.25,
+      "min": 351.2,
+      "max": 353.3
+    },
+    "p99Us": {
+      "median": 1817.6,
+      "min": 1676.3,
+      "max": 1958.9
+    },
+    "addedP50Us": {
+      "median": -58.64999999999998,
+      "min": -70.69999999999999,
+      "max": -46.599999999999966
+    },
+    "addedP99Us": {
+      "median": -6.650000000000091,
+      "min": -172,
+      "max": 158.70000000000005
+    },
+    "overAdmission": {
+      "median": -0.0023223444551330606,
+      "min": -0.0033339982332658935,
+      "max": -0.001310690677000228
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 104,
+      "min": 76,
+      "max": 132
+    },
+    "worstRatio": {
+      "median": 0.9727272727272727,
+      "min": 0.9718181818181818,
+      "max": 0.9736363636363636
+    },
+    "falseAdmits": {
+      "median": 0.21494071960898045,
+      "min": 0.21326151132921828,
+      "max": 0.21661992788874262
+    },
+    "falseRejects": {
+      "median": 0.21650091189194576,
+      "min": 0.21550435149330982,
+      "max": 0.21749747229058167
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.014906645717616077,
+      "min": 0.014861023674621797,
+      "max": 0.01495226776061036
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.11122137422507777,
+      "min": 0.11087582746713978,
+      "max": 0.11156692098301575
+    },
+    "redisCpuPerRequestUs": {
+      "median": 3.6362002955743407,
+      "min": 3.5808956024997634,
+      "max": 3.6915049886489175
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 276.85,
+      "min": 261.9,
+      "max": 291.8
+    },
+    "p99Us": {
+      "median": 1472.5,
+      "min": 1357.8,
+      "max": 1587.2
+    },
+    "addedP50Us": {
+      "median": -134.04999999999995,
+      "min": -160,
+      "max": -108.09999999999997
+    },
+    "addedP99Us": {
+      "median": -351.75,
+      "min": -490.5,
+      "max": -213
+    },
+    "overAdmission": {
+      "median": -0.353997015828157,
+      "min": -0.36544708497179007,
+      "max": -0.34254694668452396
+    },
+    "maxAhead": {
+      "median": 7,
+      "min": 0,
+      "max": 14
+    },
+    "maxBehind": {
+      "median": 12446.5,
+      "min": 12068,
+      "max": 12825
+    },
+    "worstRatio": {
+      "median": 0.6813636363636364,
+      "min": 0.6763636363636364,
+      "max": 0.6863636363636364
+    },
+    "falseAdmits": {
+      "median": 0.14225143351928124,
+      "min": 0.13974619483955067,
+      "max": 0.1447566721990118
+    },
+    "falseRejects": {
+      "median": 0.37983894945974256,
+      "min": 0.37408191686220643,
+      "max": 0.3855959820572787
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.004187959315203147,
+      "min": 0.0041789671433500744,
+      "max": 0.00419695148705622
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.02531917406622501,
+      "min": 0.02529617123562067,
+      "max": 0.02534217689682935
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.8510878286574626,
+      "min": 1.8076908331097659,
+      "max": 1.8944848242051593
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 481.15,
+      "min": 448.3,
+      "max": 514
+    },
+    "p99Us": {
+      "median": 2919.45,
+      "min": 2814,
+      "max": 3024.9
+    },
+    "addedP50Us": {
+      "median": 70.25,
+      "min": 26.400000000000034,
+      "max": 114.10000000000002
+    },
+    "addedP99Us": {
+      "median": 1095.1999999999998,
+      "min": 965.7,
+      "max": 1224.7
+    },
+    "overAdmission": {
+      "median": -0.00007123643708219321,
+      "min": -0.00008548957027242677,
+      "max": -0.00005698330389195966
+    },
+    "maxAhead": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 7,
+      "min": 7,
+      "max": 7
+    },
+    "worstRatio": {
+      "median": 0.9968181818181818,
+      "min": 0.9954545454545455,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.1584906884599494,
+      "min": 0.15749722041176245,
+      "max": 0.15948415650813635
+    },
+    "falseRejects": {
+      "median": 0.15853851987324138,
+      "min": 0.15755472913391863,
+      "max": 0.15952231061256414
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.24264567294814393,
+      "min": 0.24225948606421335,
+      "max": 0.24303185983207454
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.2093651779223435,
+      "min": 1.207558328087144,
+      "max": 1.2111720277575433
+    },
+    "redisCpuPerRequestUs": {
+      "median": 31.023115969635846,
+      "min": 29.629504568953823,
+      "max": 32.416727370317865
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 370.35,
+      "min": 369.2,
+      "max": 371.5
+    },
+    "p99Us": {
+      "median": 2119.65,
+      "min": 2113.5,
+      "max": 2125.8
+    },
+    "addedP50Us": {
+      "median": -40.549999999999955,
+      "min": -52.69999999999999,
+      "max": -28.399999999999977
+    },
+    "addedP99Us": {
+      "median": 295.4000000000001,
+      "min": 265.20000000000005,
+      "max": 325.60000000000014
+    },
+    "overAdmission": {
+      "median": -0.00038472865387877955,
+      "min": -0.000398928591782071,
+      "max": -0.0003705287159754881
+    },
+    "maxAhead": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 22,
+      "min": 22,
+      "max": 22
+    },
+    "worstRatio": {
+      "median": 0.9927272727272727,
+      "min": 0.9918181818181818,
+      "max": 0.9936363636363637
+    },
+    "falseAdmits": {
+      "median": 0.19825745620676083,
+      "min": 0.1972932561438485,
+      "max": 0.1992216562696732
+    },
+    "falseRejects": {
+      "median": 0.1985156440645156,
+      "min": 0.19756163018057737,
+      "max": 0.1994696579484538
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.07943875162450154,
+      "min": 0.07903622732215418,
+      "max": 0.0798412759268489
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.39336904923499294,
+      "min": 0.3913848032202064,
+      "max": 0.3953532952497795
+    },
+    "redisCpuPerRequestUs": {
+      "median": 10.993497648409619,
+      "min": 10.989736545908633,
+      "max": 10.997258750910603
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/over-skew-2gw",
+    "baseline": "none/over-skew-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 367,
+      "min": 362,
+      "max": 372
+    },
+    "p99Us": {
+      "median": 1945.6,
+      "min": 1861.6,
+      "max": 2029.6
+    },
+    "addedP50Us": {
+      "median": -43.89999999999998,
+      "min": -59.89999999999998,
+      "max": -27.899999999999977
+    },
+    "addedP99Us": {
+      "median": 121.34999999999991,
+      "min": 13.299999999999955,
+      "max": 229.39999999999986
+    },
+    "overAdmission": {
+      "median": -0.0014961076799093061,
+      "min": -0.0019378740381875178,
+      "max": -0.0010543413216310945
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 85,
+      "min": 84,
+      "max": 86
+    },
+    "worstRatio": {
+      "median": 0.9740909090909091,
+      "min": 0.97,
+      "max": 0.9781818181818182
+    },
+    "falseAdmits": {
+      "median": 0.21572824501636403,
+      "min": 0.21548518191925775,
+      "max": 0.21597130811347032
+    },
+    "falseRejects": {
+      "median": 0.21673293600009125,
+      "min": 0.21667715904538432,
+      "max": 0.21678871295479815
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.022039595255297875,
+      "min": 0.021995841202617373,
+      "max": 0.022083349307978378
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.10653569989830725,
+      "min": 0.10639272019687518,
+      "max": 0.1066786795997393
+    },
+    "redisCpuPerRequestUs": {
+      "median": 4.6795051792324,
+      "min": 4.600259447910089,
+      "max": 4.7587509105547126
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 408.7,
+      "min": 407,
+      "max": 410.4
+    },
+    "p99Us": {
+      "median": 1763.3,
+      "min": 1665,
+      "max": 1861.6
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.002981137597150571,
+      "min": 0.002977781171260594,
+      "max": 0.002984494023040549
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0038219712783981686,
+      "min": 0.003817668168282813,
+      "max": 0.0038262743885135245
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.378298061443942,
+      "min": 1.3430938382833608,
+      "max": 1.4135022846045229
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 203.25,
+      "min": 190.3,
+      "max": 216.2
+    },
+    "p99Us": {
+      "median": 1241.6,
+      "min": 1059.8,
+      "max": 1423.4
+    },
+    "addedP50Us": {
+      "median": -205.45,
+      "min": -220.09999999999997,
+      "max": -190.8
+    },
+    "addedP99Us": {
+      "median": -521.7,
+      "min": -801.8,
+      "max": -241.5999999999999
+    },
+    "overAdmission": {
+      "median": -0.598960008918832,
+      "min": -0.6004730153302559,
+      "max": -0.5974470025074082
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 21020.5,
+      "min": 20968,
+      "max": 21073
+    },
+    "worstRatio": {
+      "median": 0.4036363636363637,
+      "min": 0.4,
+      "max": 0.4072727272727273
+    },
+    "falseAdmits": {
+      "median": 0.0523244929901824,
+      "min": 0.04978338381321167,
+      "max": 0.05486560216715313
+    },
+    "falseRejects": {
+      "median": 0.45430852540020344,
+      "min": 0.4537438178123682,
+      "max": 0.45487323298803867
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.003021575996848734,
+      "min": 0.002976020145367138,
+      "max": 0.0030671318483303303
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.003863001774699776,
+      "min": 0.003815410442778382,
+      "max": 0.003910593106621171
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.2782187602023063,
+      "min": 1.248610205881186,
+      "max": 1.3078273145234263
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 896,
+      "min": 875.5,
+      "max": 916.5
+    },
+    "p99Us": {
+      "median": 3425.25,
+      "min": 3418.1,
+      "max": 3432.4
+    },
+    "addedP50Us": {
+      "median": 487.3,
+      "min": 465.1,
+      "max": 509.5
+    },
+    "addedP99Us": {
+      "median": 1661.95,
+      "min": 1556.5,
+      "max": 1767.4
+    },
+    "overAdmission": {
+      "median": 0.0004559411267640017,
+      "min": 0.0001139795976520203,
+      "max": 0.0007979026558759832
+    },
+    "maxAhead": {
+      "median": 17.5,
+      "min": 6,
+      "max": 29
+    },
+    "maxBehind": {
+      "median": 3,
+      "min": 1,
+      "max": 5
+    },
+    "worstRatio": {
+      "median": 1,
+      "min": 1,
+      "max": 1
+    },
+    "falseAdmits": {
+      "median": 0.14652429679751483,
+      "min": 0.14160895858371964,
+      "max": 0.15143963501131005
+    },
+    "falseRejects": {
+      "median": 0.14621887891841623,
+      "min": 0.14107480112173068,
+      "max": 0.1513629567151018
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.004321313637024,
+      "min": 1.0041022888471418,
+      "max": 1.0045403384269063
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.675952582007925,
+      "min": 3.673973177664587,
+      "max": 3.6779319863512634
+    },
+    "redisCpuPerRequestUs": {
+      "median": 105.38560093179277,
+      "min": 104.76870981895884,
+      "max": 106.00249204462669
+    },
+    "degraded": {
+      "median": 16.5,
+      "min": 5,
+      "max": 28
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 381.3,
+      "min": 379.1,
+      "max": 383.5
+    },
+    "p99Us": {
+      "median": 1719.3000000000002,
+      "min": 1702.9,
+      "max": 1735.7
+    },
+    "addedP50Us": {
+      "median": -27.399999999999977,
+      "min": -31.299999999999955,
+      "max": -23.5
+    },
+    "addedP99Us": {
+      "median": -43.99999999999977,
+      "min": -158.69999999999982,
+      "max": 70.70000000000005
+    },
+    "overAdmission": {
+      "median": -0.00012821933431204682,
+      "min": -0.00014246231871669943,
+      "max": -0.00011397634990739422
+    },
+    "maxAhead": {
+      "median": 3.5,
+      "min": 3,
+      "max": 4
+    },
+    "maxBehind": {
+      "median": 17.5,
+      "min": 14,
+      "max": 21
+    },
+    "worstRatio": {
+      "median": 0.9972727272727273,
+      "min": 0.9963636363636363,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.18987532983642183,
+      "min": 0.18943512848394667,
+      "max": 0.190315531188897
+    },
+    "falseRejects": {
+      "median": 0.18996140787597976,
+      "min": 0.18951143669280224,
+      "max": 0.1904113790591573
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.14761160502864368,
+      "min": 0.14745236360848063,
+      "max": 0.14777084644880673
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.1784065319563477,
+      "min": 1.177011846796764,
+      "max": 1.1798012171159313
+    },
+    "redisCpuPerRequestUs": {
+      "median": 23.275705930708902,
+      "min": 23.122722676891637,
+      "max": 23.428689184526167
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 375,
+      "min": 368.6,
+      "max": 381.4
+    },
+    "p99Us": {
+      "median": 1807.9,
+      "min": 1785.9,
+      "max": 1829.9
+    },
+    "addedP50Us": {
+      "median": -33.69999999999999,
+      "min": -41.799999999999955,
+      "max": -25.600000000000023
+    },
+    "addedP99Us": {
+      "median": 44.600000000000136,
+      "min": -75.69999999999982,
+      "max": 164.9000000000001
+    },
+    "overAdmission": {
+      "median": -0.0011967516740276393,
+      "min": -0.0014816925487961248,
+      "max": -0.0009118107992591537
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 87.5,
+      "min": 78,
+      "max": 97
+    },
+    "worstRatio": {
+      "median": 0.9722727272727272,
+      "min": 0.96,
+      "max": 0.9845454545454545
+    },
+    "falseAdmits": {
+      "median": 0.2122653987289651,
+      "min": 0.21138289307211594,
+      "max": 0.2131479043858143
+    },
+    "falseRejects": {
+      "median": 0.21306904048974107,
+      "min": 0.2123797109228233,
+      "max": 0.21375837005665885
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.05301931626980353,
+      "min": 0.05291974284133616,
+      "max": 0.0531188896982709
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.40413246756911914,
+      "min": 0.40336519201053056,
+      "max": 0.4048997431277077
+    },
+    "redisCpuPerRequestUs": {
+      "median": 10.192381808418482,
+      "min": 9.871229897556105,
+      "max": 10.513533719280856
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 355.7,
+      "min": 351.2,
+      "max": 360.2
+    },
+    "p99Us": {
+      "median": 1730.0500000000002,
+      "min": 1702.9,
+      "max": 1757.2
+    },
+    "addedP50Us": {
+      "median": -53,
+      "min": -59.19999999999999,
+      "max": -46.80000000000001
+    },
+    "addedP99Us": {
+      "median": -33.24999999999977,
+      "min": -158.69999999999982,
+      "max": 92.20000000000005
+    },
+    "overAdmission": {
+      "median": -0.014004651576967828,
+      "min": -0.014503490525715914,
+      "max": -0.01350581262821974
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 516,
+      "min": 493,
+      "max": 539
+    },
+    "worstRatio": {
+      "median": 0.9459090909090909,
+      "min": 0.9436363636363636,
+      "max": 0.9481818181818182
+    },
+    "falseAdmits": {
+      "median": 0.21402515988547088,
+      "min": 0.21331902005137446,
+      "max": 0.21473129971956734
+    },
+    "falseRejects": {
+      "median": 0.22342507785641372,
+      "min": 0.22307633324387532,
+      "max": 0.2237738224689521
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.029602703686173966,
+      "min": 0.029597822336387684,
+      "max": 0.029607585035960244
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.21684749083521276,
+      "min": 0.21682705210290226,
+      "max": 0.21686792956752324
+    },
+    "redisCpuPerRequestUs": {
+      "median": 5.894072636855984,
+      "min": 5.749461073274808,
+      "max": 6.038684200437162
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 280.3,
+      "min": 278,
+      "max": 282.6
+    },
+    "p99Us": {
+      "median": 1394.15,
+      "min": 1294.3,
+      "max": 1494
+    },
+    "addedP50Us": {
+      "median": -128.39999999999998,
+      "min": -132.39999999999998,
+      "max": -124.39999999999998
+    },
+    "addedP99Us": {
+      "median": -369.14999999999986,
+      "min": -567.3,
+      "max": -171
+    },
+    "overAdmission": {
+      "median": -0.3553660430367519,
+      "min": -0.3605482887350033,
+      "max": -0.3501837973385006
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 12509,
+      "min": 12366,
+      "max": 12652
+    },
+    "worstRatio": {
+      "median": 0.6940909090909091,
+      "min": 0.69,
+      "max": 0.6981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.1416991242234601,
+      "min": 0.14012958632059197,
+      "max": 0.14326866212632824
+    },
+    "falseRejects": {
+      "median": 0.38018479700507934,
+      "min": 0.3777065567828459,
+      "max": 0.3826630372273128
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.00838545715651324,
+      "min": 0.008357934286700149,
+      "max": 0.008412980026326332
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.04677534635775025,
+      "min": 0.046773760687037536,
+      "max": 0.04677693202846296
+    },
+    "redisCpuPerRequestUs": {
+      "median": 2.2397430282889275,
+      "min": 2.1667177855307553,
+      "max": 2.3127682710470996
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 497.29999999999995,
+      "min": 477.2,
+      "max": 517.4
+    },
+    "p99Us": {
+      "median": 3104.75,
+      "min": 2863.1,
+      "max": 3346.4
+    },
+    "addedP50Us": {
+      "median": 88.59999999999997,
+      "min": 66.80000000000001,
+      "max": 110.39999999999998
+    },
+    "addedP99Us": {
+      "median": 1341.45,
+      "min": 1001.5,
+      "max": 1681.4
+    },
+    "overAdmission": {
+      "median": 8.119592932156263e-10,
+      "min": -0.000028494087476848555,
+      "max": 0.000028495711395434986
+    },
+    "maxAhead": {
+      "median": 2,
+      "min": 1,
+      "max": 3
+    },
+    "maxBehind": {
+      "median": 8.5,
+      "min": 8,
+      "max": 9
+    },
+    "worstRatio": {
+      "median": 0.9977272727272728,
+      "min": 0.9972727272727273,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.15240211062075243,
+      "min": 0.15230226584365295,
+      "max": 0.1525019553978519
+    },
+    "falseRejects": {
+      "median": 0.15240215688167152,
+      "min": 0.15232143541770501,
+      "max": 0.15248287834563803
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.2710812994021772,
+      "min": 0.2709322955416929,
+      "max": 0.2712303032626615
+    },
+    "redisCommandsPerRequest": {
+      "median": 1.3436269062083241,
+      "min": 1.342757397126996,
+      "max": 1.3444964152896524
+    },
+    "redisCpuPerRequestUs": {
+      "median": 32.75316699088785,
+      "min": 31.472414982939082,
+      "max": 34.03391899883662
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 383.75,
+      "min": 380.2,
+      "max": 387.3
+    },
+    "p99Us": {
+      "median": 2490.35,
+      "min": 2412.5,
+      "max": 2568.2
+    },
+    "addedP50Us": {
+      "median": -24.94999999999999,
+      "min": -30.19999999999999,
+      "max": -19.69999999999999
+    },
+    "addedP99Us": {
+      "median": 727.05,
+      "min": 550.9000000000001,
+      "max": 903.1999999999998
+    },
+    "overAdmission": {
+      "median": -0.00021370200257187232,
+      "min": -0.0002564394802826533,
+      "max": -0.00017096452486109131
+    },
+    "maxAhead": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1
+    },
+    "maxBehind": {
+      "median": 28.5,
+      "min": 28,
+      "max": 29
+    },
+    "worstRatio": {
+      "median": 0.995,
+      "min": 0.9936363636363637,
+      "max": 0.9963636363636363
+    },
+    "falseAdmits": {
+      "median": 0.1917272842505801,
+      "min": 0.19092895755856304,
+      "max": 0.19252561094259715
+    },
+    "falseRejects": {
+      "median": 0.19187077849045608,
+      "min": 0.19110148372503163,
+      "max": 0.1926400732558805
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.13545047318180392,
+      "min": 0.1351036837787825,
+      "max": 0.13579726258482536
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.6655395447892064,
+      "min": 0.6637478776779412,
+      "max": 0.6673312119004716
+    },
+    "redisCpuPerRequestUs": {
+      "median": 16.784504765747606,
+      "min": 16.75854004524006,
+      "max": 16.81046948625515
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/over-shift-4gw",
+    "baseline": "none/over-shift-4gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 356.6,
+      "min": 353.3,
+      "max": 359.9
+    },
+    "p99Us": {
+      "median": 1787.4,
+      "min": 1680.4,
+      "max": 1894.4
+    },
+    "addedP50Us": {
+      "median": -52.099999999999966,
+      "min": -57.099999999999966,
+      "max": -47.10000000000002
+    },
+    "addedP99Us": {
+      "median": 24.100000000000136,
+      "min": -181.19999999999982,
+      "max": 229.4000000000001
+    },
+    "overAdmission": {
+      "median": -0.0015102296688892687,
+      "min": -0.0016527041659542942,
+      "max": -0.0013677551718242434
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 123.5,
+      "min": 123,
+      "max": 124
+    },
+    "worstRatio": {
+      "median": 0.9781818181818183,
+      "min": 0.9736363636363636,
+      "max": 0.9827272727272728
+    },
+    "falseAdmits": {
+      "median": 0.21175731249474722,
+      "min": 0.21032856649925238,
+      "max": 0.21318605849024208
+    },
+    "falseRejects": {
+      "median": 0.21277061678619966,
+      "min": 0.21124870605375148,
+      "max": 0.21429252751864783
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.038590707119592824,
+      "min": 0.038554722524275546,
+      "max": 0.038626691714910094
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.1814601005786106,
+      "min": 0.18144184360632595,
+      "max": 0.18147835755089523
+    },
+    "redisCpuPerRequestUs": {
+      "median": 6.470362004352383,
+      "min": 6.40391842652487,
+      "max": 6.536805582179897
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/over-even-2gw-redis-slow",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 6463.5,
+      "min": 6430.7,
+      "max": 6496.3
+    },
+    "p99Us": {
+      "median": 8765.45,
+      "min": 8699.9,
+      "max": 8831
+    },
+    "overAdmission": {
+      "median": -0.000028499772001823985,
+      "min": -0.00005699954400364797,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 1,
+      "min": 0,
+      "max": 2
+    },
+    "maxBehind": {
+      "median": 8.5,
+      "min": 6,
+      "max": 11
+    },
+    "worstRatio": {
+      "median": 0.9981818181818183,
+      "min": 0.9972727272727273,
+      "max": 0.9990909090909091
+    },
+    "falseAdmits": {
+      "median": 0.14459551415057262,
+      "min": 0.134800444734118,
+      "max": 0.15439058356702723
+    },
+    "falseRejects": {
+      "median": 0.1446146837246247,
+      "min": 0.13483878388222215,
+      "max": 0.15439058356702723
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0032490202740045,
+      "min": 1.0024537054786642,
+      "max": 1.004044335069345
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6773165449802994,
+      "min": 3.676720273183388,
+      "max": 3.6779128167772113
+    },
+    "redisCpuPerRequestUs": {
+      "median": 119.53355225909158,
+      "min": 119.30998302142292,
+      "max": 119.75712149676023
+    },
+    "degraded": {
+      "median": 2,
+      "min": 0,
+      "max": 4
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/over-even-2gw-redis-down",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 408.2,
+      "min": 404.2,
+      "max": 412.2
+    },
+    "p99Us": {
+      "median": 1815.05,
+      "min": 1805.3,
+      "max": 1824.8
+    },
+    "overAdmission": {
+      "median": 0.00002849530540422003,
+      "min": 0.000028494899413005074,
+      "max": 0.000028495711395434986
+    },
+    "maxAhead": {
+      "median": 2.5,
+      "min": 2,
+      "max": 3
+    },
+    "maxBehind": {
+      "median": 3,
+      "min": 2,
+      "max": 4
+    },
+    "worstRatio": {
+      "median": 0.9972727272727273,
+      "min": 0.9963636363636363,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.11982819792479632,
+      "min": 0.11495831664091265,
+      "max": 0.12469807920867998
+    },
+    "falseRejects": {
+      "median": 0.11980907461166335,
+      "min": 0.11493923958869876,
+      "max": 0.12467890963462792
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0014916184243723,
+      "min": 1.0014880100726835,
+      "max": 1.001495226776061
+    },
+    "redisCommandsPerRequest": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.0093198913351649,
+      "min": 1.0025181708926618,
+      "max": 1.0161216117776677
+    },
+    "degraded": {
+      "median": 52292.5,
+      "min": 52166,
+      "max": 52419
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/over-even-2gw-redis-slow",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 370.70000000000005,
+      "min": 365.8,
+      "max": 375.6
+    },
+    "p99Us": {
+      "median": 1816.55,
+      "min": 1772.5,
+      "max": 1860.6
+    },
+    "overAdmission": {
+      "median": -0.0006981217910900803,
+      "min": -0.0008832915431958057,
+      "max": -0.0005129520389843549
+    },
+    "maxAhead": {
+      "median": 11.5,
+      "min": 1,
+      "max": 22
+    },
+    "maxBehind": {
+      "median": 44.5,
+      "min": 43,
+      "max": 46
+    },
+    "worstRatio": {
+      "median": 0.9836363636363636,
+      "min": 0.9790909090909091,
+      "max": 0.9881818181818182
+    },
+    "falseAdmits": {
+      "median": 0.2158713691688873,
+      "min": 0.21550435149330982,
+      "max": 0.21623838684446478
+    },
+    "falseRejects": {
+      "median": 0.2163395896446712,
+      "min": 0.21584940382624698,
+      "max": 0.21682977546309545
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.014954477130908066,
+      "min": 0.014899177779049581,
+      "max": 0.015009776482766553
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.11126925189928885,
+      "min": 0.11089490451935367,
+      "max": 0.11164359927922402
+    },
+    "redisCpuPerRequestUs": {
+      "median": 3.931984168954518,
+      "min": 3.913943417463016,
+      "max": 3.9500249204460194
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/over-even-2gw-redis-down",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 377.45000000000005,
+      "min": 375.8,
+      "max": 379.1
+    },
+    "p99Us": {
+      "median": 1855.5,
+      "min": 1851.4,
+      "max": 1859.6
+    },
+    "overAdmission": {
+      "median": -0.00028492504335520967,
+      "min": -0.0005413568111234579,
+      "max": -0.000028493275586961478
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 71.5,
+      "min": 67,
+      "max": 76
+    },
+    "worstRatio": {
+      "median": 0.9972727272727273,
+      "min": 0.9972727272727273,
+      "max": 0.9972727272727273
+    },
+    "falseAdmits": {
+      "median": 0.12565896677036636,
+      "min": 0.12548884946298097,
+      "max": 0.12582908407775178
+    },
+    "falseRejects": {
+      "median": 0.1258497835534244,
+      "min": 0.12584825365180385,
+      "max": 0.12585131345504494
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.014897060930590046,
+      "min": 0.014861023674621797,
+      "max": 0.014933098186558295
+    },
+    "redisCommandsPerRequest": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisCpuPerRequestUs": {
+      "median": 0.9863317013060156,
+      "min": 0.9408810336234045,
+      "max": 1.0317823689886265
+    },
+    "degraded": {
+      "median": 52121,
+      "min": 51990,
+      "max": 52252
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/over-even-2gw-redis-slow",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 560.65,
+      "min": 555.5,
+      "max": 565.8
+    },
+    "p99Us": {
+      "median": 7223.299999999999,
+      "min": 7196.7,
+      "max": 7249.9
+    },
+    "overAdmission": {
+      "median": -0.00021422533885015376,
+      "min": -0.00022856489814576726,
+      "max": -0.00019988577955454027
+    },
+    "maxAhead": {
+      "median": 2,
+      "min": 2,
+      "max": 2
+    },
+    "maxBehind": {
+      "median": 17.5,
+      "min": 16,
+      "max": 19
+    },
+    "worstRatio": {
+      "median": 0.9959090909090909,
+      "min": 0.9936363636363637,
+      "max": 0.9981818181818182
+    },
+    "falseAdmits": {
+      "median": 0.21959680687812932,
+      "min": 0.21774719165740136,
+      "max": 0.2214464220988573
+    },
+    "falseRejects": {
+      "median": 0.2197402085961671,
+      "min": 0.21788137867576582,
+      "max": 0.22159903851656843
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.08473535423130749,
+      "min": 0.08454949541196895,
+      "max": 0.08492121305064601
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.4197563531815196,
+      "min": 0.4188939125126385,
+      "max": 0.42061879385040063
+    },
+    "redisCpuPerRequestUs": {
+      "median": 11.834132124097263,
+      "min": 11.692992998721706,
+      "max": 11.97527124947282
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/over-even-2gw-redis-down",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 439.04999999999995,
+      "min": 431.9,
+      "max": 446.2
+    },
+    "p99Us": {
+      "median": 2105.35,
+      "min": 2072.6,
+      "max": 2138.1
+    },
+    "overAdmission": {
+      "median": -0.00018629268586179245,
+      "min": -0.00045840018336007336,
+      "max": 0.00008581481163648846
+    },
+    "maxAhead": {
+      "median": 1.5,
+      "min": 0,
+      "max": 3
+    },
+    "maxBehind": {
+      "median": 57.5,
+      "min": 51,
+      "max": 64
+    },
+    "worstRatio": {
+      "median": 0.9895454545454545,
+      "min": 0.9827272727272728,
+      "max": 0.9963636363636363
+    },
+    "falseAdmits": {
+      "median": 0.13383992268854722,
+      "min": 0.12454472261626347,
+      "max": 0.14313512276083099
+    },
+    "falseRejects": {
+      "median": 0.13396466370264293,
+      "min": 0.1248514358010965,
+      "max": 0.14307789160418932
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.0015011106895602,
+      "min": 1.001476057202009,
+      "max": 1.0015261641771114
+    },
+    "redisCommandsPerRequest": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisCpuPerRequestUs": {
+      "median": 1.1007082611075543,
+      "min": 1.023923628417046,
+      "max": 1.1774928937980624
+    },
+    "degraded": {
+      "median": 52292.5,
+      "min": 52166,
+      "max": 52419
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 573.2,
+      "min": 570.9,
+      "max": 575.5
+    },
+    "p99Us": {
+      "median": 1837.55,
+      "min": 1813.5,
+      "max": 1861.6
+    },
+    "overAdmission": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseAdmits": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "falseRejects": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0007452723824915826,
+      "min": 0.0007442546877708459,
+      "max": 0.0007462900772123195
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.001949173923439524,
+      "min": 0.001946512260323751,
+      "max": 0.0019518355865552972
+    },
+    "redisCpuPerRequestUs": {
+      "median": 0.8617625540905934,
+      "min": 0.8442901511886034,
+      "max": 0.8792349569925835
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "static-split/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 428.95000000000005,
+      "min": 418.6,
+      "max": 439.3
+    },
+    "p99Us": {
+      "median": 1731.6,
+      "min": 1719.3,
+      "max": 1743.9
+    },
+    "addedP50Us": {
+      "median": -144.25,
+      "min": -156.89999999999998,
+      "max": -131.59999999999997
+    },
+    "addedP99Us": {
+      "median": -105.95000000000005,
+      "min": -142.29999999999995,
+      "max": -69.59999999999991
+    },
+    "overAdmission": {
+      "median": -0.0008511161865487886,
+      "min": -0.0009233475010992232,
+      "max": -0.000778884871998354
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 70,
+      "min": 65,
+      "max": 75
+    },
+    "worstRatio": {
+      "median": 0.9666666666666667,
+      "min": 0.9666666666666667,
+      "max": 0.9666666666666667
+    },
+    "falseAdmits": {
+      "median": 0.03740568514181113,
+      "min": 0.035580667328395814,
+      "max": 0.03923070295522645
+    },
+    "falseRejects": {
+      "median": 0.03796001455992029,
+      "min": 0.03618195006490036,
+      "max": 0.039738079054940215
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0007455748707252491,
+      "min": 0.0007444452928151485,
+      "max": 0.0007467044486353497
+    },
+    "redisCommandsPerRequest": {
+      "median": 0.0019308477421346197,
+      "min": 0.0019279224249828205,
+      "max": 0.0019337730592864186
+    },
+    "redisCpuPerRequestUs": {
+      "median": 0.822518902422267,
+      "min": 0.7996247331489021,
+      "max": 0.845413071695632
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "redis-exact/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 1254.4,
+      "min": 1230.8,
+      "max": 1278
+    },
+    "p99Us": {
+      "median": 27516.949999999997,
+      "min": 27148.3,
+      "max": 27885.6
+    },
+    "addedP50Us": {
+      "median": 681.2,
+      "min": 655.3,
+      "max": 707.1
+    },
+    "addedP99Us": {
+      "median": 25679.399999999998,
+      "min": 25286.7,
+      "max": 26072.1
+    },
+    "overAdmission": {
+      "median": 0.0018710315137249096,
+      "min": 0.0016607145481533736,
+      "max": 0.0020813484792964456
+    },
+    "maxAhead": {
+      "median": 129.5,
+      "min": 116,
+      "max": 143
+    },
+    "maxBehind": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "worstRatio": {
+      "median": 1.6916666666666667,
+      "min": 1.6833333333333333,
+      "max": 1.7
+    },
+    "falseAdmits": {
+      "median": 0.015995202108553035,
+      "min": 0.013609987019928228,
+      "max": 0.01838041719717784
+    },
+    "falseRejects": {
+      "median": 0.01477668394012005,
+      "min": 0.012254714820187829,
+      "max": 0.01729865306005227
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 1.003154355222299,
+      "min": 1.0031495762388334,
+      "max": 1.0031591342057649
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.6467323026853364,
+      "min": 3.646627090173322,
+      "max": 3.64683751519735
+    },
+    "redisCpuPerRequestUs": {
+      "median": 92.95078197890166,
+      "min": 92.42123196151762,
+      "max": 93.4803319962857
+    },
+    "degraded": {
+      "median": 296.5,
+      "min": 294,
+      "max": 299
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-10ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 464.9,
+      "min": 463.4,
+      "max": 466.4
+    },
+    "p99Us": {
+      "median": 1850.85,
+      "min": 1849.3,
+      "max": 1852.4
+    },
+    "addedP50Us": {
+      "median": -108.30000000000007,
+      "min": -112.10000000000002,
+      "max": -104.5
+    },
+    "addedP99Us": {
+      "median": 13.299999999999955,
+      "min": -12.299999999999955,
+      "max": 38.90000000000009
+    },
+    "overAdmission": {
+      "median": -0.00015408832754488404,
+      "min": -0.00016121940495383264,
+      "max": -0.00014695725013593545
+    },
+    "maxAhead": {
+      "median": 2.5,
+      "min": 2,
+      "max": 3
+    },
+    "maxBehind": {
+      "median": 20.5,
+      "min": 19,
+      "max": 22
+    },
+    "worstRatio": {
+      "median": 0.9833333333333333,
+      "min": 0.9833333333333333,
+      "max": 0.9833333333333333
+    },
+    "falseAdmits": {
+      "median": 0.04799400712165879,
+      "min": 0.0479117355119493,
+      "max": 0.048076278731368285
+    },
+    "falseRejects": {
+      "median": 0.048094365728757,
+      "min": 0.04801672138657708,
+      "max": 0.048172010070936924
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.06769438928274518,
+      "min": 0.0675822707490265,
+      "max": 0.06780650781646387
+    },
+    "redisCommandsPerRequest": {
+      "median": 6.953514355914296,
+      "min": 6.949023061679702,
+      "max": 6.958005650148889
+    },
+    "redisCpuPerRequestUs": {
+      "median": 36.8769089598972,
+      "min": 36.44172354703752,
+      "max": 37.31209437275688
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-50ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 453.65,
+      "min": 447.5,
+      "max": 459.8
+    },
+    "p99Us": {
+      "median": 1839.15,
+      "min": 1811.5,
+      "max": 1866.8
+    },
+    "addedP50Us": {
+      "median": -119.55000000000007,
+      "min": -128,
+      "max": -111.09999999999997
+    },
+    "addedP99Us": {
+      "median": 1.6000000000001364,
+      "min": -50.09999999999991,
+      "max": 53.299999999999955
+    },
+    "overAdmission": {
+      "median": -0.00026422970186099206,
+      "min": -0.0003086147606031214,
+      "max": -0.00021984464311886268
+    },
+    "maxAhead": {
+      "median": 6,
+      "min": 5,
+      "max": 7
+    },
+    "maxBehind": {
+      "median": 28.5,
+      "min": 27,
+      "max": 30
+    },
+    "worstRatio": {
+      "median": 0.9916666666666667,
+      "min": 0.9833333333333333,
+      "max": 1
+    },
+    "falseAdmits": {
+      "median": 0.04893864828501954,
+      "min": 0.047923108588058476,
+      "max": 0.049954187981980605
+    },
+    "falseRejects": {
+      "median": 0.04911074746972191,
+      "min": 0.048124144401152605,
+      "max": 0.05009735053829121
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.01415634940982287,
+      "min": 0.014144460563487822,
+      "max": 0.01416823825615792
+    },
+    "redisCommandsPerRequest": {
+      "median": 5.462712346384613,
+      "min": 5.458352080720665,
+      "max": 5.467072612048561
+    },
+    "redisCpuPerRequestUs": {
+      "median": 21.03481722414883,
+      "min": 20.90238222493725,
+      "max": 21.16725222336041
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-100ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 432.54999999999995,
+      "min": 423.2,
+      "max": 441.9
+    },
+    "p99Us": {
+      "median": 1770,
+      "min": 1700.9,
+      "max": 1839.1
+    },
+    "addedP50Us": {
+      "median": -140.6500000000001,
+      "min": -152.3,
+      "max": -129
+    },
+    "addedP99Us": {
+      "median": -67.54999999999995,
+      "min": -160.69999999999982,
+      "max": 25.59999999999991
+    },
+    "overAdmission": {
+      "median": -0.00027876549732641295,
+      "min": -0.00033709511944892274,
+      "max": -0.0002204358752039032
+    },
+    "maxAhead": {
+      "median": 16.5,
+      "min": 13,
+      "max": 20
+    },
+    "maxBehind": {
+      "median": 31,
+      "min": 27,
+      "max": 35
+    },
+    "worstRatio": {
+      "median": 1.0166666666666666,
+      "min": 1,
+      "max": 1.0333333333333334
+    },
+    "falseAdmits": {
+      "median": 0.04857407269741443,
+      "min": 0.04666902803970936,
+      "max": 0.05047911735511949
+    },
+    "falseRejects": {
+      "median": 0.048755629161929034,
+      "min": 0.04681262504906231,
+      "max": 0.050698633274795755
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.007465321841209354,
+      "min": 0.007444452928151485,
+      "max": 0.007486190754267224
+    },
+    "redisCommandsPerRequest": {
+      "median": 4.833396342440286,
+      "min": 4.829244009611426,
+      "max": 4.8375486752691454
+    },
+    "redisCpuPerRequestUs": {
+      "median": 16.91065623616356,
+      "min": 16.46536420554305,
+      "max": 17.355948266784075
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "local-sync-500ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 439.70000000000005,
+      "min": 438.3,
+      "max": 441.1
+    },
+    "p99Us": {
+      "median": 1772.5500000000002,
+      "min": 1758.2,
+      "max": 1786.9
+    },
+    "addedP50Us": {
+      "median": -133.5,
+      "min": -137.2,
+      "max": -129.79999999999995
+    },
+    "addedP99Us": {
+      "median": -64.99999999999977,
+      "min": -103.39999999999986,
+      "max": -26.59999999999991
+    },
+    "overAdmission": {
+      "median": -0.0007704022222520843,
+      "min": -0.0008354096438516782,
+      "max": -0.0007053948006524902
+    },
+    "maxAhead": {
+      "median": 69.5,
+      "min": 68,
+      "max": 71
+    },
+    "maxBehind": {
+      "median": 106.5,
+      "min": 101,
+      "max": 112
+    },
+    "worstRatio": {
+      "median": 1.2583333333333333,
+      "min": 1.25,
+      "max": 1.2666666666666666
+    },
+    "falseAdmits": {
+      "median": 0.05132519016856642,
+      "min": 0.051242650988776055,
+      "max": 0.05140772934835677
+    },
+    "falseRejects": {
+      "median": 0.051826954240521285,
+      "min": 0.051786668702756354,
+      "max": 0.051867239778286216
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.0021220207859103243,
+      "min": 0.0021188058333969613,
+      "max": 0.0021252357384236877
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.459981461999238,
+      "min": 3.4480609617170375,
+      "max": 3.4719019622814384
+    },
+    "redisCpuPerRequestUs": {
+      "median": 12.285248961197201,
+      "min": 11.992083018217631,
+      "max": 12.57841490417677
+    },
+    "degraded": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-5ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 958.95,
+      "min": 953.3,
+      "max": 964.6
+    },
+    "p99Us": {
+      "median": 3200,
+      "min": 3186.7,
+      "max": 3213.3
+    },
+    "addedP50Us": {
+      "median": 385.75,
+      "min": 377.79999999999995,
+      "max": 393.70000000000005
+    },
+    "addedP99Us": {
+      "median": 1362.45,
+      "min": 1325.1,
+      "max": 1399.8000000000002
+    },
+    "overAdmission": {
+      "median": 0.00019802478926363292,
+      "min": 0.00010287612245197889,
+      "max": 0.00029317345607528695
+    },
+    "maxAhead": {
+      "median": 18.5,
+      "min": 9,
+      "max": 28
+    },
+    "maxBehind": {
+      "median": 1.5,
+      "min": 0,
+      "max": 3
+    },
+    "worstRatio": {
+      "median": 1.0583333333333333,
+      "min": 1,
+      "max": 1.1166666666666667
+    },
+    "falseAdmits": {
+      "median": 0.03254650109617793,
+      "min": 0.032127437559233765,
+      "max": 0.03296556463312209
+    },
+    "falseRejects": {
+      "median": 0.03241755342312183,
+      "min": 0.03206042562153572,
+      "max": 0.03277468122470795
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.7163048005828447,
+      "min": 0.7161945483698557,
+      "max": 0.7164150527958337
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.5667493533198904,
+      "min": 3.5642227227609378,
+      "max": 3.5692759838788426
+    },
+    "redisCpuPerRequestUs": {
+      "median": 80.92414353177139,
+      "min": 80.55875510966025,
+      "max": 81.28953195388252
+    },
+    "degraded": {
+      "median": 94.5,
+      "min": 52,
+      "max": 137
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-20ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 945.7,
+      "min": 932.9,
+      "max": 958.5
+    },
+    "p99Us": {
+      "median": 3275.75,
+      "min": 3264.5,
+      "max": 3287
+    },
+    "addedP50Us": {
+      "median": 372.5,
+      "min": 357.4,
+      "max": 387.6
+    },
+    "addedP99Us": {
+      "median": 1438.2,
+      "min": 1402.9,
+      "max": 1473.5
+    },
+    "overAdmission": {
+      "median": 0.00004401070829513547,
+      "min": 0.00002939188196220204,
+      "max": 0.00005862953462806889
+    },
+    "maxAhead": {
+      "median": 9,
+      "min": 5,
+      "max": 13
+    },
+    "maxBehind": {
+      "median": 6.5,
+      "min": 3,
+      "max": 10
+    },
+    "worstRatio": {
+      "median": 1.0166666666666666,
+      "min": 1,
+      "max": 1.0333333333333334
+    },
+    "falseAdmits": {
+      "median": 0.03502548695793968,
+      "min": 0.03363041959046133,
+      "max": 0.036420554325418034
+    },
+    "falseRejects": {
+      "median": 0.034996825483141404,
+      "min": 0.033611273322547604,
+      "max": 0.036382377643735204
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.6911128206807364,
+      "min": 0.6910845403459731,
+      "max": 0.6911411010154997
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.4460949257453986,
+      "min": 3.44397571963045,
+      "max": 3.448214131860347
+    },
+    "redisCpuPerRequestUs": {
+      "median": 80.22942133364461,
+      "min": 80.21040791123802,
+      "max": 80.24843475605121
+    },
+    "degraded": {
+      "median": 23.5,
+      "min": 8,
+      "max": 39
+    },
+    "droppedDecisions": 0
+  },
+  {
+    "cell": "lease-100ms/zipf-10k-2gw",
+    "baseline": "none/zipf-10k-2gw",
+    "runs": 2,
+    "invalidRuns": 0,
+    "p50Us": {
+      "median": 883.2,
+      "min": 879.1,
+      "max": 887.3
+    },
+    "p99Us": {
+      "median": 3144.7,
+      "min": 3131.4,
+      "max": 3158
+    },
+    "addedP50Us": {
+      "median": 310,
+      "min": 303.6,
+      "max": 316.4
+    },
+    "addedP99Us": {
+      "median": 1307.1499999999999,
+      "min": 1269.8000000000002,
+      "max": 1344.5
+    },
+    "overAdmission": {
+      "median": -0.00039627822140573556,
+      "min": -0.0004114923947387758,
+      "max": -0.0003810640480726953
+    },
+    "maxAhead": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "maxBehind": {
+      "median": 41.5,
+      "min": 39,
+      "max": 44
+    },
+    "worstRatio": {
+      "median": 0.9833333333333333,
+      "min": 0.9833333333333333,
+      "max": 0.9833333333333333
+    },
+    "falseAdmits": {
+      "median": 0.044509364296079795,
+      "min": 0.04424702514862291,
+      "max": 0.04477170344353669
+    },
+    "falseRejects": {
+      "median": 0.044767462386945074,
+      "min": 0.04451507289941508,
+      "max": 0.04501985187447507
+    },
+    "redisRoundTripsPerRequest": {
+      "median": 0.6058019078229004,
+      "min": 0.6056826123167941,
+      "max": 0.6059212033290067
+    },
+    "redisCommandsPerRequest": {
+      "median": 3.0250948293492677,
+      "min": 3.0242008826429507,
+      "max": 3.025988776055585
+    },
+    "redisCpuPerRequestUs": {
+      "median": 72.14493795072363,
+      "min": 72.13518362983851,
+      "max": 72.15469227160877
+    },
+    "degraded": {
+      "median": 6,
+      "min": 6,
+      "max": 6
+    },
+    "droppedDecisions": 0
+  }
+]

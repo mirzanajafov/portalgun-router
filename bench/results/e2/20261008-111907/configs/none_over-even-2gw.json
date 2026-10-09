@@ -1,0 +1,23 @@
+{
+  "routes": [
+    {
+      "name": "fluid",
+      "pathPrefix": "/",
+      "pool": "dim",
+      "timeout": "10s",
+      "perTryTimeout": "2s"
+    }
+  ],
+  "pools": [
+    {
+      "name": "dim",
+      "dimensions": [
+        {
+          "id": "dim",
+          "address": "dim:8080",
+          "maxInflight": 4096
+        }
+      ]
+    }
+  ]
+}
