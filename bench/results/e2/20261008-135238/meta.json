@@ -1,0 +1,1729 @@
+{
+  "commit": "cb5689d",
+  "env": [
+    "E2_CONFIGS=C:\\Users\\User\\Desktop\\Dev2\\portalgun-router\\bench\\results\\e2\\20261008-135238\\configs",
+    "E2_CELL=none_under-even-2gw",
+    "COMPOSE_PROFILES=four"
+  ],
+  "plan": {
+    "cells": [
+      {
+        "name": "none/under-even-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/under-shift-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/over-even-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/over-shift-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/burst-even-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/burst-shift-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/under-even-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/under-shift-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/over-even-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/over-shift-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/burst-even-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/burst-shift-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/under-even-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/under-shift-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-even-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-shift-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/burst-even-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/burst-shift-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/under-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/under-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/over-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/over-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/burst-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/burst-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/under-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/under-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/over-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/over-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/burst-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/burst-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/under-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/under-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/over-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/over-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/burst-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/burst-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/under-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/under-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/over-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/over-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/burst-even-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/burst-shift-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/under-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/under-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/burst-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/burst-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/under-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/under-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/burst-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/burst-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/under-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/under-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/over-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/over-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/burst-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/burst-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/over-skew-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/over-skew-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-skew-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/over-skew-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/over-skew-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/over-skew-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/over-skew-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-skew-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-skew-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/over-skew-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/over-shift-4gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/over-shift-4gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-shift-4gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/over-shift-4gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/over-shift-4gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/over-shift-4gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/over-shift-4gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-shift-4gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-shift-4gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/over-shift-4gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-even-2gw-redis-slow",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "slow",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-even-2gw-redis-down",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "down",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/over-even-2gw-redis-slow",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "slow",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/over-even-2gw-redis-down",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "down",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-even-2gw-redis-slow",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "slow",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-even-2gw-redis-down",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "down",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/zipf-10k-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "static-split/zipf-10k-2gw",
+        "design": {
+          "kind": "static-split"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/zipf-10k-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-10ms/zipf-10k-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 10000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-50ms/zipf-10k-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 50000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-100ms/zipf-10k-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "local-sync-500ms/zipf-10k-2gw",
+        "design": {
+          "kind": "local-sync",
+          "sync": 500000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/zipf-10k-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/zipf-10k-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-100ms/zipf-10k-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 100000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      }
+    ],
+    "reps": 2
+  },
+  "startedAt": "2026-10-08T13:52:57.9719903Z"
+}

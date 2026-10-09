@@ -1,0 +1,96 @@
+{
+  "commit": "20c0692",
+  "env": [
+    "BODY_BYTES=1024",
+    "DELAY_MS=0"
+  ],
+  "plan": {
+    "workload": {
+      "name": "w1",
+      "method": "GET",
+      "bodyBytes": 0,
+      "respBytes": 1024,
+      "delayMs": 0,
+      "noKeepAlive": false
+    },
+    "systems": [
+      {
+        "name": "direct",
+        "urls": [
+          "http://dim-a:8080/",
+          "http://dim-b:8080/",
+          "http://dim-c:8080/"
+        ]
+      },
+      {
+        "name": "stdlib",
+        "service": "stdlib",
+        "urls": [
+          "http://stdlib:8080/"
+        ]
+      },
+      {
+        "name": "portalgun",
+        "service": "portalgun",
+        "urls": [
+          "http://portalgun:8080/"
+        ]
+      },
+      {
+        "name": "nginx",
+        "service": "nginx",
+        "urls": [
+          "http://nginx:8080/"
+        ]
+      },
+      {
+        "name": "caddy",
+        "service": "caddy",
+        "urls": [
+          "http://caddy:8080/"
+        ]
+      },
+      {
+        "name": "envoy",
+        "service": "envoy",
+        "urls": [
+          "http://envoy:8080/"
+        ]
+      },
+      {
+        "name": "haproxy",
+        "service": "haproxy",
+        "urls": [
+          "http://haproxy:8080/"
+        ]
+      }
+    ],
+    "rates": [
+      1000,
+      2000,
+      3000,
+      4000,
+      5000,
+      6000,
+      8000,
+      10000,
+      12500,
+      15000,
+      20000,
+      25000,
+      30000
+    ],
+    "reps": 3,
+    "duration": 20000000000,
+    "warmup": 5000000000,
+    "maxConns": 0
+  },
+  "startedAt": "2026-10-08T10:24:14.0995764Z",
+  "versions": {
+    "caddy": "v2.11.6 h1:sWxeamdlCZvcH4qeDz8bB0mdxgfYTeqV7HxOjXyIRas=",
+    "envoy": "envoy  version: 50d48c6c6c964b06f1365cb54ed05a7e03ac631f/1.39.2/Clean/RELEASE/BoringSSL",
+    "haproxy": "HAProxy version 3.4.6-56332c5 2026/09/28 - https://haproxy.org/",
+    "nginx": "nginx version: nginx/1.30.5",
+    "stdlib": "stdproxy go1.26.8"
+  }
+}

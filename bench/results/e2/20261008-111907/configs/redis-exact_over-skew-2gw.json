@@ -1,0 +1,30 @@
+{
+  "routes": [
+    {
+      "name": "fluid",
+      "pathPrefix": "/",
+      "pool": "dim",
+      "timeout": "10s",
+      "perTryTimeout": "2s",
+      "rateLimit": {
+        "design": "redis-exact",
+        "rate": 1000,
+        "burst": 100,
+        "key": "header:X-Key",
+        "instances": 2
+      }
+    }
+  ],
+  "pools": [
+    {
+      "name": "dim",
+      "dimensions": [
+        {
+          "id": "dim",
+          "address": "dim:8080",
+          "maxInflight": 4096
+        }
+      ]
+    }
+  ]
+}

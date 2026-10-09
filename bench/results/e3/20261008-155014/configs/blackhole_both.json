@@ -1,0 +1,39 @@
+{
+  "routes": [
+    {
+      "name": "all",
+      "pathPrefix": "/",
+      "pool": "dimensions",
+      "timeout": "10s",
+      "perTryTimeout": "1s",
+      "retries": {
+        "max": 0
+      }
+    }
+  ],
+  "pools": [
+    {
+      "name": "dimensions",
+      "balancer": "p2c-ewma",
+      "panicThreshold": 0.5,
+      "slowStart": "10s",
+      "dimensions": [
+        {
+          "id": "a",
+          "address": "toxiproxy:18080",
+          "maxInflight": 1024
+        },
+        {
+          "id": "b",
+          "address": "toxiproxy:18081",
+          "maxInflight": 1024
+        },
+        {
+          "id": "c",
+          "address": "toxiproxy:18082",
+          "maxInflight": 1024
+        }
+      ]
+    }
+  ]
+}

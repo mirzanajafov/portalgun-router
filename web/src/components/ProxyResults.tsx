@@ -1,6 +1,51 @@
-import { commonRate, PROXIES, proxyRows, rps, signed, us, type ProxyReport } from '@/lib/measured'
+import { commonRate, PROXIES, proxyRows, rps, signed, sustained, us, type ProxyReport } from '@/lib/measured'
 
-export function ProxyResults({ run, report }: { run: string; report: ProxyReport }) {
+function StepResults({ run, report }: { run: string; report: ProxyReport }) {
+  const rates = [...new Set(report.cells.map((c) => c.rate))].sort((a, b) => a - b)
+  const systems = PROXIES.filter((p) => report.cells.some((c) => c.system === p.key))
+  const held = systems.every((p) => rates.every((r) => sustained(report, p.key, r)))
+  return (
+    <>
+      <h3 className="mt-5 mb-1 text-sm font-semibold">Near the knee, on a quieter night</h3>
+      <p className="muted mb-3 text-sm">
+        The same test again at {rates.map(rps).join(', ')} rps, with everything else on the laptop stopped.
+        {held
+          ? ' Every proxy held every rate in every repetition, so the gap in the max column above says more about the noisier evening of the sweep than about the proxies. What stays is the tail.'
+          : ''}{' '}
+        Run <span className="mono">{run}</span>.
+      </p>
+      <table className="mono w-full min-w-[560px] text-sm">
+        <thead className="muted text-left text-xs">
+          <tr>
+            <th className="pb-2 font-normal">rate</th>
+            <th className="pb-2 font-normal">proxy</th>
+            <th className="pb-2 text-right font-normal">p50</th>
+            <th className="pb-2 text-right font-normal">p99</th>
+            <th className="pb-2 text-right font-normal">CPU/request</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rates.flatMap((rate) =>
+            systems.map((p) => {
+              const c = report.cells.find((x) => x.system === p.key && x.rate === rate)
+              return (
+                <tr key={`${rate}/${p.key}`} className={`border-t border-[var(--line)] ${p.key === 'portalgun' ? 'text-[var(--color-portal)]' : ''}`}>
+                  <td className="py-1.5 pr-3">{rps(rate)}</td>
+                  <td className="pr-3 font-sans">{p.label}</td>
+                  <td className="text-right">{c ? us(c.p50Us.median) : '-'}</td>
+                  <td className="text-right">{c ? us(c.p99Us.median) : '-'}</td>
+                  <td className="text-right">{c ? us(c.cpuPerRequestUs.median) : '-'}</td>
+                </tr>
+              )
+            }),
+          )}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+export function ProxyResults({ run, report, step }: { run: string; report: ProxyReport; step?: { name: string; summary: ProxyReport } | null }) {
   const low = Math.min(...report.cells.map((c) => c.rate))
   const present = PROXIES.map((p) => p.key).filter((k) => report.cells.some((c) => c.system === k))
   const common = commonRate(report, present) ?? low
@@ -43,6 +88,7 @@ export function ProxyResults({ run, report }: { run: string; report: ProxyReport
         yet, so it fails the same way.
         {report.maxRate.direct ? ` The lab itself tops out near ${rps(report.maxRate.direct)} rps with no proxy at all, so the fastest maximums are partly the lab's.` : ''}
       </p>
+      {step && <StepResults run={step.name} report={step.summary} />}
     </section>
   )
 }

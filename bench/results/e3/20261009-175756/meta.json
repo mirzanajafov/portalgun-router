@@ -1,0 +1,727 @@
+{
+  "commit": "b480966",
+  "env": [
+    "E3_CONFIGS=C:\\Users\\User\\Desktop\\Dev2\\portalgun-router\\bench\\results\\e3\\20261009-175756\\configs",
+    "E3_CELL=crash_probes"
+  ],
+  "plan": {
+    "cells": [
+      {
+        "name": "crash/probes",
+        "fault": {
+          "mode": "crash",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": false,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "crash/passive",
+        "fault": {
+          "mode": "crash",
+          "target": "a"
+        },
+        "variant": {
+          "probes": false,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "crash/both",
+        "fault": {
+          "mode": "crash",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "crash/both-retries",
+        "fault": {
+          "mode": "crash",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "reset/probes",
+        "fault": {
+          "mode": "reset",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": false,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "reset/passive",
+        "fault": {
+          "mode": "reset",
+          "target": "a"
+        },
+        "variant": {
+          "probes": false,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "reset/both",
+        "fault": {
+          "mode": "reset",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "reset/both-retries",
+        "fault": {
+          "mode": "reset",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "blackhole/probes",
+        "fault": {
+          "mode": "blackhole",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": false,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "blackhole/passive",
+        "fault": {
+          "mode": "blackhole",
+          "target": "a"
+        },
+        "variant": {
+          "probes": false,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "blackhole/both",
+        "fault": {
+          "mode": "blackhole",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "blackhole/both-retries",
+        "fault": {
+          "mode": "blackhole",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "slow/probes",
+        "fault": {
+          "mode": "slow",
+          "target": "a",
+          "latency": 500000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": false,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "slow/passive",
+        "fault": {
+          "mode": "slow",
+          "target": "a",
+          "latency": 500000000
+        },
+        "variant": {
+          "probes": false,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "slow/both",
+        "fault": {
+          "mode": "slow",
+          "target": "a",
+          "latency": 500000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "slow/both-retries",
+        "fault": {
+          "mode": "slow",
+          "target": "a",
+          "latency": 500000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "partial/probes",
+        "fault": {
+          "mode": "partial",
+          "target": "a",
+          "errorRate": 0.3
+        },
+        "variant": {
+          "probes": true,
+          "passive": false,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "partial/passive",
+        "fault": {
+          "mode": "partial",
+          "target": "a",
+          "errorRate": 0.3
+        },
+        "variant": {
+          "probes": false,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "partial/both",
+        "fault": {
+          "mode": "partial",
+          "target": "a",
+          "errorRate": 0.3
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "partial/both-retries",
+        "fault": {
+          "mode": "partial",
+          "target": "a",
+          "errorRate": 0.3
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "flapping/probes",
+        "fault": {
+          "mode": "flapping",
+          "target": "a",
+          "period": 2000000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": false,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "flapping/passive",
+        "fault": {
+          "mode": "flapping",
+          "target": "a",
+          "period": 2000000000
+        },
+        "variant": {
+          "probes": false,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "flapping/both",
+        "fault": {
+          "mode": "flapping",
+          "target": "a",
+          "period": 2000000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 0,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "flapping/both-retries",
+        "fault": {
+          "mode": "flapping",
+          "target": "a",
+          "period": 2000000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "blackhole/both-retries-try100ms",
+        "fault": {
+          "mode": "blackhole",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 100000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "blackhole/both-retries-try250ms",
+        "fault": {
+          "mode": "blackhole",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 250000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "crash/both-retries-refused",
+        "fault": {
+          "mode": "crash",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": true,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "slow/both-retries-round-robin",
+        "fault": {
+          "mode": "slow",
+          "target": "a",
+          "latency": 500000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "round-robin",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "slow/both-retries-least-outstanding",
+        "fault": {
+          "mode": "slow",
+          "target": "a",
+          "latency": 500000000
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "least-outstanding",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "crash/both-retries-warm0s",
+        "fault": {
+          "mode": "crash",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 0,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "none/both-retries",
+        "fault": {
+          "mode": "none",
+          "target": "a"
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "background": "{\"errorRate\":0.01,\"delayDist\":\"lognormal\",\"delayMs\":5,\"delaySigma\":0.6}",
+        "settle": 5000000000,
+        "before": 600000000000,
+        "during": 0,
+        "after": 5000000000
+      },
+      {
+        "name": "partial-all/both-retries-panic0",
+        "fault": {
+          "mode": "partial",
+          "target": "all",
+          "errorRate": 0.2
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      },
+      {
+        "name": "partial-all/both-retries",
+        "fault": {
+          "mode": "partial",
+          "target": "all",
+          "errorRate": 0.2
+        },
+        "variant": {
+          "probes": true,
+          "passive": true,
+          "retries": 2,
+          "perTry": 1000000000,
+          "ejectRefused": false,
+          "balancer": "p2c-ewma",
+          "slowStart": 10000000000,
+          "panic": 0.5
+        },
+        "settle": 5000000000,
+        "before": 30000000000,
+        "during": 30000000000,
+        "after": 30000000000
+      }
+    ],
+    "reps": 3,
+    "rate": 2000,
+    "gateways": 1,
+    "bins": true,
+    "records": false
+  },
+  "startedAt": "2026-10-09T17:58:02.3432846Z"
+}
