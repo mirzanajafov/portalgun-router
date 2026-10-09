@@ -14,6 +14,7 @@ type FailoverSummary struct {
 	Cell           string `json:"cell"`
 	Runs           int    `json:"runs"`
 	InvalidRuns    int    `json:"invalidRuns"`
+	Failed         int    `json:"failed"`
 	Detected       int    `json:"detected"`
 	Moved          int    `json:"moved"`
 	Recovered      int    `json:"recovered"`
@@ -42,7 +43,7 @@ func LoadFailoverRuns(dir string) ([]FailoverRun, error) {
 		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
 			return nil, err
 		}
-		if r.Report != nil {
+		if r.Report != nil || r.Error != "" {
 			runs = append(runs, r)
 		}
 	}
@@ -63,6 +64,10 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 		s := FailoverSummary{Cell: cell}
 		var detect, move, lost, after, before, fault, attempts, recover, falseEj []float64
 		for _, r := range by[cell] {
+			if r.Report == nil {
+				s.Failed++
+				continue
+			}
 			s.Runs++
 			if !r.Report.Generator.Valid {
 				s.InvalidRuns++
@@ -119,6 +124,9 @@ func WriteFailoverText(w io.Writer, sums []FailoverSummary) error {
 		runs := fmt.Sprint(s.Runs)
 		if s.InvalidRuns > 0 {
 			runs += fmt.Sprintf(" (%d invalid)", s.InvalidRuns)
+		}
+		if s.Failed > 0 {
+			runs += fmt.Sprintf(" (%d failed)", s.Failed)
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
 			rangeOf(s.DetectMs, s.Detected, valid, 0), rangeOf(s.MoveMs, s.Moved, valid, 0),

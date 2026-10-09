@@ -251,6 +251,20 @@ type FailoverRun struct {
 	Gateways  int              `json:"gateways"`
 	StartedAt time.Time        `json:"startedAt"`
 	Report    *failover.Report `json:"report"`
+	Error     string           `json:"error,omitempty"`
+}
+
+const maxFailedInARow = 3
+
+func tryTwice(ctx context.Context, try func() (FailoverRun, error), heal func(error) error) (FailoverRun, error) {
+	run, err := try()
+	if err == nil || ctx.Err() != nil {
+		return run, err
+	}
+	if herr := heal(err); herr != nil {
+		return run, errors.Join(err, herr)
+	}
+	return try()
 }
 
 func (p FailoverPlan) gatewayServices() []string {
@@ -304,14 +318,33 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 	enc := json.NewEncoder(f)
 
 	total := plan.Reps * len(plan.Cells)
-	done := 0
+	done, failedInARow := 0, 0
 	for rep := range plan.Reps {
 		for slot, c := range rotate(plan.Cells, rep) {
 			done++
-			run, err := r.failoverCell(ctx, compose, plan, c, rep, slot, dir)
+			run, err := tryTwice(ctx, func() (FailoverRun, error) {
+				return r.failoverCell(ctx, compose, plan, c, rep, slot, dir)
+			}, func(err error) error {
+				r.logf("%s rep %d: %v; restarting toxiproxy and trying once more", c.Name, rep+1, err)
+				_, herr := compose.run(ctx, "restart", "toxiproxy")
+				return herr
+			})
 			if err != nil {
-				return dir, fmt.Errorf("%s rep %d: %w", c.Name, rep+1, err)
+				if ctx.Err() != nil {
+					return dir, fmt.Errorf("%s rep %d: %w", c.Name, rep+1, err)
+				}
+				failedInARow++
+				if failedInARow >= maxFailedInARow {
+					return dir, fmt.Errorf("%d cells in a row failed, the last %s rep %d: %w", failedInARow, c.Name, rep+1, err)
+				}
+				failed := FailoverRun{Cell: c.Name, Rep: rep, Slot: slot, Gateways: plan.Gateways, StartedAt: time.Now().UTC(), Error: err.Error()}
+				if err := enc.Encode(failed); err != nil {
+					return dir, err
+				}
+				r.logf("[%d/%d] rep %d %-34s failed twice, going on: %v", done, total, rep+1, c.Name, err)
+				continue
 			}
+			failedInARow = 0
 			if err := enc.Encode(run); err != nil {
 				return dir, err
 			}
