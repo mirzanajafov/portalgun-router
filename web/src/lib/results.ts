@@ -1,5 +1,5 @@
 import 'server-only'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 export type PolicyResult = {
@@ -32,6 +32,21 @@ export type SimResults = { name: string; config: Record<string, unknown>; cells:
 
 export function resultsDir(): string {
   return process.env.RESULTS_DIR ?? path.join(process.cwd(), '..', 'bench', 'results')
+}
+
+export type Run<T> = { name: string; summary: T }
+
+export function latestRun<T>(experiment: string): Run<T> | null {
+  const dir = path.join(resultsDir(), experiment)
+  let names: string[]
+  try {
+    names = readdirSync(dir).sort().reverse()
+  } catch {
+    return null
+  }
+  const name = names.find((n) => existsSync(path.join(dir, n, 'summary.json')))
+  if (!name) return null
+  return { name, summary: JSON.parse(readFileSync(path.join(dir, name, 'summary.json'), 'utf8')) as T }
 }
 
 export function latestSim(): SimResults | null {
