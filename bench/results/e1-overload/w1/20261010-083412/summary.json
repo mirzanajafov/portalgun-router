@@ -450,18 +450,28 @@
       "overheadP99Us": 0,
       "goodputRps": {
         "median": 10000,
-        "min": 10000,
+        "min": 4869.108390741934,
         "max": 10000
       },
       "okP50Us": {
-        "median": 1055,
+        "median": 1083.4,
         "min": 1026.6,
-        "max": 1083.4
+        "max": 6107.1
       },
       "okP99Us": {
-        "median": 59031.55,
+        "median": 74973.2,
         "min": 43089.9,
-        "max": 74973.2
+        "max": 10427039.7
+      },
+      "shedShare": {
+        "median": 0,
+        "min": 0,
+        "max": 0.131075
+      },
+      "failedShare": {
+        "median": 0,
+        "min": 0,
+        "max": 0.377705
       }
     },
     {
@@ -1332,24 +1342,29 @@
       "overheadP50Us": 0,
       "overheadP99Us": 0,
       "goodputRps": {
-        "median": 7841,
-        "min": 7840.6,
+        "median": 7840.6,
+        "min": 122.16341181480804,
         "max": 7841.4
       },
       "okP50Us": {
-        "median": 28917.75,
+        "median": 29769.7,
         "min": 28065.8,
-        "max": 29769.7
+        "max": 6568280.1
       },
       "okP99Us": {
-        "median": 58130.45,
+        "median": 60260.4,
         "min": 56000.5,
-        "max": 60260.4
+        "max": 20703084.5
       },
       "shedShare": {
-        "median": 0.60795,
-        "min": 0.60793,
+        "median": 0.60793,
+        "min": 0.0292075,
         "max": 0.60797
+      },
+      "failedShare": {
+        "median": 0,
+        "min": 0,
+        "max": 0.9657725
       }
     }
   ],
