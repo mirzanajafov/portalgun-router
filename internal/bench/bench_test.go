@@ -181,12 +181,17 @@ func TestSummarizeOverload(t *testing.T) {
 	queued.MemoryPeakMB, queued.SwapPeakMB = 256, 180
 	queued.Loadgen.WindowSec, queued.Loadgen.Scheduled = 20, 240000
 	queued.Loadgen.Status = map[string]int64{"200": 30000}
-	r := Summarize([]Point{shedding(0, 160000, 79960, 40000), shedding(1, 150000, 89960, 60000), shedding(2, 170000, 69960, 50000), queued})
+	collapsed := shedding(3, 2000, 1000, 9_000_000)
+	collapsed.GeneratorOK = false
+	collapsed.Loadgen.Dropped = 200000
+	collapsed.Loadgen.Scheduled += 200000
+	collapsed.Loadgen.LatencyUs.P99 = 9_000_000
+	r := Summarize([]Point{shedding(0, 160000, 79960, 40000), shedding(1, 150000, 89960, 60000), shedding(2, 170000, 69960, 50000), collapsed, queued})
 	c := r.Cells[slices.IndexFunc(r.Cells, func(c Cell) bool { return c.System == "portalgun-capped" })]
-	if c.GoodputRps.Median != 8000 || c.GoodputRps.Min != 7500 || c.GoodputRps.Max != 8500 {
+	if c.GoodputRps.Median != 7750 || c.GoodputRps.Min != 100 || c.GoodputRps.Max != 8500 || c.OKP99Us.Max != 9_000_000 {
 		t.Fatalf("goodput %+v", c.GoodputRps)
 	}
-	if c.ShedShare.Median != 79960.0/240000 || c.FailedShare.Median != 40.0/240000 || c.OKP99Us.Median != 50000 || c.OKP50Us.Median != 2000 {
+	if c.ShedShare.Median != (79960.0/240000+69960.0/240000)/2 || c.FailedShare.Max <= 0.9 || c.OKP99Us.Median != 55000 || c.P99Us.Max != 900 {
 		t.Fatalf("shed %+v failed %+v ok p99 %+v", c.ShedShare, c.FailedShare, c.OKP99Us)
 	}
 	q := r.Cells[slices.IndexFunc(r.Cells, func(c Cell) bool { return c.System == "portalgun" })]
@@ -197,7 +202,7 @@ func TestSummarizeOverload(t *testing.T) {
 	if err := r.WriteOverloadText(&buf); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "8000 (7500-8500)") || !strings.Contains(buf.String(), "50.0 (40.0-60.0)") {
+	if !strings.Contains(buf.String(), "7750 (100-8500)") || !strings.Contains(buf.String(), "55.0 (40.0-9000.0)") {
 		t.Fatalf("report:\n%s", buf.String())
 	}
 }

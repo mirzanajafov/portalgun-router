@@ -40,6 +40,8 @@ var Systems = []System{
 	proxied("haproxy"),
 	proxied("portalgun-cap1024"),
 	proxied("portalgun-cap128"),
+	proxied("portalgun-cap256"),
+	proxied("portalgun-cap512"),
 }
 
 func SystemsByName(names []string) ([]System, error) {
@@ -103,6 +105,8 @@ type Point struct {
 	KernelPerRequestUs float64            `json:"kernelPerRequestUs"`
 	MemoryPeakMB       float64            `json:"memoryPeakMb,omitempty"`
 	SwapPeakMB         float64            `json:"swapPeakMb,omitempty"`
+	AnonPeakMB         float64            `json:"anonPeakMb,omitempty"`
+	SockPeakMB         float64            `json:"sockPeakMb,omitempty"`
 	DimensionCPU       map[string]float64 `json:"dimensionCpuSec"`
 	DimensionUtil      float64            `json:"dimensionUtil"`
 	Saturated          bool               `json:"saturated"`
@@ -314,6 +318,7 @@ func (r *Runner) point(ctx context.Context, compose Compose, plan Plan, sys Syst
 	}
 	if w, ok := sum.Watched["system"]; ok {
 		p.MemoryPeakMB, p.SwapPeakMB = w.MemoryPeakMB, w.SwapPeakMB
+		p.AnonPeakMB, p.SockPeakMB = w.AnonPeakMB, w.SockPeakMB
 	}
 	judge(&p)
 	return p, nil

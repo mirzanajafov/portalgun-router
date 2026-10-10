@@ -54,6 +54,20 @@ services:
     command: ["gateway", "-config", "/etc/portalgun/config.json"]
     volumes:
       - ./systems/portalgun/cap128.json:/etc/portalgun/config.json:ro
+  portalgun-cap256:
+    <<: *system
+    image: pgbench-portalgun
+    build: *portalgun-build
+    command: ["gateway", "-config", "/etc/portalgun/config.json"]
+    volumes:
+      - ./systems/portalgun/cap256.json:/etc/portalgun/config.json:ro
+  portalgun-cap512:
+    <<: *system
+    image: pgbench-portalgun
+    build: *portalgun-build
+    command: ["gateway", "-config", "/etc/portalgun/config.json"]
+    volumes:
+      - ./systems/portalgun/cap512.json:/etc/portalgun/config.json:ro
   nginx:
     <<: *system
     image: pgbench-nginx

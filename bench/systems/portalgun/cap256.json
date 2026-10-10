@@ -1,0 +1,17 @@
+{
+  "maxInflight": 256,
+  "routes": [
+    { "name": "all", "pathPrefix": "/", "pool": "dimensions", "timeout": "90s", "perTryTimeout": "90s" }
+  ],
+  "pools": [
+    {
+      "name": "dimensions",
+      "balancer": "p2c-ewma",
+      "dimensions": [
+        { "id": "a", "address": "dim-a:8080", "maxInflight": 4096 },
+        { "id": "b", "address": "dim-b:8080", "maxInflight": 4096 },
+        { "id": "c", "address": "dim-c:8080", "maxInflight": 4096 }
+      ]
+    }
+  ]
+}
