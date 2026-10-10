@@ -14,8 +14,13 @@ export type ProxyCell = {
   cpuPerRequestUs: Stat
   userPerRequestUs: Stat
   memoryPeakMb?: Stat
+  swapPeakMb?: Stat
   overheadP50Us: number
   overheadP99Us: number
+  collapsed?: number
+  goodputRps?: Stat
+  okP99Us?: Stat
+  shedShare?: Stat
 }
 
 export type ProxyReport = { workload: string; cells: ProxyCell[]; maxRate: Record<string, number> }
@@ -68,6 +73,23 @@ export const PROXIES: { key: string; label: string }[] = [
   { key: 'caddy', label: 'Caddy' },
   { key: 'envoy', label: 'Envoy' },
 ]
+
+export function overloadLabel(system: string): string {
+  if (system === 'portalgun') return 'PortalGun, no cap'
+  const cap = /^portalgun-cap(\d+)$/.exec(system)
+  if (cap) return `PortalGun, cap ${cap[1]}`
+  return PROXIES.find((p) => p.key === system)?.label ?? system
+}
+
+export function overloadSystems(r: ProxyReport): string[] {
+  const rank = (s: string) => {
+    if (s === 'stdlib') return -2
+    if (s === 'portalgun') return -1
+    const cap = /^portalgun-cap(\d+)$/.exec(s)
+    return cap ? 1e6 - Number(cap[1]) : 2e6
+  }
+  return [...new Set(r.cells.map((c) => c.system))].filter((s) => s !== 'direct').sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+}
 
 export function sustained(r: ProxyReport, system: string, rate: number): boolean {
   const c = r.cells.find((x) => x.system === system && x.rate === rate)
@@ -149,6 +171,7 @@ export function failoverMatrix(sums: FailoverSummary[]): FailoverRow[] {
 export function us(v: number): string {
   if (!Number.isFinite(v)) return '-'
   const a = Math.abs(v)
+  if (a >= 1e6) return `${(v / 1e6).toFixed(1)} s`
   return a >= 1000 ? `${(v / 1000).toFixed(a >= 10000 ? 0 : 1)} ms` : `${Math.round(v)} µs`
 }
 

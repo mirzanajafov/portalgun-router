@@ -8,6 +8,7 @@ import { latestRun, latestSim } from '@/lib/results'
 export default function Results() {
   const proxy = latestRun<ProxyReport>('e1/w1')
   const step = latestRun<ProxyReport>('e1-step/w1')
+  const overload = latestRun<ProxyReport>('e1-overload/w1')
   const limiter = latestRun<LimiterSummary[]>('e2')
   const failover = latestRun<FailoverSummary[]>('e3')
   const sim = latestSim()
@@ -24,7 +25,7 @@ export default function Results() {
           behind fault injection: the failures and latencies are real, the geography is not.
         </p>
       </section>
-      {proxy && <ProxyResults run={proxy.name} report={proxy.summary} step={step} />}
+      {proxy && <ProxyResults run={proxy.name} report={proxy.summary} step={step} overload={overload} />}
       {limiter && <LimiterResults run={limiter.name} sums={limiter.summary} />}
       {failover && <FailoverResults run={failover.name} sums={failover.summary} />}
       {sim && <CanarySim sim={sim} />}
