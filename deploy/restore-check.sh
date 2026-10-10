@@ -12,7 +12,7 @@ trap cleanup EXIT
 docker run -d --name "$name" --network none --cpus 0.5 --memory 256m --tmpfs /var/lib/postgresql \
   -e POSTGRES_USER=portal -e POSTGRES_DB=portal -e POSTGRES_PASSWORD=check postgres:18-alpine > /dev/null
 for _ in $(seq 1 60); do
-  docker exec "$name" pg_isready -U portal -q 2> /dev/null && break
+  docker exec "$name" pg_isready -h 127.0.0.1 -U portal -q 2> /dev/null && break
   sleep 1
 done
 
