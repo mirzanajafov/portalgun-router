@@ -38,6 +38,7 @@ type Cell struct {
 	Runs             int     `json:"runs"`
 	Saturated        int     `json:"saturated"`
 	Died             int     `json:"died,omitempty"`
+	Collapsed        int     `json:"collapsed,omitempty"`
 	GeneratorIssues  int     `json:"generatorIssues"`
 	P50Us            Stat    `json:"p50Us"`
 	P99Us            Stat    `json:"p99Us"`
@@ -56,6 +57,13 @@ type Cell struct {
 	OKP99Us          Stat    `json:"okP99Us,omitzero"`
 	ShedShare        Stat    `json:"shedShare,omitzero"`
 	FailedShare      Stat    `json:"failedShare,omitzero"`
+}
+
+const maxHealthyFailures = 0.01
+
+func collapsed(p Point) bool {
+	s := p.Loadgen
+	return p.Died != "" || s.Scheduled == 0 || float64(s.Failed+s.Dropped)/float64(s.Scheduled) > maxHealthyFailures
 }
 
 func goodput(s loadgen.Summary) float64 {
@@ -133,6 +141,9 @@ func Summarize(points []Point) Report {
 				swap = append(swap, p.SwapPeakMB)
 				anon = append(anon, p.AnonPeakMB)
 				sock = append(sock, p.SockPeakMB)
+			}
+			if collapsed(p) {
+				c.Collapsed++
 			}
 			if p.Died != "" {
 				c.Died++
@@ -234,10 +245,10 @@ func (r Report) WriteText(w io.Writer) error {
 
 func (r Report) WriteOverloadText(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(tw, "rate\tsystem\truns\tdied\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")
+	fmt.Fprintf(tw, "rate\tsystem\truns\tcollapsed\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")
 	for _, c := range r.Cells {
 		fmt.Fprintf(tw, "%.0f\t%s\t%d\t%d\t%.0f (%.0f-%.0f)\t%.1f\t%.2f\t%.1f\t%.1f (%.1f-%.1f)\t%.1f\t%.0f\t%.0f\t%.0f\t%.0f\t\n",
-			c.Rate, c.System, c.Runs, c.Died,
+			c.Rate, c.System, c.Runs, c.Collapsed,
 			c.GoodputRps.Median, c.GoodputRps.Min, c.GoodputRps.Max,
 			c.ShedShare.Median*100, c.FailedShare.Median*100,
 			c.OKP50Us.Median/1000, c.OKP99Us.Median/1000, c.OKP99Us.Min/1000, c.OKP99Us.Max/1000,

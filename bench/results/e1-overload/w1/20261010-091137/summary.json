@@ -6,6 +6,7 @@
       "rate": 8000,
       "runs": 3,
       "saturated": 2,
+      "collapsed": 2,
       "generatorIssues": 2,
       "p50Us": {
         "median": 1763.3,
@@ -80,6 +81,7 @@
       "rate": 8000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 1,
       "generatorIssues": 1,
       "p50Us": {
         "median": 75235.35,
@@ -154,6 +156,7 @@
       "rate": 10000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 72679.4,
@@ -228,6 +231,7 @@
       "rate": 10000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 2,
       "generatorIssues": 2,
       "p50Us": {
         "median": 120455.2,
@@ -302,6 +306,7 @@
       "rate": 12000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 427032.6,
@@ -376,6 +381,7 @@
       "rate": 12000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 4043309.1,
@@ -450,6 +456,7 @@
       "rate": 15000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 2560622.6,
@@ -524,6 +531,7 @@
       "rate": 15000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 2,
       "generatorIssues": 2,
       "p50Us": {
         "median": 102105.1,
@@ -598,6 +606,7 @@
       "rate": 20000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9000976.4,
@@ -672,6 +681,7 @@
       "rate": 20000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 13321109.5,

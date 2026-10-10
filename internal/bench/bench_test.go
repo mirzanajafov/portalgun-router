@@ -188,7 +188,7 @@ func TestSummarizeOverload(t *testing.T) {
 	collapsed.Loadgen.LatencyUs.P99 = 9_000_000
 	r := Summarize([]Point{shedding(0, 160000, 79960, 40000), shedding(1, 150000, 89960, 60000), shedding(2, 170000, 69960, 50000), collapsed, queued})
 	c := r.Cells[slices.IndexFunc(r.Cells, func(c Cell) bool { return c.System == "portalgun-capped" })]
-	if c.GoodputRps.Median != 7750 || c.GoodputRps.Min != 100 || c.GoodputRps.Max != 8500 || c.OKP99Us.Max != 9_000_000 {
+	if c.Collapsed != 1 || c.GoodputRps.Median != 7750 || c.GoodputRps.Min != 100 || c.GoodputRps.Max != 8500 || c.OKP99Us.Max != 9_000_000 {
 		t.Fatalf("goodput %+v", c.GoodputRps)
 	}
 	if c.ShedShare.Median != (79960.0/240000+69960.0/240000)/2 || c.FailedShare.Max <= 0.9 || c.OKP99Us.Median != 55000 || c.P99Us.Max != 900 {

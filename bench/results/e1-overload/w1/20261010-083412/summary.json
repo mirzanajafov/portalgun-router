@@ -6,6 +6,7 @@
       "rate": 8000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 8615100.4,
@@ -75,6 +76,7 @@
       "rate": 8000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9604956.2,
@@ -267,6 +269,7 @@
       "rate": 10000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 12490637.3,
@@ -336,6 +339,7 @@
       "rate": 10000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9999220.7,
@@ -405,6 +409,7 @@
       "rate": 10000,
       "runs": 3,
       "saturated": 2,
+      "collapsed": 1,
       "generatorIssues": 1,
       "p50Us": {
         "median": 1055,
@@ -543,6 +548,7 @@
       "rate": 12000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 10510925.8,
@@ -612,6 +618,7 @@
       "rate": 12000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9042919.4,
@@ -810,6 +817,7 @@
       "runs": 3,
       "saturated": 3,
       "died": 1,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9823060,
@@ -879,6 +887,7 @@
       "rate": 15000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 12591300.6,
@@ -948,6 +957,7 @@
       "rate": 15000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9202303,
@@ -1086,6 +1096,7 @@
       "rate": 20000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 0,
@@ -1155,6 +1166,7 @@
       "rate": 20000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 7285506,
@@ -1224,6 +1236,7 @@
       "rate": 20000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 3,
       "generatorIssues": 3,
       "p50Us": {
         "median": 9579790.3,
@@ -1298,6 +1311,7 @@
       "rate": 20000,
       "runs": 3,
       "saturated": 3,
+      "collapsed": 1,
       "generatorIssues": 1,
       "p50Us": {
         "median": 21331.95,

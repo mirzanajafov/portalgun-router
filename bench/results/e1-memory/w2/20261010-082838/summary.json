@@ -360,6 +360,7 @@
       "rate": 4000,
       "runs": 1,
       "saturated": 1,
+      "collapsed": 1,
       "generatorIssues": 1,
       "p50Us": {
         "median": 8313110.5,
