@@ -1,0 +1,390 @@
+{
+  "workload": "w2",
+  "cells": [
+    {
+      "system": "stdlib",
+      "rate": 500,
+      "runs": 2,
+      "saturated": 2,
+      "generatorIssues": 0,
+      "p50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "p99Us": {
+        "median": 201588.7,
+        "min": 201588.7,
+        "max": 201588.7
+      },
+      "p999Us": {
+        "median": 201982,
+        "min": 201982,
+        "max": 201982
+      },
+      "throughputRps": {
+        "median": 500.1,
+        "min": 500.1,
+        "max": 500.1
+      },
+      "cpuPerRequestUs": {
+        "median": 172.4,
+        "min": 171.5,
+        "max": 173.3
+      },
+      "userPerRequestUs": {
+        "median": 115.95000000000002,
+        "min": 98.7,
+        "max": 133.20000000000002
+      },
+      "memoryPeakMb": {
+        "median": 15.25,
+        "min": 15.1,
+        "max": 15.4
+      },
+      "anonPeakMb": {
+        "median": 11.85,
+        "min": 11.7,
+        "max": 12
+      },
+      "overheadP50Us": 0,
+      "overheadP99Us": 0,
+      "goodputRps": {
+        "median": 500.05000500050005,
+        "min": 500.05000500050005,
+        "max": 500.05000500050005
+      },
+      "okP50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "okP99Us": {
+        "median": 201588.7,
+        "min": 201588.7,
+        "max": 201588.7
+      }
+    },
+    {
+      "system": "portalgun",
+      "rate": 500,
+      "runs": 2,
+      "saturated": 2,
+      "generatorIssues": 0,
+      "p50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "p99Us": {
+        "median": 201654.25,
+        "min": 201588.7,
+        "max": 201719.8
+      },
+      "p999Us": {
+        "median": 202047.5,
+        "min": 201982,
+        "max": 202113
+      },
+      "throughputRps": {
+        "median": 500.1,
+        "min": 500.1,
+        "max": 500.1
+      },
+      "cpuPerRequestUs": {
+        "median": 201.1,
+        "min": 192.9,
+        "max": 209.29999999999998
+      },
+      "userPerRequestUs": {
+        "median": 82.4,
+        "min": 66.10000000000001,
+        "max": 98.7
+      },
+      "memoryPeakMb": {
+        "median": 17.75,
+        "min": 17.4,
+        "max": 18.1
+      },
+      "anonPeakMb": {
+        "median": 13.95,
+        "min": 13.5,
+        "max": 14.4
+      },
+      "overheadP50Us": 0,
+      "overheadP99Us": 0,
+      "goodputRps": {
+        "median": 500.05000500050005,
+        "min": 500.05000500050005,
+        "max": 500.05000500050005
+      },
+      "okP50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "okP99Us": {
+        "median": 201654.25,
+        "min": 201588.7,
+        "max": 201719.8
+      }
+    },
+    {
+      "system": "stdlib",
+      "rate": 1000,
+      "runs": 2,
+      "saturated": 2,
+      "generatorIssues": 0,
+      "p50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "p99Us": {
+        "median": 201523.2,
+        "min": 201457.7,
+        "max": 201588.7
+      },
+      "p999Us": {
+        "median": 202113.05,
+        "min": 201850.9,
+        "max": 202375.2
+      },
+      "throughputRps": {
+        "median": 1000.1,
+        "min": 1000.1,
+        "max": 1000.1
+      },
+      "cpuPerRequestUs": {
+        "median": 171.375,
+        "min": 169.4,
+        "max": 173.35000000000002
+      },
+      "userPerRequestUs": {
+        "median": 81.875,
+        "min": 66.14999999999999,
+        "max": 97.6
+      },
+      "memoryPeakMb": {
+        "median": 27.4,
+        "min": 26.1,
+        "max": 28.7
+      },
+      "anonPeakMb": {
+        "median": 22.1,
+        "min": 21,
+        "max": 23.2
+      },
+      "overheadP50Us": 0,
+      "overheadP99Us": 0,
+      "goodputRps": {
+        "median": 1000.0500025001251,
+        "min": 1000.0500025001251,
+        "max": 1000.0500025001251
+      },
+      "okP50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "okP99Us": {
+        "median": 201523.2,
+        "min": 201457.7,
+        "max": 201588.7
+      }
+    },
+    {
+      "system": "portalgun",
+      "rate": 1000,
+      "runs": 2,
+      "saturated": 2,
+      "generatorIssues": 0,
+      "p50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "p99Us": {
+        "median": 201654.25,
+        "min": 201588.7,
+        "max": 201719.8
+      },
+      "p999Us": {
+        "median": 201981.95,
+        "min": 201850.9,
+        "max": 202113
+      },
+      "throughputRps": {
+        "median": 1000.1,
+        "min": 1000.1,
+        "max": 1000.1
+      },
+      "cpuPerRequestUs": {
+        "median": 192.25,
+        "min": 187.25,
+        "max": 197.25
+      },
+      "userPerRequestUs": {
+        "median": 100.625,
+        "min": 91.45,
+        "max": 109.80000000000001
+      },
+      "memoryPeakMb": {
+        "median": 30.200000000000003,
+        "min": 29.8,
+        "max": 30.6
+      },
+      "anonPeakMb": {
+        "median": 24.950000000000003,
+        "min": 24.6,
+        "max": 25.3
+      },
+      "overheadP50Us": 0,
+      "overheadP99Us": 0,
+      "goodputRps": {
+        "median": 1000.0500025001251,
+        "min": 1000.0500025001251,
+        "max": 1000.0500025001251
+      },
+      "okP50Us": {
+        "median": 200540.2,
+        "min": 200540.2,
+        "max": 200540.2
+      },
+      "okP99Us": {
+        "median": 201654.25,
+        "min": 201588.7,
+        "max": 201719.8
+      }
+    },
+    {
+      "system": "stdlib",
+      "rate": 2000,
+      "runs": 2,
+      "saturated": 2,
+      "generatorIssues": 0,
+      "p50Us": {
+        "median": 201064.4,
+        "min": 201064.4,
+        "max": 201064.4
+      },
+      "p99Us": {
+        "median": 201785.34999999998,
+        "min": 201719.8,
+        "max": 201850.9
+      },
+      "p999Us": {
+        "median": 204079.1,
+        "min": 203161.6,
+        "max": 204996.6
+      },
+      "throughputRps": {
+        "median": 2000.1,
+        "min": 2000.1,
+        "max": 2000.1
+      },
+      "cpuPerRequestUs": {
+        "median": 188.3125,
+        "min": 185.625,
+        "max": 190.99999999999997
+      },
+      "userPerRequestUs": {
+        "median": 92.88749999999999,
+        "min": 90.875,
+        "max": 94.89999999999999
+      },
+      "memoryPeakMb": {
+        "median": 51.55,
+        "min": 51.3,
+        "max": 51.8
+      },
+      "anonPeakMb": {
+        "median": 44.15,
+        "min": 44,
+        "max": 44.3
+      },
+      "overheadP50Us": 0,
+      "overheadP99Us": 0,
+      "goodputRps": {
+        "median": 2000.1000050002501,
+        "min": 2000.1000050002501,
+        "max": 2000.1000050002501
+      },
+      "okP50Us": {
+        "median": 201064.4,
+        "min": 201064.4,
+        "max": 201064.4
+      },
+      "okP99Us": {
+        "median": 201785.34999999998,
+        "min": 201719.8,
+        "max": 201850.9
+      }
+    },
+    {
+      "system": "portalgun",
+      "rate": 2000,
+      "runs": 2,
+      "saturated": 2,
+      "generatorIssues": 0,
+      "p50Us": {
+        "median": 200933.4,
+        "min": 200933.4,
+        "max": 200933.4
+      },
+      "p99Us": {
+        "median": 201850.9,
+        "min": 201850.9,
+        "max": 201850.9
+      },
+      "p999Us": {
+        "median": 202768.4,
+        "min": 202768.4,
+        "max": 202768.4
+      },
+      "throughputRps": {
+        "median": 2000.1,
+        "min": 2000.1,
+        "max": 2000.1
+      },
+      "cpuPerRequestUs": {
+        "median": 192.66250000000002,
+        "min": 191.57500000000002,
+        "max": 193.75
+      },
+      "userPerRequestUs": {
+        "median": 92.01249999999999,
+        "min": 90.3,
+        "max": 93.725
+      },
+      "memoryPeakMb": {
+        "median": 58.3,
+        "min": 54.7,
+        "max": 61.9
+      },
+      "anonPeakMb": {
+        "median": 50.85,
+        "min": 47.5,
+        "max": 54.2
+      },
+      "overheadP50Us": 0,
+      "overheadP99Us": 0,
+      "goodputRps": {
+        "median": 2000.1000050002501,
+        "min": 2000.1000050002501,
+        "max": 2000.1000050002501
+      },
+      "okP50Us": {
+        "median": 200933.4,
+        "min": 200933.4,
+        "max": 200933.4
+      },
+      "okP99Us": {
+        "median": 201850.9,
+        "min": 201850.9,
+        "max": 201850.9
+      }
+    }
+  ],
+  "maxRate": {}
+}
