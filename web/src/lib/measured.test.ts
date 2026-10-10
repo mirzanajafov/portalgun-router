@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commonRate, failoverMatrix, limiterRows, proxyRows, rps, signed, us, valid, type FailoverSummary, type LimiterSummary, type ProxyCell, type ProxyReport } from './measured'
+import { commonRate, failoverMatrix, limiterRows, overloadLabel, overloadSystems, proxyRows, rps, signed, us, valid, type FailoverSummary, type LimiterSummary, type ProxyCell, type ProxyReport } from './measured'
 
 const stat = (median: number) => ({ median, min: median, max: median })
 
@@ -40,6 +40,24 @@ describe('proxy results', () => {
     expect(rows.map((r) => r.key)).toEqual(['stdlib', 'envoy'])
     expect(rows[0].top?.rate).toBe(6000)
     expect(rows[1].low?.overheadP50Us).toBe(50)
+  })
+})
+
+describe('overload results', () => {
+  it('orders the bare proxy, PortalGun without a cap, then the caps from the largest down', () => {
+    const report: ProxyReport = {
+      workload: 'w1',
+      cells: ['portalgun-cap128', 'portalgun', 'portalgun-cap1024', 'stdlib', 'portalgun-cap256', 'direct'].map((s) => cell(s, 8000)),
+      maxRate: {},
+    }
+    expect(overloadSystems(report)).toEqual(['stdlib', 'portalgun', 'portalgun-cap1024', 'portalgun-cap256', 'portalgun-cap128'])
+  })
+
+  it('names each system', () => {
+    expect(overloadLabel('portalgun')).toBe('PortalGun, no cap')
+    expect(overloadLabel('portalgun-cap256')).toBe('PortalGun, cap 256')
+    expect(overloadLabel('stdlib')).toBe('Go httputil.ReverseProxy')
+    expect(overloadLabel('mystery')).toBe('mystery')
   })
 })
 
@@ -94,6 +112,7 @@ describe('units', () => {
     expect(us(53.4)).toBe('53 µs')
     expect(us(1530)).toBe('1.5 ms')
     expect(us(25400)).toBe('25 ms')
+    expect(us(23_303_600)).toBe('23.3 s')
     expect(signed(us(53), 53)).toBe('+53 µs')
     expect(signed(us(-20), -20)).toBe('-20 µs')
     expect(rps(12500)).toBe('12.5k')

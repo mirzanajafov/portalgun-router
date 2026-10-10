@@ -1,4 +1,69 @@
-import { commonRate, PROXIES, proxyRows, rps, signed, sustained, us, type ProxyReport } from '@/lib/measured'
+import { commonRate, overloadLabel, overloadSystems, PROXIES, proxyRows, rps, signed, sustained, us, type ProxyCell, type ProxyReport } from '@/lib/measured'
+
+function OverloadCell({ c }: { c?: ProxyCell }) {
+  if (!c?.goodputRps) return <td className="text-right">-</td>
+  const collapsed = c.collapsed ?? 0
+  const memory = c.memoryPeakMb ? `${Math.round(c.memoryPeakMb.max)} MB` : ''
+  if (collapsed === c.runs) {
+    return (
+      <td className="py-1.5 text-right text-[var(--color-fault)]">
+        collapsed
+        <div className="muted text-xs">{c.swapPeakMb?.max ? `${memory} + swap` : memory}</div>
+      </td>
+    )
+  }
+  return (
+    <td className="py-1.5 text-right">
+      {rps(c.goodputRps.median)}
+      <div className="muted text-xs">
+        p99 {c.okP99Us ? us(c.okP99Us.median) : '-'} · {memory}
+      </div>
+      {collapsed > 0 && (
+        <div className="text-xs text-[var(--color-fault)]">
+          {collapsed} of {c.runs} collapsed
+        </div>
+      )}
+    </td>
+  )
+}
+
+function OverloadResults({ run, report }: { run: string; report: ProxyReport }) {
+  const rates = [...new Set(report.cells.map((c) => c.rate))].sort((a, b) => a - b)
+  const systems = overloadSystems(report)
+  return (
+    <>
+      <h3 className="mt-5 mb-1 text-sm font-semibold">Past the knee</h3>
+      <p className="muted mb-3 text-sm">
+        Each point starts from a freshly restarted proxy and goes straight to the offered rate. Each cell shows the 2xx responses served per second, the p99
+        of those responses only, and the highest memory any repetition reached. Anything above the cap gets a 503 at once and isn&apos;t counted as served. A
+        run counts as collapsed when more than 1% of its requests time out or never get sent. PortalGun&apos;s default cap is 256, the largest that never
+        collapsed here. Run <span className="mono">{run}</span>.
+      </p>
+      <table className="mono w-full min-w-[720px] text-sm">
+        <thead className="muted text-left text-xs">
+          <tr>
+            <th className="pb-2 font-normal">offered</th>
+            {rates.map((r) => (
+              <th key={r} className="pb-2 text-right font-normal">
+                {rps(r)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {systems.map((s) => (
+            <tr key={s} className={`border-t border-[var(--line)] align-top ${s.startsWith('portalgun-cap') ? 'text-[var(--color-portal)]' : ''}`}>
+              <td className="py-1.5 pr-3 font-sans">{overloadLabel(s)}</td>
+              {rates.map((r) => (
+                <OverloadCell key={r} c={report.cells.find((x) => x.system === s && x.rate === r)} />
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )
+}
 
 function StepResults({ run, report }: { run: string; report: ProxyReport }) {
   const rates = [...new Set(report.cells.map((c) => c.rate))].sort((a, b) => a - b)
@@ -45,7 +110,17 @@ function StepResults({ run, report }: { run: string; report: ProxyReport }) {
   )
 }
 
-export function ProxyResults({ run, report, step }: { run: string; report: ProxyReport; step?: { name: string; summary: ProxyReport } | null }) {
+export function ProxyResults({
+  run,
+  report,
+  step,
+  overload,
+}: {
+  run: string
+  report: ProxyReport
+  step?: { name: string; summary: ProxyReport } | null
+  overload?: { name: string; summary: ProxyReport } | null
+}) {
   const low = Math.min(...report.cells.map((c) => c.rate))
   const present = PROXIES.map((p) => p.key).filter((k) => report.cells.some((c) => c.system === k))
   const common = commonRate(report, present) ?? low
@@ -84,11 +159,12 @@ export function ProxyResults({ run, report, step }: { run: string; report: Proxy
       </table>
       <p className="muted mt-3 text-sm">
         Past their maximum, the Go proxies and Envoy keep accepting work: requests queue in memory until the container reaches 256 MB and starts swapping, and
-        throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy stay far below the limit. PortalGun has no cap on what it holds in total
-        yet, so it fails the same way.
+        throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy stay far below the limit. PortalGun ran here without its cap on what it holds in
+        total, so it fails the same way; the cap is measured below.
         {report.maxRate.direct ? ` The lab itself tops out near ${rps(report.maxRate.direct)} rps with no proxy at all, so the fastest maximums are partly the lab's.` : ''}
       </p>
       {step && <StepResults run={step.name} report={step.summary} />}
+      {overload && <OverloadResults run={overload.name} report={overload.summary} />}
     </section>
   )
 }

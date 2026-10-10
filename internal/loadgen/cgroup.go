@@ -102,6 +102,8 @@ type Watched struct {
 	Utilization   float64 `json:"utilization,omitempty"`
 	MemoryPeakMB  float64 `json:"memoryPeakMb,omitempty"`
 	SwapPeakMB    float64 `json:"swapPeakMb,omitempty"`
+	AnonPeakMB    float64 `json:"anonPeakMb,omitempty"`
+	SockPeakMB    float64 `json:"sockPeakMb,omitempty"`
 }
 
 const memoryInterval = 100 * time.Millisecond
@@ -112,12 +114,14 @@ type watcher struct {
 	mu    sync.Mutex
 	mem   map[string]int64
 	swap  map[string]int64
+	anon  map[string]int64
+	sock  map[string]int64
 	stop  chan struct{}
 	done  chan struct{}
 }
 
 func newWatcher(dirs map[string]string) *watcher {
-	return &watcher{dirs: dirs, start: map[string]CgroupCPU{}, mem: map[string]int64{}, swap: map[string]int64{}}
+	return &watcher{dirs: dirs, start: map[string]CgroupCPU{}, mem: map[string]int64{}, swap: map[string]int64{}, anon: map[string]int64{}, sock: map[string]int64{}}
 }
 
 func (w *watcher) begin() {
@@ -157,7 +161,36 @@ func (w *watcher) readMemory() {
 		if v, ok := readCounter(filepath.Join(w.dirs[name], "memory.swap.current")); ok {
 			w.swap[name] = max(w.swap[name], v)
 		}
+		anon, sock, ok := readMemoryStat(filepath.Join(w.dirs[name], "memory.stat"))
+		if ok {
+			w.anon[name] = max(w.anon[name], anon)
+			w.sock[name] = max(w.sock[name], sock)
+		}
 	}
+}
+
+func readMemoryStat(path string) (anon, sock int64, ok bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	for line := range strings.Lines(string(data)) {
+		key, value, found := strings.Cut(strings.TrimSpace(line), " ")
+		if !found {
+			continue
+		}
+		n, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			continue
+		}
+		switch key {
+		case "anon":
+			anon, ok = n, true
+		case "sock":
+			sock = n
+		}
+	}
+	return anon, sock, ok
 }
 
 func readCounter(path string) (int64, bool) {
@@ -190,6 +223,8 @@ func (w *watcher) end(window float64) map[string]Watched {
 			Cores:         CgroupCores(w.dirs[name]),
 			MemoryPeakMB:  round(float64(w.mem[name])/(1<<20), 1),
 			SwapPeakMB:    round(float64(w.swap[name])/(1<<20), 1),
+			AnonPeakMB:    round(float64(w.anon[name])/(1<<20), 1),
+			SockPeakMB:    round(float64(w.sock[name])/(1<<20), 1),
 		}
 		if v.Cores > 0 && window > 0 {
 			v.Utilization = round(d.Usage.Seconds()/(window*float64(v.Cores)), 3)

@@ -1,0 +1,48 @@
+{
+  "commit": "8272ca3",
+  "env": [
+    "BODY_BYTES=1024",
+    "DELAY_MS=200"
+  ],
+  "plan": {
+    "workload": {
+      "name": "w2",
+      "method": "GET",
+      "bodyBytes": 0,
+      "respBytes": 1024,
+      "delayMs": 200,
+      "noKeepAlive": false
+    },
+    "systems": [
+      {
+        "name": "stdlib",
+        "service": "stdlib",
+        "urls": [
+          "http://stdlib:8080/"
+        ]
+      },
+      {
+        "name": "portalgun",
+        "service": "portalgun",
+        "urls": [
+          "http://portalgun:8080/"
+        ]
+      }
+    ],
+    "rates": [
+      500,
+      1000,
+      2000,
+      4000
+    ],
+    "reps": 1,
+    "duration": 20000000000,
+    "warmup": 5000000000,
+    "maxConns": 0,
+    "overload": true
+  },
+  "startedAt": "2026-10-10T08:29:50.8041228Z",
+  "versions": {
+    "stdlib": "stdproxy go1.26.8"
+  }
+}

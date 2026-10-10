@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -162,6 +163,47 @@ func TestSummarizeCountsDeaths(t *testing.T) {
 	}
 	if r.MaxRate["envoy"] != 5000 {
 		t.Fatalf("max rates %v", r.MaxRate)
+	}
+}
+
+func TestSummarizeOverload(t *testing.T) {
+	shedding := func(rep int, ok, refused int64, p99 float64) Point {
+		p := point("portalgun-capped", 12000, rep, 300, 900, true)
+		p.MemoryPeakMB, p.SwapPeakMB = 60, 0
+		p.Loadgen.WindowSec = 20
+		p.Loadgen.Scheduled = ok + refused + 40
+		p.Loadgen.Failed = 40
+		p.Loadgen.Status = map[string]int64{"200": ok, "503": refused}
+		p.Loadgen.OKLatencyUs = loadgen.Percentiles{Count: ok, P50: 2000, P99: p99}
+		return p
+	}
+	queued := point("portalgun", 12000, 0, 90000, 900000, true)
+	queued.MemoryPeakMB, queued.SwapPeakMB = 256, 180
+	queued.Loadgen.WindowSec, queued.Loadgen.Scheduled = 20, 240000
+	queued.Loadgen.Status = map[string]int64{"200": 30000}
+	collapsed := shedding(3, 2000, 1000, 9_000_000)
+	collapsed.GeneratorOK = false
+	collapsed.Loadgen.Dropped = 200000
+	collapsed.Loadgen.Scheduled += 200000
+	collapsed.Loadgen.LatencyUs.P99 = 9_000_000
+	r := Summarize([]Point{shedding(0, 160000, 79960, 40000), shedding(1, 150000, 89960, 60000), shedding(2, 170000, 69960, 50000), collapsed, queued})
+	c := r.Cells[slices.IndexFunc(r.Cells, func(c Cell) bool { return c.System == "portalgun-capped" })]
+	if c.Collapsed != 1 || c.GoodputRps.Median != 7750 || c.GoodputRps.Min != 100 || c.GoodputRps.Max != 8500 || c.OKP99Us.Max != 9_000_000 {
+		t.Fatalf("goodput %+v", c.GoodputRps)
+	}
+	if c.ShedShare.Median != (79960.0/240000+69960.0/240000)/2 || c.FailedShare.Max <= 0.9 || c.OKP99Us.Median != 55000 || c.P99Us.Max != 900 {
+		t.Fatalf("shed %+v failed %+v ok p99 %+v", c.ShedShare, c.FailedShare, c.OKP99Us)
+	}
+	q := r.Cells[slices.IndexFunc(r.Cells, func(c Cell) bool { return c.System == "portalgun" })]
+	if q.GoodputRps.Median != 1500 || q.SwapPeakMB.Max != 180 || q.OKP99Us != (Stat{}) {
+		t.Fatalf("queued cell %+v", q)
+	}
+	var buf bytes.Buffer
+	if err := r.WriteOverloadText(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "7750 (100-8500)") || !strings.Contains(buf.String(), "55.0 (40.0-9000.0)") {
+		t.Fatalf("report:\n%s", buf.String())
 	}
 }
 

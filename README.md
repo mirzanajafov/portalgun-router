@@ -14,13 +14,14 @@ One thing up front: the "dimensions" are containers on one server with fault inj
 
 ## How a request goes through it
 
-1. Match the route from an immutable config snapshot behind an atomic pointer, so a config change never takes a lock on the hot path.
-2. Rate limit, with one of four designs (below).
-3. Canary split, sticky per client.
-4. Pick a dimension with power of two choices and peak EWMA, the way Finagle and Linkerd do it, skipping ejected dimensions and dimensions at their in-flight cap. If everything is at its cap, answer 503 at once instead of queueing.
-5. Send the attempt with a per-try timeout through that dimension's own transport.
-6. On a retryable failure, retry on a different dimension if the retry budget allows (retries can be at most 20% of requests over 10 s, so a dead pool can't triple the load).
-7. Record the outcome for health, the canary and metrics.
+1. If the gateway already holds 256 requests across all routes, answer 503 at once (below, under "Turning work away").
+2. Match the route from an immutable config snapshot behind an atomic pointer, so a config change never takes a lock on the hot path.
+3. Rate limit, with one of four designs (below).
+4. Canary split, sticky per client.
+5. Pick a dimension with power of two choices and peak EWMA, the way Finagle and Linkerd do it, skipping ejected dimensions and dimensions at their in-flight cap. If everything is at its cap, answer 503 at once instead of queueing.
+6. Send the attempt with a per-try timeout through that dimension's own transport.
+7. On a retryable failure, retry on a different dimension if the retry budget allows (retries can be at most 20% of requests over 10 s, so a dead pool can't triple the load).
+8. Record the outcome for health, the canary and metrics.
 
 The proxy itself is `httputil.ReverseProxy` with my own `Transport`, which picks the dimension per attempt, so retries move to another dimension without ReverseProxy knowing. I didn't rewrite hop-by-hop headers, streaming and upgrades myself: that's the code most likely to have subtle bugs, and the standard library has had years of them fixed.
 
@@ -50,7 +51,7 @@ What I take from this:
 - My own code costs little next to net/http. PortalGun spends 1.03-1.09x the bare ReverseProxy's CPU per request at every rate up to 8k and adds 16 µs at p50 over it at 1k.
 - nginx and HAProxy held roughly twice the rate on one core. At the same 6k they spend about 20% less CPU per request than PortalGun, and their cost keeps falling as load grows. That's roughly what I expected from C event loops with no garbage collector.
 - Envoy surprised me. With one worker and its defaults it used more CPU per request than PortalGun at every rate and ran out of memory one step above 6k. That compares defaults, though: none of the proxies here has overload protection turned on, and Envoy in production usually runs with its overload manager.
-- Past their maximum, the Go proxies and Envoy all fail the same way. Requests queue in memory until the container reaches 256 MB and starts swapping, and throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy never got near the limit. My first sweep caught PortalGun doing this at 8k, and I spent a while suspecting my own code before the bare ReverseProxy did exactly the same at 10k. PortalGun caps requests in flight per dimension, but nothing caps what the gateway holds in total, so it can't turn away work it has no room for. That's the first thing I'd add.
+- Past their maximum, the Go proxies and Envoy all fail the same way. Requests queue in memory until the container reaches 256 MB and starts swapping, and throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy never got near the limit. My first sweep caught PortalGun doing this at 8k, and I spent a while suspecting my own code before the bare ReverseProxy did exactly the same at 10k. PortalGun capped requests in flight per dimension, but nothing capped what the gateway held in total, so it couldn't turn away work it had no room for. I added that afterwards; it has its own section below.
 
 The table says PortalGun held one step less than the bare ReverseProxy, 6k against 8k, on 3-9% more CPU. That didn't add up, so I ran just the two of them again at 6k, 7k and 8k, three times each, on a night with everything else on the laptop stopped:
 
@@ -63,6 +64,31 @@ The table says PortalGun held one step less than the bare ReverseProxy, 6k again
 Both held 8k in every run, far under the 50 ms line. The CPU per request was the same as in the sweep; the evening wasn't. At 6k the bare proxy's p99 was 12-22 ms in the sweep and 2.4 ms here, and that close to the knee, a noisier machine decides which side of the line a run lands on. The comparison inside the sweep is still fair, since every proxy ran under the same conditions in rotated order, but I wouldn't quote its maximum rates as properties of the proxies. What does hold is the tail: PortalGun's p99 is 1.6-2.3x the bare proxy's near the knee, on 3-5% more CPU. My guess is the garbage collector, since PortalGun allocates twice as much per request (below), but I haven't checked it.
 
 Before the full benchmark I measured the hot path in isolation with Go benchmarks. On its own code PortalGun costs about twice what ReverseProxy's handler does (5.2 µs against 2.9 µs), but net/http's server and client cost about 19 µs per proxied request, so on a whole request it's about 1.12x, and the real benchmark came in lower still. Profiling took it from 46 allocations per request to 40 (ReverseProxy on its own makes 21): the client key was computed twice, an address parser allocated an error for every Host header without a port, and a buffer pool allocated on every `Put`.
+
+### Turning work away
+
+The fix for that collapse is an old one: count the requests the gateway holds across all routes, and past a limit answer 503 with `Retry-After: 1` before doing anything else. It costs one atomic add and one subtract per request. The hard part was the number.
+
+I guessed a request in flight would cost 20-40 KB, so 1,024 looked safe in 256 MB. Then I measured it with upstreams that answer after 200 ms, so the rate decides how many requests are in flight: about 145 KB each for PortalGun and 125 KB for the bare ReverseProxy, nearly all of it heap and goroutine stacks. That makes 1,024 half the container before anything else happens.
+
+Then I pushed every proxy past its knee from a cold start: each point begins with a freshly restarted container that gets the full rate from the first second. One core and 256 MB each, three runs per point, all six in one rotated run on a quiet evening. Served per second, with the p99 of the requests that got a 2xx:
+
+| offered | ReverseProxy | PortalGun, no cap | cap 1,024 | cap 512 | cap 256 | cap 128 |
+|---|---|---|---|---|---|---|
+| 8k | 8,000, 1 of 3 collapsed | collapsed | 8,000, 15 ms | 8,000, 10 ms | 8,000, 7.5 ms | 8,000, 5.4 ms |
+| 12k | collapsed | collapsed | 10,474, 1 of 3 collapsed | 11,497, 114 ms | 12,000, 20 ms | 11,996, 12 ms |
+| 15k | collapsed | collapsed | 9,176, 1 of 3 collapsed | 10,257, 145 ms | 10,123, 78 ms | 12,084, 37 ms |
+| 20k | collapsed | collapsed | collapsed | collapsed | 7,858, 94 ms | 8,412, 77 ms |
+
+"Collapsed" means more than 1% of the requests failed. In practice it was always the same picture: the container at 256 MB, a couple of hundred MB of swap, and a few hundred rps served.
+
+What I took from it:
+
+- Without a cap, a cold start at 8k was enough to take down both Go proxies, at a rate both of them hold once they're warm. Empty connection pools and the full load at once build a queue, the queue holds memory, swapping slows the core, and it never comes back.
+- With a cap of 128 or 256 nothing collapsed in 30 runs. 512 got through 15k and 1,024 mostly did, but both collapsed in every run at 20k.
+- Saying no isn't free. A 503 costs 30-45 µs of CPU, against about 75 µs for a request the gateway proxies, so at 20k offered a third of the core goes to refusing and the gateway serves 8k instead of 12k. Somewhere around 25-30k one core would do nothing else. The cap protects the process from what it accepts, not from what arrives; past that, the protection has to sit in front of it.
+
+I made 256 the default. 128 did better on every overload number (half the p99, and 16% more served at 15k), but a fixed cap is also a ceiling on concurrency. With 200 ms upstreams, 128 refuses everything over 640 rps on a core that could carry several thousand, and 256 doubles that. 128 only wins once the gateway is already overloaded, while 256 wins every day for anyone with slow upstreams. It also fits the production gateways, which get half a core and 128 MB each, where 1,024 wouldn't fit at all. A fixed number can't be right for every upstream, so the real answer is an adaptive limit that follows latency, and that's next.
 
 ### One limit across several gateways
 
@@ -230,9 +256,9 @@ Each gateway has an admin listener that is never published: `/healthz`, `/metric
 
 ## What I'd do next
 
-- A cap on what the gateway holds in total, answering 503 past saturation, so an overload can't push it into its memory limit. E1 showed that's the way it fails today.
+- An adaptive concurrency limit in place of the fixed 256, following the latency of accepted requests, with the fixed cap kept as a ceiling. Then the same overload run, plus one with 200 ms upstreams where 256 refuses and an adaptive limit shouldn't.
 - Fix the Redis breaker in redis-exact and lease as described above, with a histogram of Redis call times first, then run their E2 cells again.
 - Find out where PortalGun's extra tail near the knee comes from, starting with a GC trace at 7k.
-- Run E1 on a machine that isn't a laptop: either a quiet window on the server or a dedicated-CPU VM for an hour, and the other four workloads (slow upstream, large responses, request bodies, a new connection per request).
+- Run E1 on a machine that isn't a laptop: either a quiet window on the server or a dedicated-CPU VM for an hour, and the other four workloads (slow upstream, large responses, request bodies, a new connection per request). The overload run too, since the server's gateways have half a core.
 - Run E3 with two gateways, and with more than three repetitions per cell.
-- Later: a failure penalty in P2C's cost, a gossip limiter without Redis, hedged requests, adaptive concurrency limits, HTTP/2 to clients, REST to gRPC.
+- Later: a failure penalty in P2C's cost, a gossip limiter without Redis, hedged requests, HTTP/2 to clients, REST to gRPC.

@@ -76,6 +76,10 @@ func writeMemory(t *testing.T, dir string, current, swap int64) {
 			t.Fatal(err)
 		}
 	}
+	stat := fmt.Sprintf("anon %d\nfile 4096\nkernel 8192\nsock %d\nshmem 0\n", current*3/4, current/8)
+	if err := os.WriteFile(filepath.Join(dir, "memory.stat"), []byte(stat), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestWatcherKeepsThePeakMemory(t *testing.T) {
@@ -88,7 +92,7 @@ func TestWatcherKeepsThePeakMemory(t *testing.T) {
 	w.readMemory()
 	writeMemory(t, dir, 120<<20, 0)
 	got := w.end(1)["system"]
-	if got.MemoryPeakMB != 300 || got.SwapPeakMB != 8 {
+	if got.MemoryPeakMB != 300 || got.SwapPeakMB != 8 || got.AnonPeakMB != 225 || got.SockPeakMB != 37.5 {
 		t.Fatalf("watched %+v", got)
 	}
 }

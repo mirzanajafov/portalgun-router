@@ -1,0 +1,47 @@
+{
+  "commit": "8272ca3-dirty",
+  "env": [
+    "BODY_BYTES=1024",
+    "DELAY_MS=0"
+  ],
+  "plan": {
+    "workload": {
+      "name": "w1",
+      "method": "GET",
+      "bodyBytes": 0,
+      "respBytes": 1024,
+      "delayMs": 0,
+      "noKeepAlive": false
+    },
+    "systems": [
+      {
+        "name": "portalgun-cap256",
+        "service": "portalgun-cap256",
+        "urls": [
+          "http://portalgun-cap256:8080/"
+        ]
+      },
+      {
+        "name": "portalgun-cap512",
+        "service": "portalgun-cap512",
+        "urls": [
+          "http://portalgun-cap512:8080/"
+        ]
+      }
+    ],
+    "rates": [
+      8000,
+      10000,
+      12000,
+      15000,
+      20000
+    ],
+    "reps": 3,
+    "duration": 20000000000,
+    "warmup": 5000000000,
+    "maxConns": 0,
+    "overload": true
+  },
+  "startedAt": "2026-10-10T09:12:43.5256188Z",
+  "versions": {}
+}

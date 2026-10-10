@@ -30,6 +30,8 @@ func main() {
 		err = e1(ctx, os.Args[2:])
 	case "report":
 		err = report(os.Args[2:])
+	case "report-overload":
+		err = reportOverload(os.Args[2:])
 	case "e2":
 		err = e2(ctx, os.Args[2:])
 	case "report-e2":
@@ -57,7 +59,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|hotpath [flags] | bench report|report-e2|report-e3|report-hotpath <dir> | bench merge <out> <dir>...")
+	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|hotpath [flags] | bench report|report-overload|report-e2|report-e3|report-hotpath <dir> | bench merge <out> <dir>...")
 	os.Exit(2)
 }
 
@@ -70,6 +72,8 @@ func e1(ctx context.Context, args []string) error {
 	duration := fs.Duration("duration", 20*time.Second, "measured window per point")
 	warmup := fs.Duration("warmup", 5*time.Second, "warm-up per point")
 	maxConns := fs.Int("max-conns", 0, "generator connection limit")
+	overload := fs.Bool("overload", false, "keep going past saturation, with no confirmation runs")
+	delay := fs.Float64("delay-ms", -1, "dimension delay in ms instead of the workload's own")
 	compose := fs.String("compose", filepath.Join("bench", "compose.yml"), "compose file")
 	out := fs.String("out", filepath.Join("bench", "results", "e1"), "results directory")
 	if err := fs.Parse(args); err != nil {
@@ -78,6 +82,9 @@ func e1(ctx context.Context, args []string) error {
 	w, ok := bench.Workloads[*workload]
 	if !ok {
 		return fmt.Errorf("unknown workload %q", *workload)
+	}
+	if *delay >= 0 {
+		w.DelayMs = *delay
 	}
 	sys, err := bench.SystemsByName(strings.Split(*systems, ","))
 	if err != nil {
@@ -100,9 +107,14 @@ func e1(ctx context.Context, args []string) error {
 		Duration: *duration,
 		Warmup:   *warmup,
 		MaxConns: *maxConns,
+		Overload: *overload,
 	})
 	if dir != "" {
-		if rerr := report([]string{dir}); rerr != nil {
+		write := report
+		if *overload {
+			write = reportOverload
+		}
+		if rerr := write([]string{dir}); rerr != nil {
 			err = errors.Join(err, rerr)
 		}
 	}
@@ -119,6 +131,21 @@ func report(args []string) error {
 	}
 	rep := bench.Summarize(points)
 	if err := rep.WriteText(os.Stdout); err != nil {
+		return err
+	}
+	return writeSummary(filepath.Join(args[0], "summary.json"), rep)
+}
+
+func reportOverload(args []string) error {
+	if len(args) != 1 {
+		return errors.New("report-overload needs a results directory")
+	}
+	points, err := bench.LoadPoints(args[0])
+	if err != nil {
+		return err
+	}
+	rep := bench.Summarize(points)
+	if err := rep.WriteOverloadText(os.Stdout); err != nil {
 		return err
 	}
 	return writeSummary(filepath.Join(args[0], "summary.json"), rep)

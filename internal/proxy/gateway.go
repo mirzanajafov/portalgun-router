@@ -221,6 +221,7 @@ type snapshot struct {
 	config      *config.Config
 	routes      []*route
 	trustedHops int
+	maxInflight int64
 }
 
 func (s *snapshot) match(host, path string) *route {
@@ -258,6 +259,7 @@ type Gateway struct {
 	epoch     time.Time
 	buffers   *bufferPool
 	decisions *decisionLog
+	inflight  atomic.Int64
 
 	cluster  atomic.Int64
 	latest   atomic.Pointer[Snapshot]
@@ -651,7 +653,7 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	}
 	g.upstreams = keep
 	g.version++
-	g.snap.Store(&snapshot{version: g.version, config: cfg, routes: routes, trustedHops: cfg.TrustedHops})
+	g.snap.Store(&snapshot{version: g.version, config: cfg, routes: routes, trustedHops: cfg.TrustedHops, maxInflight: int64(*cfg.MaxInflight)})
 	for name, l := range g.limiters {
 		if limiters[name] != l {
 			l.l.Close()
@@ -722,6 +724,14 @@ func (g *Gateway) onHealth(u *upstream, healthy bool) {
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s := g.snap.Load()
+	if n := g.inflight.Add(1); s.maxInflight > 0 && n > s.maxInflight {
+		g.inflight.Add(-1)
+		g.metrics.shed.Inc()
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "overloaded", http.StatusServiceUnavailable)
+		return
+	}
+	defer g.inflight.Add(-1)
 	rt := s.match(r.Host, r.URL.Path)
 	if rt == nil {
 		g.metrics.unrouted.Inc()
@@ -768,15 +778,17 @@ type Upstream struct {
 }
 
 type State struct {
-	Version   int64      `json:"version"`
-	Upstreams []Upstream `json:"upstreams"`
+	Version     int64      `json:"version"`
+	Inflight    int64      `json:"inflight"`
+	MaxInflight int64      `json:"maxInflight"`
+	Upstreams   []Upstream `json:"upstreams"`
 }
 
 func (g *Gateway) State() State {
 	now := g.now()
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	st := State{Version: g.version}
+	st := State{Version: g.version, Inflight: g.inflight.Load(), MaxInflight: g.snap.Load().maxInflight}
 	for _, u := range g.upstreams {
 		v := Upstream{
 			ID:          u.id,

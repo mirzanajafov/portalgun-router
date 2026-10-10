@@ -38,6 +38,7 @@ const (
 
 	DefaultVersion     = "v1"
 	DefaultMaxInflight = 1024
+	DefaultGatewayCap  = 256
 	DefaultTimeout     = 30 * time.Second
 	DefaultPerTry      = 10 * time.Second
 	DefaultRetries     = 2
@@ -48,6 +49,7 @@ const (
 
 type Config struct {
 	TrustedHops int     `json:"trustedHops,omitempty"`
+	MaxInflight *int    `json:"maxInflight,omitempty"`
 	Routes      []Route `json:"routes"`
 	Pools       []Pool  `json:"pools"`
 }
@@ -231,6 +233,9 @@ func Parse(data []byte) (*Config, error) {
 }
 
 func (c *Config) ApplyDefaults() {
+	if c.MaxInflight == nil {
+		c.MaxInflight = new(DefaultGatewayCap)
+	}
 	for i := range c.Routes {
 		r := &c.Routes[i]
 		r.Host = strings.ToLower(r.Host)
@@ -350,6 +355,9 @@ func (c *Config) Validate() error {
 		if err := r.Versions.validate(versions[r.Pool]); err != nil {
 			errs = append(errs, fmt.Errorf("route %q: %w", r.Name, err))
 		}
+	}
+	if c.MaxInflight == nil || *c.MaxInflight < 0 {
+		errs = append(errs, errors.New("maxInflight must be 0 for no cap or a positive number of requests"))
 	}
 	if c.TrustedHops < 0 || c.TrustedHops > 10 {
 		errs = append(errs, errors.New("trustedHops must be between 0 and 10"))
