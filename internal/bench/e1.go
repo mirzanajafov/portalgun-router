@@ -38,6 +38,8 @@ var Systems = []System{
 	proxied("caddy"),
 	proxied("envoy"),
 	proxied("haproxy"),
+	proxied("portalgun-cap1024"),
+	proxied("portalgun-cap128"),
 }
 
 func SystemsByName(names []string) ([]System, error) {
@@ -84,6 +86,7 @@ type Plan struct {
 	Duration time.Duration `json:"duration"`
 	Warmup   time.Duration `json:"warmup"`
 	MaxConns int           `json:"maxConns"`
+	Overload bool          `json:"overload,omitempty"`
 }
 
 type Point struct {
@@ -220,11 +223,20 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 		for ri, rate := range plan.Rates {
 			for slot, sys := range rotate(plan.Systems, rep+ri) {
 				done++
-				if l, ok := limit[sys.Name]; ok && rate > l {
+				if l, ok := limit[sys.Name]; ok && rate > l && !plan.Overload {
 					continue
 				}
+				confirmations := []bool{false, true}
+				if plan.Overload {
+					confirmations = confirmations[:1]
+				}
+				if plan.Overload {
+					if err := r.restart(ctx, compose, plan, sys); err != nil {
+						return dir, err
+					}
+				}
 				saturated := true
-				for _, confirmation := range []bool{false, true} {
+				for _, confirmation := range confirmations {
 					p, err := r.measure(ctx, compose, plan, sys, rate, rep, slot)
 					if err != nil || p.Saturated {
 						died, rerr := r.revive(ctx, compose, plan, sys)
@@ -327,6 +339,18 @@ func (r *Runner) revive(ctx context.Context, compose Compose, plan Plan, sys Sys
 	p := plan
 	p.Systems = []System{sys}
 	return died, r.waitReady(ctx, compose, p)
+}
+
+func (r *Runner) restart(ctx context.Context, compose Compose, plan Plan, sys System) error {
+	if sys.Service == "" {
+		return nil
+	}
+	if _, err := compose.run(ctx, "restart", sys.Service); err != nil {
+		return err
+	}
+	p := plan
+	p.Systems = []System{sys}
+	return r.waitReady(ctx, compose, p)
 }
 
 func death(state string) string {

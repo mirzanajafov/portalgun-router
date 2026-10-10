@@ -87,6 +87,29 @@ func TestLatencyIsMeasuredFromTheSchedule(t *testing.T) {
 	}
 }
 
+func TestSuccessLatencyLeavesFastRefusalsOut(t *testing.T) {
+	var n atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if n.Add(1)%3 != 0 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}))
+	t.Cleanup(srv.Close)
+	res, err := Run(context.Background(), Config{URLs: []string{srv.URL}, Rate: 200, Duration: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := res.Summary
+	if sum.OKLatencyUs.Count != sum.Status["200"] || sum.Status["200"]+sum.Status["503"] != sum.Completed {
+		t.Fatalf("ok latency counted %d requests, status %v", sum.OKLatencyUs.Count, sum.Status)
+	}
+	if sum.OKLatencyUs.P50 < 20_000 || sum.LatencyUs.P50 >= 20_000 {
+		t.Fatalf("ok p50 %.0fus, all p50 %.0fus; want only the 200s above 20ms", sum.OKLatencyUs.P50, sum.LatencyUs.P50)
+	}
+}
+
 func TestSpreadsRequestsOverURLsInTurn(t *testing.T) {
 	var urls []string
 	for _, id := range []string{"a", "b", "c"} {

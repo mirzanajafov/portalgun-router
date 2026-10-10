@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"text/tabwriter"
+
+	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
 type Stat struct {
@@ -44,8 +46,27 @@ type Cell struct {
 	CPUPerRequestUs  Stat    `json:"cpuPerRequestUs"`
 	UserPerRequestUs Stat    `json:"userPerRequestUs"`
 	MemoryPeakMB     Stat    `json:"memoryPeakMb"`
+	SwapPeakMB       Stat    `json:"swapPeakMb,omitzero"`
 	OverheadP50Us    float64 `json:"overheadP50Us"`
 	OverheadP99Us    float64 `json:"overheadP99Us"`
+	GoodputRps       Stat    `json:"goodputRps,omitzero"`
+	OKP50Us          Stat    `json:"okP50Us,omitzero"`
+	OKP99Us          Stat    `json:"okP99Us,omitzero"`
+	ShedShare        Stat    `json:"shedShare,omitzero"`
+	FailedShare      Stat    `json:"failedShare,omitzero"`
+}
+
+func goodput(s loadgen.Summary) float64 {
+	if s.WindowSec <= 0 {
+		return 0
+	}
+	var ok int64
+	for code, n := range s.Status {
+		if len(code) == 3 && code[0] == '2' {
+			ok += n
+		}
+	}
+	return float64(ok) / s.WindowSec
 }
 
 type Report struct {
@@ -100,13 +121,14 @@ func Summarize(points []Point) Report {
 	for k, ps := range groups {
 		c := Cell{System: k.system, Rate: k.rate, Runs: len(ps)}
 		clean := slices.ContainsFunc(ps, func(p Point) bool { return p.GeneratorOK })
-		var p50, p99, p999, tput, cpu, user, mem []float64
+		var p50, p99, p999, tput, cpu, user, mem, swap, good, okP50, okP99, shed, failed []float64
 		for _, p := range ps {
 			if p.Saturated {
 				c.Saturated++
 			}
 			if p.MemoryPeakMB > 0 {
 				mem = append(mem, p.MemoryPeakMB)
+				swap = append(swap, p.SwapPeakMB)
 			}
 			if p.Died != "" {
 				c.Died++
@@ -124,6 +146,15 @@ func Summarize(points []Point) Report {
 			p99 = append(p99, p.Loadgen.LatencyUs.P99)
 			p999 = append(p999, p.Loadgen.LatencyUs.P999)
 			tput = append(tput, p.Loadgen.ThroughputRps)
+			good = append(good, goodput(p.Loadgen))
+			if n := p.Loadgen.Scheduled; n > 0 {
+				shed = append(shed, float64(p.Loadgen.Status["503"])/float64(n))
+				failed = append(failed, float64(p.Loadgen.Failed+p.Loadgen.Dropped)/float64(n))
+			}
+			if p.Loadgen.OKLatencyUs.Count > 0 {
+				okP50 = append(okP50, p.Loadgen.OKLatencyUs.P50)
+				okP99 = append(okP99, p.Loadgen.OKLatencyUs.P99)
+			}
 			if p.CPUPerRequestUs > 0 {
 				cpu = append(cpu, p.CPUPerRequestUs)
 				user = append(user, p.UserPerRequestUs)
@@ -131,7 +162,9 @@ func Summarize(points []Point) Report {
 		}
 		c.P50Us, c.P99Us, c.P999Us = statOf(p50), statOf(p99), statOf(p999)
 		c.ThroughputRps, c.CPUPerRequestUs, c.UserPerRequestUs = statOf(tput), statOf(cpu), statOf(user)
-		c.MemoryPeakMB = statOf(mem)
+		c.MemoryPeakMB, c.SwapPeakMB = statOf(mem), statOf(swap)
+		c.GoodputRps, c.ShedShare, c.FailedShare = statOf(good), statOf(shed), statOf(failed)
+		c.OKP50Us, c.OKP99Us = statOf(okP50), statOf(okP99)
 		rep.Cells = append(rep.Cells, c)
 	}
 	direct := map[float64]Cell{}
@@ -192,4 +225,18 @@ func (r Report) WriteText(w io.Writer) error {
 		fmt.Fprintf(w, "max sustained rate %-8s %.0f rps\n", n, r.MaxRate[n])
 	}
 	return nil
+}
+
+func (r Report) WriteOverloadText(w io.Writer) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
+	fmt.Fprintf(tw, "rate\tsystem\truns\tdied\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tswap MB\t\n")
+	for _, c := range r.Cells {
+		fmt.Fprintf(tw, "%.0f\t%s\t%d\t%d\t%.0f (%.0f-%.0f)\t%.1f\t%.2f\t%.1f\t%.1f (%.1f-%.1f)\t%.1f\t%.0f\t%.0f\t\n",
+			c.Rate, c.System, c.Runs, c.Died,
+			c.GoodputRps.Median, c.GoodputRps.Min, c.GoodputRps.Max,
+			c.ShedShare.Median*100, c.FailedShare.Median*100,
+			c.OKP50Us.Median/1000, c.OKP99Us.Median/1000, c.OKP99Us.Min/1000, c.OKP99Us.Max/1000,
+			c.CPUPerRequestUs.Median, c.MemoryPeakMB.Max, c.SwapPeakMB.Max)
+	}
+	return tw.Flush()
 }

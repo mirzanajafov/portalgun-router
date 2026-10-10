@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -174,6 +175,173 @@ func TestFullPoolAnswers503(t *testing.T) {
 	}
 	cancel()
 	wg.Wait()
+	waitIdle(t, g)
+}
+
+type holding struct {
+	release chan struct{}
+	once    sync.Once
+	now     atomic.Int64
+	most    atomic.Int64
+	seen    atomic.Int64
+}
+
+func (h *holding) let() { h.once.Do(func() { close(h.release) }) }
+
+func holdingDim(t *testing.T) (*holding, string) {
+	t.Helper()
+	h := &holding{release: make(chan struct{})}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.seen.Add(1)
+		n := h.now.Add(1)
+		defer h.now.Add(-1)
+		for m := h.most.Load(); n > m && !h.most.CompareAndSwap(m, n); m = h.most.Load() {
+		}
+		if r.URL.Path == "/hold" {
+			select {
+			case <-h.release:
+			case <-r.Context().Done():
+			}
+		}
+		if d, err := time.ParseDuration(r.URL.Query().Get("sleep")); err == nil {
+			time.Sleep(d)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(h.let)
+	return h, srv.Listener.Addr().String()
+}
+
+func capped(t *testing.T, limit int, addr string) *config.Config {
+	return parse(t, config.Config{
+		MaxInflight: new(limit),
+		Routes:      []config.Route{{Name: "all", PathPrefix: "/", Pool: "main"}},
+		Pools:       []config.Pool{{Name: "main", Dimensions: []config.Dimension{{ID: "a", Address: addr}}}},
+	})
+}
+
+func waitHeld(t *testing.T, g *Gateway, n int64) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for g.State().Inflight < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("the gateway holds %d requests, want %d", g.State().Inflight, n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestGatewayShedsPastItsCap(t *testing.T) {
+	h, addr := holdingDim(t)
+	g, srv := serve(t, capped(t, 2, addr))
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Go(func() {
+			if resp, err := srv.Client().Get(srv.URL + "/hold"); err == nil {
+				resp.Body.Close()
+			}
+		})
+	}
+	waitHeld(t, g, 2)
+
+	seen := h.seen.Load()
+	began := time.Now()
+	status, header := get(t, srv.Client(), srv.URL+"/", "")
+	if status != http.StatusServiceUnavailable || header.Get("Retry-After") != "1" {
+		t.Fatalf("got %d with Retry-After %q, want 503 and 1", status, header.Get("Retry-After"))
+	}
+	if elapsed := time.Since(began); elapsed > 100*time.Millisecond {
+		t.Fatalf("shedding took %v", elapsed)
+	}
+	if h.seen.Load() != seen {
+		t.Fatal("a shed request reached the dimension")
+	}
+	if got := gathered(t, g.Metrics(), "portal_shed_total"); got != 1 {
+		t.Fatalf("portal_shed_total is %v, want 1", got)
+	}
+
+	h.let()
+	wg.Wait()
+	waitIdle(t, g)
+	if g.State().Inflight != 0 {
+		t.Fatalf("the gateway still holds %d requests", g.State().Inflight)
+	}
+	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusOK {
+		t.Fatalf("got %d after the held requests finished, want 200", status)
+	}
+}
+
+func TestGatewayCapHoldsUnderConcurrency(t *testing.T) {
+	h, addr := holdingDim(t)
+	g, srv := serve(t, capped(t, 8, addr))
+	client := &http.Client{Transport: &http.Transport{MaxIdleConnsPerHost: 64}}
+	t.Cleanup(client.CloseIdleConnections)
+	var wg sync.WaitGroup
+	var ok, shed, other atomic.Int64
+	for range 64 {
+		wg.Go(func() {
+			for range 20 {
+				resp, err := client.Get(srv.URL + "/?sleep=2ms")
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+				switch resp.StatusCode {
+				case http.StatusOK:
+					ok.Add(1)
+				case http.StatusServiceUnavailable:
+					shed.Add(1)
+				default:
+					other.Add(1)
+				}
+			}
+		})
+	}
+	wg.Wait()
+	if most := h.most.Load(); most > 8 {
+		t.Fatalf("the dimension saw %d requests at once through a cap of 8", most)
+	}
+	if ok.Load() == 0 || shed.Load() == 0 || other.Load() != 0 || ok.Load()+shed.Load() != 64*20 {
+		t.Fatalf("ok %d, shed %d, other %d", ok.Load(), shed.Load(), other.Load())
+	}
+	if got := gathered(t, g.Metrics(), "portal_shed_total"); got != float64(shed.Load()) {
+		t.Fatalf("portal_shed_total is %v, clients saw %d", got, shed.Load())
+	}
+	if g.State().Inflight != 0 {
+		t.Fatalf("the gateway still holds %d requests", g.State().Inflight)
+	}
+}
+
+func TestGatewayCapFollowsTheConfig(t *testing.T) {
+	h, addr := holdingDim(t)
+	g, srv := serve(t, capped(t, 1, addr))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if resp, err := srv.Client().Get(srv.URL + "/hold"); err == nil {
+			resp.Body.Close()
+		}
+	}()
+	waitHeld(t, g, 1)
+	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusServiceUnavailable {
+		t.Fatalf("got %d at a cap of 1, want 503", status)
+	}
+	if err := g.Apply(capped(t, 0, addr)); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusOK {
+		t.Fatalf("got %d with the cap off, want 200", status)
+	}
+	if err := g.Apply(capped(t, 2, addr)); err != nil {
+		t.Fatal(err)
+	}
+	if st := g.State(); st.MaxInflight != 2 || st.Inflight != 1 {
+		t.Fatalf("state %+v, want a cap of 2 with the held request still counted", st)
+	}
+	h.let()
+	<-done
 	waitIdle(t, g)
 }
 

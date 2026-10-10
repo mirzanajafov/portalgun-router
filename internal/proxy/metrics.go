@@ -32,10 +32,12 @@ type Metrics struct {
 	limited    *prometheus.CounterVec
 	degraded   *prometheus.CounterVec
 	unrouted   prometheus.Counter
+	shed       prometheus.Counter
 	redisTrips prometheus.Counter
 	gateway    atomic.Pointer[Gateway]
 	inflight   *prometheus.Desc
 	latency    *prometheus.Desc
+	held       *prometheus.Desc
 }
 
 func NewMetrics() *Metrics {
@@ -86,14 +88,19 @@ func NewMetrics() *Metrics {
 			Name: "portal_unrouted_total",
 			Help: "Requests that matched no route.",
 		}),
+		shed: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "portal_shed_total",
+			Help: "Requests refused with 503 because the gateway already held its maximum in flight.",
+		}),
 		redisTrips: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "portal_redis_round_trips_total",
 			Help: "Commands and pipelines sent to Redis, each one a round trip.",
 		}),
 		inflight: prometheus.NewDesc("portal_dimension_inflight", "Requests in flight to a dimension.", []string{"dimension", "version"}, nil),
 		latency:  prometheus.NewDesc("portal_dimension_latency_seconds", "Peak EWMA latency the balancer sees for a dimension.", []string{"dimension", "version"}, nil),
+		held:     prometheus.NewDesc("portal_inflight", "Requests the gateway holds right now, across all routes.", nil, nil),
 	}
-	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.redisTrips, m,
+	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.shed, m.redisTrips, m,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -103,6 +110,7 @@ func (m *Metrics) watch(g *Gateway) { m.gateway.Store(g) }
 func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.inflight
 	ch <- m.latency
+	ch <- m.held
 }
 
 func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
@@ -110,7 +118,9 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	if g == nil {
 		return
 	}
-	for _, u := range g.State().Upstreams {
+	st := g.State()
+	ch <- prometheus.MustNewConstMetric(m.held, prometheus.GaugeValue, float64(st.Inflight))
+	for _, u := range st.Upstreams {
 		ch <- prometheus.MustNewConstMetric(m.inflight, prometheus.GaugeValue, float64(u.Inflight), u.ID, u.Version)
 		ch <- prometheus.MustNewConstMetric(m.latency, prometheus.GaugeValue, u.LatencyMs/1000, u.ID, u.Version)
 	}

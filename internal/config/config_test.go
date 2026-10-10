@@ -20,7 +20,7 @@ func TestParseAppliesDefaults(t *testing.T) {
 	if r.Host != "portal.example" || r.Timeout.D() != 5*time.Second || r.PerTryTimeout.D() != 5*time.Second {
 		t.Fatalf("route %+v", r)
 	}
-	if p.Balancer != BalancerP2C || d.Version != DefaultVersion || d.MaxInflight != DefaultMaxInflight {
+	if p.Balancer != BalancerP2C || d.Version != DefaultVersion || d.MaxInflight != DefaultMaxInflight || *c.MaxInflight != DefaultGatewayCap {
 		t.Fatalf("pool %+v dimension %+v", p, d)
 	}
 	if *r.Retries.Max != 2 || r.Retries.BudgetRatio != 0.2 || *p.PanicThreshold != 0.5 || p.SlowStart.D() != 10*time.Second {
@@ -44,13 +44,13 @@ func TestRateLimitDefaults(t *testing.T) {
 }
 
 func TestZeroIsKeptWhereItMeansOff(t *testing.T) {
-	c, err := Parse([]byte(`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 0}}],
+	c, err := Parse([]byte(`{"maxInflight": 0, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 0}}],
 		"pools": [{"name": "p", "panicThreshold": 0, "slowStart": "0s", "healthCheck": {"disabled": true},
 		"dimensions": [{"id": "a", "address": "a:1"}]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if *c.Routes[0].Retries.Max != 0 || *c.Pools[0].PanicThreshold != 0 || *c.Pools[0].SlowStart != 0 || !c.Pools[0].HealthCheck.Disabled {
+	if *c.MaxInflight != 0 || *c.Routes[0].Retries.Max != 0 || *c.Pools[0].PanicThreshold != 0 || *c.Pools[0].SlowStart != 0 || !c.Pools[0].HealthCheck.Disabled {
 		t.Fatalf("explicit zeros were replaced by defaults: %+v %+v", c.Routes[0].Retries, c.Pools[0])
 	}
 }
@@ -88,6 +88,8 @@ func TestParseRejectsBadConfigs(t *testing.T) {
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "key must be"},
 		"trusted hops": {`{"trustedHops": -1, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "trustedHops"},
+		"negative cap": {`{"maxInflight": -1, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "maxInflight"},
 		"tiny decay": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "ewmaDecay": "10ms", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "ewmaDecay"},
 		"outlier ratio": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],

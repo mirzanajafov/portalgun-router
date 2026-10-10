@@ -43,6 +43,7 @@ type Summary struct {
 	Errors        map[string]int64   `json:"errors,omitempty"`
 	Dimensions    map[string]int64   `json:"dimensions,omitempty"`
 	LatencyUs     Percentiles        `json:"latencyUs"`
+	OKLatencyUs   Percentiles        `json:"okLatencyUs"`
 	ServiceUs     Percentiles        `json:"serviceUs"`
 	LagUs         Percentiles        `json:"lagUs"`
 	CPU           *CPU               `json:"cpu,omitempty"`
@@ -53,6 +54,7 @@ type Summary struct {
 
 type stats struct {
 	latency   *hdrhistogram.Histogram
+	ok        *hdrhistogram.Histogram
 	service   *hdrhistogram.Histogram
 	lag       *hdrhistogram.Histogram
 	scheduled int64
@@ -67,6 +69,7 @@ type stats struct {
 func newStats() *stats {
 	return &stats{
 		latency: hdrhistogram.New(1, maxTrackedNanos, 3),
+		ok:      hdrhistogram.New(1, maxTrackedNanos, 3),
 		service: hdrhistogram.New(1, maxTrackedNanos, 3),
 		lag:     hdrhistogram.New(1, maxTrackedNanos, 3),
 		status:  map[int]int64{},
@@ -93,6 +96,9 @@ func (s *stats) add(r Record, dim string) {
 			s.dims[dim]++
 		}
 		record(s.latency, r.Ended-r.Scheduled)
+		if r.Status >= 200 && r.Status < 300 {
+			record(s.ok, r.Ended-r.Scheduled)
+		}
 		if r.Connected > 0 {
 			record(s.service, r.Ended-r.Connected)
 		}
@@ -135,6 +141,7 @@ func (s *stats) fill(sum *Summary) {
 		sum.Dimensions = s.dims
 	}
 	sum.LatencyUs = percentiles(s.latency)
+	sum.OKLatencyUs = percentiles(s.ok)
 	sum.ServiceUs = percentiles(s.service)
 	sum.LagUs = percentiles(s.lag)
 }

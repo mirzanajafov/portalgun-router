@@ -1,4 +1,5 @@
 {
+  "maxInflight": 0,
   "routes": [
     { "name": "all", "pathPrefix": "/", "pool": "dimensions", "timeout": "90s", "perTryTimeout": "90s" }
   ],
