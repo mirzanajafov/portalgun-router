@@ -91,6 +91,7 @@ func (v Variant) Config() config.Config {
 		pool.Dimensions = append(pool.Dimensions, config.Dimension{ID: d, Address: fmt.Sprintf("toxiproxy:%d", 18080+i), MaxInflight: 1024})
 	}
 	return config.Config{
+		MaxInflight: new(0),
 		Routes: []config.Route{{
 			Name:          "all",
 			PathPrefix:    "/",

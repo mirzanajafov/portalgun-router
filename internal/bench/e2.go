@@ -114,8 +114,9 @@ func (c LimiterCell) Config() config.Config {
 		}
 	}
 	return config.Config{
-		Routes: []config.Route{route},
-		Pools:  []config.Pool{{Name: "dim", Dimensions: []config.Dimension{{ID: "dim", Address: "dim:8080", MaxInflight: 4096}}}},
+		MaxInflight: new(0),
+		Routes:      []config.Route{route},
+		Pools:       []config.Pool{{Name: "dim", Dimensions: []config.Dimension{{ID: "dim", Address: "dim:8080", MaxInflight: 4096}}}},
 	}
 }
 

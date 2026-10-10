@@ -38,7 +38,7 @@ const (
 
 	DefaultVersion     = "v1"
 	DefaultMaxInflight = 1024
-	DefaultGatewayCap  = 1024
+	DefaultGatewayCap  = 256
 	DefaultTimeout     = 30 * time.Second
 	DefaultPerTry      = 10 * time.Second
 	DefaultRetries     = 2
