@@ -36,7 +36,8 @@ function OverloadResults({ run, report }: { run: string; report: ProxyReport }) 
       <p className="muted mb-3 text-sm">
         Each point starts from a freshly restarted proxy and goes straight to the offered rate. Each cell shows the 2xx responses served per second, the p99
         of those responses only, and the highest memory any repetition reached. Anything above the cap gets a 503 at once and isn&apos;t counted as served. A
-        run counts as collapsed when more than 1% of its requests time out or never get sent. Run <span className="mono">{run}</span>.
+        run counts as collapsed when more than 1% of its requests time out or never get sent. PortalGun&apos;s default cap is 256, the largest that never
+        collapsed here. Run <span className="mono">{run}</span>.
       </p>
       <table className="mono w-full min-w-[720px] text-sm">
         <thead className="muted text-left text-xs">
