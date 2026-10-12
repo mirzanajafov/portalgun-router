@@ -7,7 +7,15 @@ local t = redis.call('TIME')
 local now = tonumber(t[1]) * 1000000 + tonumber(t[2])
 local interval = tonumber(ARGV[1])
 local tolerance = tonumber(ARGV[2])
-local owed = tonumber(ARGV[3] or 0)
+local owed = 0
+if KEYS[2] then
+  local total = tonumber(ARGV[3])
+  local applied = tonumber(redis.call('GET', KEYS[2]) or 0)
+  if total > applied then
+    owed = total - applied
+    redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[4])
+  end
+end
 local stored = redis.call('GET', KEYS[1])
 local tat = now
 if stored then
@@ -47,7 +55,15 @@ end
 `
 
 var leaseScript = redis.NewScript(bucketState + `
-local owed = tonumber(ARGV[5] or 0)
+local owed = 0
+if KEYS[2] then
+  local total = tonumber(ARGV[5])
+  local applied = tonumber(redis.call('GET', KEYS[2]) or 0)
+  if total > applied then
+    owed = total - applied
+    redis.call('SET', KEYS[2], ARGV[5], 'PX', ARGV[6])
+  end
+end
 if fresh then
   owed = 0
 end

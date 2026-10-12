@@ -24,6 +24,7 @@ func ClientOptions(addr string) *redis.Options {
 		ReadTimeout:           time.Second,
 		WriteTimeout:          time.Second,
 		PoolSize:              64,
+		MinIdleConns:          16,
 		ContextTimeoutEnabled: true,
 	}
 }

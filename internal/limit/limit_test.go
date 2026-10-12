@@ -165,8 +165,16 @@ func silentRedis(t *testing.T) (string, *atomic.Int64) {
 
 func TestRedisLimitersGiveUpOnARedisThatNeverAnswers(t *testing.T) {
 	addr, accepted := silentRedis(t)
-	rdb := redis.NewClient(ClientOptions(addr))
+	opts := ClientOptions(addr)
+	rdb := redis.NewClient(opts)
 	t.Cleanup(func() { rdb.Close() })
+	deadline := time.Now().Add(2 * time.Second)
+	for accepted.Load() < int64(opts.MinIdleConns) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := accepted.Load(); n != int64(opts.MinIdleConns) {
+		t.Fatalf("%d connections opened ahead of the first call, want %d", n, opts.MinIdleConns)
+	}
 	rule := Rule{Rate: 10, Burst: 4}
 	e, _ := NewRedisExact(rdb, "x:", rule, 2, 5*time.Millisecond, wall)
 	l, _ := NewLease(rdb, "y:", rule, 2, 20*time.Millisecond, time.Second, 5*time.Millisecond, wall)
@@ -182,7 +190,7 @@ func TestRedisLimitersGiveUpOnARedisThatNeverAnswers(t *testing.T) {
 			t.Fatalf("%s: 50 decisions took %v; the timeout has to bound the reply, not only the wait for a connection", name, took)
 		}
 		if n := accepted.Load() - before; n > tripFailures+2 {
-			t.Fatalf("%s: %d connections for 50 decisions; a timed-out connection is closed, so without the breaker every request dials", name, n)
+			t.Fatalf("%s: %d new connections for 50 decisions; a timed-out connection is closed and replaced, so without the breaker every request costs a dial", name, n)
 		}
 	}
 }
@@ -283,16 +291,32 @@ func TestBreakerForgetsFailuresOutsideItsWindow(t *testing.T) {
 	}
 }
 
-func TestLedgerTakesWhatIsOwedOnceAndForgetsOldDebts(t *testing.T) {
+func TestLedgerSendsTheRunningTotalUntilRedisConfirmsIt(t *testing.T) {
 	l := newLedger()
 	l.add("k", 2, 0)
 	l.add("k", 1, 0)
-	if n := l.take("k"); n != 3 {
-		t.Fatalf("took %v of 3", n)
+	epoch, total := l.unpaid("k")
+	if epoch == "" || total != 3 {
+		t.Fatalf("unpaid %q %v, want 3", epoch, total)
 	}
-	if n := l.take("k"); n != 0 {
-		t.Fatalf("took %v twice", n)
+	l.add("k", 4, 0)
+	l.settle("k", "someone-else", 7)
+	l.settle("k", epoch, 3)
+	if again, total := l.unpaid("k"); again != epoch || total != 7 {
+		t.Fatalf("unpaid %q %v: the total keeps growing under one epoch until all of it is confirmed", again, total)
 	}
+	l.settle("k", epoch, 7)
+	if l.size() != 0 {
+		t.Fatal("a key with everything confirmed is kept")
+	}
+	l.add("k", 1, 0)
+	if next, total := l.unpaid("k"); next == epoch || total != 1 {
+		t.Fatalf("unpaid %q %v: a paid-up key starts a new epoch from zero", next, total)
+	}
+}
+
+func TestLedgerForgetsOldDebts(t *testing.T) {
+	l := newLedger()
 	var now int64
 	for i := range 300000 {
 		l.add(fmt.Sprint("ip-", i), 1, now)
@@ -300,6 +324,58 @@ func TestLedgerTakesWhatIsOwedOnceAndForgetsOldDebts(t *testing.T) {
 	}
 	if n := l.size(); n > 150000 {
 		t.Fatalf("%d debts kept from 300k one-off keys over five minutes", n)
+	}
+}
+
+func redisNow(t *testing.T, rdb *redis.Client) float64 {
+	t.Helper()
+	at, err := rdb.Time(context.Background()).Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return float64(at.UnixMicro())
+}
+
+func TestADebtSentTwiceIsChargedOnce(t *testing.T) {
+	rdb := testRedis(t)
+	ctx := context.Background()
+	p := prefix(t)
+	rule := Rule{Rate: 100, Burst: 10}
+	interval := usPerToken(rule.Rate)
+	gcra := func(epoch string, total float64) {
+		if err := gcraScript.Run(ctx, rdb, debtKeys(p+"exact", epoch), interval, interval*rule.Burst, total, debtTTL.Milliseconds()).Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gcra("", 0)
+	gcra("e1", 30)
+	gcra("e1", 50)
+	gcra("e1", 50)
+	gcra("e1", 30)
+	tat, err := rdb.Get(ctx, p+"exact").Float64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ahead := tat - redisNow(t, rdb); ahead < 400_000 || ahead > 600_000 {
+		t.Fatalf("theoretical arrival %.0f ms ahead, want about 510: a debt that reached 50 at 10 ms each, charged once however often and in whatever order its totals arrive", ahead/1000)
+	}
+
+	lease := func(epoch string, total float64) {
+		if err := leaseScript.Run(ctx, rdb, debtKeys(p+"lease", epoch), rule.Rate/1e6, rule.Burst, ttlMillis(rule), 1, total, debtTTL.Milliseconds()).Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lease("", 0)
+	lease("e1", 30)
+	lease("e1", 50)
+	lease("e1", 50)
+	lease("e1", 30)
+	level, err := rdb.HGet(ctx, p+"lease", "level").Float64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if level < -45 || level > -35 {
+		t.Fatalf("bucket at %.1f, want about -41: a debt of 50 against 9 tokens, charged once", level)
 	}
 }
 

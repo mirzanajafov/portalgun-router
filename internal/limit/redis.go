@@ -45,13 +45,13 @@ func (e *exact) Allow(ctx context.Context, key string) Decision {
 	if !e.guard.allow() {
 		return e.degraded(key)
 	}
-	owed := e.debts.take(key)
+	epoch, owed := e.debts.unpaid(key)
 	rctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
-	res, err := gcraScript.Run(rctx, e.rdb, []string{e.prefix + key}, e.interval, e.tolerance, owed).Int64Slice()
+	res, err := gcraScript.Run(rctx, e.rdb, debtKeys(e.prefix+key, epoch), e.interval, e.tolerance, owed, debtTTL.Milliseconds()).Int64Slice()
 	e.guard.record(ctx, err)
-	if unsent(err) {
-		e.debts.add(key, owed, e.now())
+	if err == nil {
+		e.debts.settle(key, epoch, owed)
 	}
 	if err != nil || len(res) != 2 {
 		return e.degraded(key)

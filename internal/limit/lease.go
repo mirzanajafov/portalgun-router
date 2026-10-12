@@ -17,15 +17,7 @@ type leaseKey struct {
 	second     int64
 	thisSecond float64
 	lastSecond float64
-	owed       float64
-	owedAt     int64
-}
-
-func (k *leaseKey) owe(n float64, now int64) {
-	if n > 0 {
-		k.owed += n
-		k.owedAt = now
-	}
+	debt       debt
 }
 
 func (k *leaseKey) count(now int64) {
@@ -93,7 +85,7 @@ func (l *lease) key(k string, now int64) *leaseKey {
 		if l.sweeps&0x3ff == 0 {
 			for name, old := range l.keys {
 				old.mu.Lock()
-				stale := old.fetching == nil && now >= old.expires && now >= old.emptyUntil && (old.owed == 0 || now-old.owedAt >= int64(forgetDebt))
+				stale := old.fetching == nil && now >= old.expires && now >= old.emptyUntil && (old.debt.clear() || now-old.debt.at >= int64(forgetDebt))
 				old.mu.Unlock()
 				if stale {
 					delete(l.keys, name)
@@ -137,24 +129,21 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 		}
 		want := math.Ceil(max(st.thisSecond, st.lastSecond) * l.target.Seconds())
 		want = min(max(want, 1), l.rule.Burst)
-		owed := st.owed
-		st.owed = 0
+		epoch, owed := st.debt.unpaid()
 		done := make(chan struct{})
 		st.fetching = done
 		st.mu.Unlock()
 
-		grant, err := l.fetch(ctx, key, want, owed)
+		grant, err := l.fetch(ctx, key, want, epoch, owed)
 
 		st.mu.Lock()
 		st.fetching = nil
 		close(done)
 		now = l.now()
 		if err != nil {
-			if unsent(err) {
-				st.owe(owed, now)
-			}
 			return l.degraded(st, key, now)
 		}
+		st.debt.settle(epoch, owed)
 		st.tokens = grant
 		st.expires = now + int64(l.ttl)
 		if grant < want {
@@ -166,17 +155,17 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 func (l *lease) degraded(st *leaseKey, key string, now int64) Decision {
 	ok, after := l.fallback.Take(key, now)
 	if ok {
-		st.owe(1, now)
+		st.debt.add(1, now)
 	}
 	st.mu.Unlock()
 	return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
 }
 
-func (l *lease) fetch(ctx context.Context, key string, want, owed float64) (float64, error) {
+func (l *lease) fetch(ctx context.Context, key string, want float64, epoch string, owed float64) (float64, error) {
 	rctx, cancel := context.WithTimeout(ctx, l.timeout)
 	defer cancel()
 	l.fetches.Add(1)
-	n, err := leaseScript.Run(rctx, l.rdb, []string{l.prefix + key}, l.rule.Rate/1e6, l.rule.Burst, ttlMillis(l.rule), want, owed).Int64()
+	n, err := leaseScript.Run(rctx, l.rdb, debtKeys(l.prefix+key, epoch), l.rule.Rate/1e6, l.rule.Burst, ttlMillis(l.rule), want, owed, debtTTL.Milliseconds()).Int64()
 	l.guard.record(ctx, err)
 	return float64(n), err
 }
