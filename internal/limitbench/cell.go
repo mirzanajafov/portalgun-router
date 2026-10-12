@@ -38,11 +38,16 @@ type Cell struct {
 }
 
 type Instance struct {
-	Admin      string `json:"admin"`
-	Decisions  int    `json:"decisions"`
-	Dropped    int64  `json:"dropped"`
-	Degraded   int64  `json:"degraded"`
-	RoundTrips int64  `json:"roundTrips"`
+	Admin         string `json:"admin"`
+	Decisions     int    `json:"decisions"`
+	Dropped       int64  `json:"dropped"`
+	Degraded      int64  `json:"degraded"`
+	RoundTrips    int64  `json:"roundTrips"`
+	RedisCalls    int64  `json:"redisCalls"`
+	RedisSlow     int64  `json:"redisSlow"`
+	RedisTimeouts int64  `json:"redisTimeouts"`
+	RedisDials    int64  `json:"redisDials"`
+	RedisSlowDial int64  `json:"redisSlowDials"`
 }
 
 type Redis struct {
@@ -57,6 +62,15 @@ type Redis struct {
 const (
 	degradedMetric = "portal_rate_limit_degraded_total"
 	tripsMetric    = "portal_redis_round_trips_total"
+	callsMetric    = "portal_redis_call_seconds"
+	dialsMetric    = "portal_redis_dial_seconds"
+	slowAfter      = "0.002"
+
+	callsKey    = "calls"
+	slowKey     = "slow"
+	timeoutsKey = "timeouts"
+	dialsKey    = "dials"
+	slowDialKey = "slowDials"
 )
 
 type Report struct {
@@ -163,8 +177,10 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 		if err != nil {
 			return nil, err
 		}
-		inst.Degraded = now[degradedMetric] - countersBefore[i][degradedMetric]
-		inst.RoundTrips = now[tripsMetric] - countersBefore[i][tripsMetric]
+		delta := func(k string) int64 { return now[k] - countersBefore[i][k] }
+		inst.Degraded, inst.RoundTrips = delta(degradedMetric), delta(tripsMetric)
+		inst.RedisCalls, inst.RedisSlow, inst.RedisTimeouts = delta(callsKey), delta(slowKey), delta(timeoutsKey)
+		inst.RedisDials, inst.RedisSlowDial = delta(dialsKey), delta(slowDialKey)
 		rep.Redis.RoundTrips += inst.RoundTrips
 		rep.Instances = append(rep.Instances, inst)
 		all = append(all, d.Decisions...)
@@ -229,34 +245,75 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]int64{}
-	for _, name := range []string{degradedMetric, tripsMetric} {
-		n, err := SumMetric(strings.NewReader(string(body)), name)
-		if err != nil {
-			return nil, err
-		}
-		out[name] = n
+	ss, err := Samples(strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
 	}
-	return out, nil
+	return Counters(ss), nil
 }
 
-func SumMetric(r io.Reader, name string) (int64, error) {
-	var total float64
+func Counters(ss []Sample) map[string]int64 {
+	sum := func(name string, keep func(Sample) bool) int64 {
+		var total float64
+		for _, s := range ss {
+			if s.Name == name && keep(s) {
+				total += s.Value
+			}
+		}
+		return int64(total)
+	}
+	all := func(Sample) bool { return true }
+	within := func(s Sample) bool { return s.Labels["le"] == slowAfter }
+	calls := sum(callsMetric+"_count", all)
+	dials := sum(dialsMetric+"_count", all)
+	return map[string]int64{
+		degradedMetric: sum(degradedMetric, all),
+		tripsMetric:    sum(tripsMetric, all),
+		callsKey:       calls,
+		slowKey:        calls - sum(callsMetric+"_bucket", within),
+		timeoutsKey:    sum(callsMetric+"_count", func(s Sample) bool { return s.Labels["outcome"] == "timeout" }),
+		dialsKey:       dials,
+		slowDialKey:    dials - sum(dialsMetric+"_bucket", within),
+	}
+}
+
+type Sample struct {
+	Name   string
+	Labels map[string]string
+	Value  float64
+}
+
+func Samples(r io.Reader) ([]Sample, error) {
+	var out []Sample
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
-		line := sc.Text()
-		rest, ok := strings.CutPrefix(line, name)
-		if !ok || (rest != "" && rest[0] != '{' && rest[0] != ' ') {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || line[0] == '#' {
 			continue
 		}
-		fields := strings.Fields(rest)
-		v, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-		if err != nil {
-			return 0, fmt.Errorf("metric line %q: %w", line, err)
+		cut := strings.LastIndexByte(line, ' ')
+		if cut < 0 {
+			continue
 		}
-		total += v
+		v, err := strconv.ParseFloat(line[cut+1:], 64)
+		if err != nil {
+			return nil, fmt.Errorf("metric line %q: %w", line, err)
+		}
+		s := Sample{Value: v, Labels: map[string]string{}}
+		head := line[:cut]
+		name, labels, ok := strings.Cut(head, "{")
+		s.Name = name
+		if ok {
+			for pair := range strings.SplitSeq(strings.TrimSuffix(labels, "}"), ",") {
+				k, val, ok := strings.Cut(pair, "=")
+				if ok {
+					s.Labels[k] = strings.Trim(val, `"`)
+				}
+			}
+		}
+		out = append(out, s)
 	}
-	return int64(total), sc.Err()
+	return out, sc.Err()
 }
 
 type usage struct {
