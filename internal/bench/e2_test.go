@@ -73,7 +73,7 @@ func TestTheLimiterDefaultConfigIsLocalSyncOverTwoGateways(t *testing.T) {
 func limiterRun(cell string, p50, p99 float64, v *limit.Verdict) LimiterRun {
 	return LimiterRun{Cell: cell, Report: &limitbench.Report{
 		Generator: loadgen.Summary{Valid: true, LatencyUs: loadgen.Percentiles{P50: p50, P99: p99}},
-		Instances: []limitbench.Instance{{Degraded: 2}, {Degraded: 1}},
+		Instances: []limitbench.Instance{{Degraded: 2, RedisCalls: 600, RedisSlow: 30, RedisTimeouts: 6, RedisDials: 4}, {Degraded: 1, RedisCalls: 400, RedisSlow: 20, RedisTimeouts: 4, RedisDials: 3}},
 		Redis:     limitbench.Redis{TripsReq: 1.01, CommandsReq: 4.03},
 		Verdict:   v,
 	}}
@@ -97,6 +97,9 @@ func TestLimiterSummaryComparesWithTheRunWithoutALimiter(t *testing.T) {
 	}
 	if r.OverAdmission.Median != 0.12 || r.MaxAhead.Median != 37 || r.FalseAdmits.Median != 0.05 || r.Degraded.Median != 3 || r.RedisTrips.Median != 1.01 || r.RedisCommands.Median != 4.03 {
 		t.Fatalf("%+v", r)
+	}
+	if r.RedisSlow.Median != 0.05 || r.RedisTimeouts.Median != 0.01 || r.RedisDials.Median != 7 {
+		t.Fatalf("slow %+v, timeouts %+v, dials %+v: shares of all calls across both gateways", r.RedisSlow, r.RedisTimeouts, r.RedisDials)
 	}
 	if sums[2].AddedP50Us != nil || sums[0].AddedP50Us != nil {
 		t.Fatal("a cell without a matching baseline got an added latency")
@@ -124,7 +127,7 @@ func TestLimiterSummaryLeavesACellWithoutValidRunsBlank(t *testing.T) {
 		t.Fatal(err)
 	}
 	line := strings.Fields(strings.Split(b.String(), "\n")[2])
-	if strings.Join(line[1:], " ") != "1 (1 invalid) - - - - - - - - - - - - - -" {
+	if strings.Join(line[1:], " ") != "1 (1 invalid) "+strings.TrimSpace(strings.Repeat("- ", 17)) {
 		t.Fatalf("row %q", line)
 	}
 }

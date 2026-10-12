@@ -165,8 +165,16 @@ func silentRedis(t *testing.T) (string, *atomic.Int64) {
 
 func TestRedisLimitersGiveUpOnARedisThatNeverAnswers(t *testing.T) {
 	addr, accepted := silentRedis(t)
-	rdb := redis.NewClient(ClientOptions(addr))
+	opts := ClientOptions(addr)
+	rdb := redis.NewClient(opts)
 	t.Cleanup(func() { rdb.Close() })
+	deadline := time.Now().Add(2 * time.Second)
+	for accepted.Load() < int64(opts.MinIdleConns) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := accepted.Load(); n != int64(opts.MinIdleConns) {
+		t.Fatalf("%d connections opened ahead of the first call, want %d", n, opts.MinIdleConns)
+	}
 	rule := Rule{Rate: 10, Burst: 4}
 	e, _ := NewRedisExact(rdb, "x:", rule, 2, 5*time.Millisecond, wall)
 	l, _ := NewLease(rdb, "y:", rule, 2, 20*time.Millisecond, time.Second, 5*time.Millisecond, wall)
@@ -181,37 +189,358 @@ func TestRedisLimitersGiveUpOnARedisThatNeverAnswers(t *testing.T) {
 		if took := time.Since(began); took > 500*time.Millisecond {
 			t.Fatalf("%s: 50 decisions took %v; the timeout has to bound the reply, not only the wait for a connection", name, took)
 		}
-		if n := accepted.Load() - before; n > 2*tripAfter {
-			t.Fatalf("%s: %d connections for 50 decisions; a timed-out connection is closed, so without the breaker every request dials", name, n)
+		if n := accepted.Load() - before; n > tripFailures+2 {
+			t.Fatalf("%s: %d new connections for 50 decisions; a timed-out connection is closed and replaced, so without the breaker every request costs a dial", name, n)
 		}
 	}
 }
 
-func TestBreakerOpensOnFailuresInARowOnly(t *testing.T) {
+var errStall = errors.New("i/o timeout")
+
+func TestBreakerIgnoresAStallThatFailsAFewCallsAmongMany(t *testing.T) {
+	var clk fakeClock
+	b := breaker{now: clk.now}
+	for i := range 200 {
+		var err error
+		if i >= 100 && i < 100+tripFailures+2 {
+			err = errStall
+		}
+		if !b.allow() {
+			t.Fatalf("call %d refused: one stall that failed %d calls in a row opened the breaker", i, tripFailures+2)
+		}
+		b.record(context.Background(), err)
+		clk.advance(time.Millisecond)
+	}
+}
+
+func TestBreakerOpensWhenMostCallsFailAndProbesOneAtATime(t *testing.T) {
 	var clk fakeClock
 	b := breaker{now: clk.now}
 	ctx := context.Background()
-	fail := errors.New("i/o timeout")
-	for _, err := range []error{fail, fail, nil, fail, fail} {
-		b.record(ctx, err)
+	for range tripFailures - 1 {
+		b.allow()
+		b.record(ctx, errStall)
 	}
-	if b.open() {
-		t.Fatal("open after a success broke the run of failures")
+	if !b.allow() {
+		t.Fatalf("open after %d failures", tripFailures-1)
 	}
-	gone, cancel := context.WithCancel(ctx)
-	cancel()
-	b.record(gone, fail)
-	if b.open() {
-		t.Fatal("a request its client gave up on counted against Redis")
-	}
-	b.record(ctx, fail)
-	if !b.open() {
-		t.Fatalf("still closed after %d failures in a row", tripAfter)
+	b.record(ctx, errStall)
+	if b.allow() {
+		t.Fatalf("still closed after %d failures and no success", tripFailures)
 	}
 	clk.advance(openFor)
-	if b.open() {
-		t.Fatal("still open after the cool-down")
+	if !b.allow() {
+		t.Fatal("no probe after the cool-down")
 	}
+	if b.allow() {
+		t.Fatal("a second probe while the first is out")
+	}
+	b.record(ctx, errStall)
+	if b.allow() {
+		t.Fatal("closed after a failed probe")
+	}
+	clk.advance(openFor)
+	if !b.allow() {
+		t.Fatal("no probe after the second cool-down")
+	}
+	b.record(ctx, nil)
+	for range 2 {
+		if !b.allow() {
+			t.Fatal("still open after a probe got through")
+		}
+	}
+}
+
+func TestBreakerSkipsCallsTheClientGaveUpOn(t *testing.T) {
+	var clk fakeClock
+	b := breaker{now: clk.now}
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	for range 2 * tripFailures {
+		b.allow()
+		b.record(gone, context.Canceled)
+	}
+	if !b.allow() {
+		t.Fatal("requests their client gave up on counted against Redis")
+	}
+	for range tripFailures {
+		b.record(context.Background(), errStall)
+	}
+	clk.advance(openFor)
+	if !b.allow() {
+		t.Fatal("no probe")
+	}
+	b.record(gone, context.Canceled)
+	if !b.allow() {
+		t.Fatal("a probe its client gave up on kept the breaker open for another cool-down")
+	}
+}
+
+func TestBreakerForgetsFailuresOutsideItsWindow(t *testing.T) {
+	var clk fakeClock
+	b := breaker{now: clk.now}
+	for range tripFailures - 1 {
+		b.allow()
+		b.record(context.Background(), errStall)
+	}
+	clk.advance(windowSlots*slotLen + slotLen)
+	b.allow()
+	b.record(context.Background(), errStall)
+	if !b.allow() {
+		t.Fatal("failures from more than a window ago still counted")
+	}
+}
+
+func TestLedgerSendsTheRunningTotalUntilRedisConfirmsIt(t *testing.T) {
+	l := newLedger()
+	l.add("k", 2, 0)
+	l.add("k", 1, 0)
+	epoch, total := l.unpaid("k")
+	if epoch == "" || total != 3 {
+		t.Fatalf("unpaid %q %v, want 3", epoch, total)
+	}
+	l.add("k", 4, 0)
+	l.settle("k", "someone-else", 7)
+	l.settle("k", epoch, 3)
+	if again, total := l.unpaid("k"); again != epoch || total != 7 {
+		t.Fatalf("unpaid %q %v: the total keeps growing under one epoch until all of it is confirmed", again, total)
+	}
+	l.settle("k", epoch, 7)
+	if l.size() != 0 {
+		t.Fatal("a key with everything confirmed is kept")
+	}
+	l.add("k", 1, 0)
+	if next, total := l.unpaid("k"); next == epoch || total != 1 {
+		t.Fatalf("unpaid %q %v: a paid-up key starts a new epoch from zero", next, total)
+	}
+}
+
+func TestLedgerForgetsOldDebts(t *testing.T) {
+	l := newLedger()
+	var now int64
+	for i := range 300000 {
+		l.add(fmt.Sprint("ip-", i), 1, now)
+		now += int64(time.Millisecond)
+	}
+	if n := l.size(); n > 150000 {
+		t.Fatalf("%d debts kept from 300k one-off keys over five minutes", n)
+	}
+}
+
+func redisNow(t *testing.T, rdb *redis.Client) float64 {
+	t.Helper()
+	at, err := rdb.Time(context.Background()).Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return float64(at.UnixMicro())
+}
+
+func TestADebtSentTwiceIsChargedOnce(t *testing.T) {
+	rdb := testRedis(t)
+	ctx := context.Background()
+	p := prefix(t)
+	rule := Rule{Rate: 100, Burst: 10}
+	interval := usPerToken(rule.Rate)
+	gcra := func(epoch string, total float64) {
+		if err := gcraScript.Run(ctx, rdb, debtKeys(p+"exact", epoch), interval, interval*rule.Burst, total, debtTTL.Milliseconds()).Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gcra("", 0)
+	gcra("e1", 30)
+	gcra("e1", 50)
+	gcra("e1", 50)
+	gcra("e1", 30)
+	tat, err := rdb.Get(ctx, p+"exact").Float64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ahead := tat - redisNow(t, rdb); ahead < 400_000 || ahead > 600_000 {
+		t.Fatalf("theoretical arrival %.0f ms ahead, want about 510: a debt that reached 50 at 10 ms each, charged once however often and in whatever order its totals arrive", ahead/1000)
+	}
+
+	lease := func(epoch string, total float64) {
+		if err := leaseScript.Run(ctx, rdb, debtKeys(p+"lease", epoch), rule.Rate/1e6, rule.Burst, ttlMillis(rule), 1, total, debtTTL.Milliseconds()).Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lease("", 0)
+	lease("e1", 30)
+	lease("e1", 50)
+	lease("e1", 50)
+	lease("e1", 30)
+	level, err := rdb.HGet(ctx, p+"lease", "level").Float64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if level < -45 || level > -35 {
+		t.Fatalf("bucket at %.1f, want about -41: a debt of 50 against 9 tokens, charged once", level)
+	}
+}
+
+type gate struct {
+	ln     net.Listener
+	target string
+	shut   atomic.Bool
+	mu     sync.Mutex
+	conns  map[net.Conn]bool
+}
+
+func gated(t *testing.T) (*gate, *redis.Client) {
+	t.Helper()
+	testRedis(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &gate{ln: ln, target: os.Getenv("PORTAL_TEST_REDIS"), conns: map[net.Conn]bool{}}
+	go g.serve()
+	rdb := redis.NewClient(ClientOptions(ln.Addr().String()))
+	t.Cleanup(func() {
+		rdb.Close()
+		ln.Close()
+		g.cut()
+	})
+	return g, rdb
+}
+
+func (g *gate) serve() {
+	for {
+		c, err := g.ln.Accept()
+		if err != nil {
+			return
+		}
+		if g.shut.Load() {
+			c.Close()
+			continue
+		}
+		up, err := net.Dial("tcp", g.target)
+		if err != nil {
+			c.Close()
+			continue
+		}
+		g.mu.Lock()
+		g.conns[c], g.conns[up] = true, true
+		g.mu.Unlock()
+		go func() {
+			_, _ = io.Copy(up, c)
+			up.Close()
+			c.Close()
+		}()
+		go func() {
+			_, _ = io.Copy(c, up)
+			c.Close()
+			up.Close()
+		}()
+	}
+}
+
+func (g *gate) cut() {
+	g.shut.Store(true)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for c := range g.conns {
+		c.Close()
+	}
+	clear(g.conns)
+}
+
+func (g *gate) restore() { g.shut.Store(false) }
+
+func drive(limiters []Limiter, key string, d, gap time.Duration) float64 {
+	var wg sync.WaitGroup
+	var allowed atomic.Int64
+	end := time.Now().Add(d)
+	for _, l := range limiters {
+		wg.Go(func() {
+			for time.Now().Before(end) {
+				if l.Allow(context.Background(), key).Allowed {
+					allowed.Add(1)
+				}
+				time.Sleep(gap)
+			}
+		})
+	}
+	wg.Wait()
+	return float64(allowed.Load())
+}
+
+func pair(t *testing.T, build func(rdb *redis.Client, prefix string) Limiter) (alone, connected Limiter, g *gate) {
+	g, cut := gated(t)
+	p := prefix(t)
+	alone = build(cut, p)
+	connected = build(testRedis(t), p)
+	t.Cleanup(alone.Close)
+	t.Cleanup(connected.Close)
+	return alone, connected, g
+}
+
+var chargeRule = Rule{Rate: 200, Burst: 20}
+
+func checkCharged(t *testing.T, alone, connected Limiter, g *gate) {
+	t.Helper()
+	both := []Limiter{alone, connected}
+	began := time.Now()
+	g.cut()
+	got := drive(both, "k", time.Second, 2*time.Millisecond)
+	g.restore()
+	got += drive(both, "k", 1500*time.Millisecond, 2*time.Millisecond)
+	exact := chargeRule.Burst + chargeRule.Rate*time.Since(began).Seconds()
+	if got > 1.08*exact || got < 0.8*exact {
+		t.Fatalf("admitted %.0f against an exact %.0f; one gateway cut off from Redis admits its static share while the other spends the whole bucket, and what it admitted alone has to be charged back once Redis answers again", got, exact)
+	}
+}
+
+func checkForgiven(t *testing.T, l Limiter, g *gate) {
+	t.Helper()
+	one := []Limiter{l}
+	drive(one, "k", 300*time.Millisecond, 2*time.Millisecond)
+	g.cut()
+	drive(one, "k", 2*time.Second, 2*time.Millisecond)
+	g.restore()
+	got := drive(one, "k", time.Second, 2*time.Millisecond)
+	if got < 0.7*chargeRule.Rate {
+		t.Fatalf("admitted %.0f in the second after a 2 s outage, against a rate of %.0f; nobody spent from the shared bucket while it was gone, so there is nothing to pay back", got, chargeRule.Rate)
+	}
+}
+
+func TestRedisExactChargesWhatAGatewayAdmittedAlone(t *testing.T) {
+	alone, connected, g := pair(t, func(rdb *redis.Client, p string) Limiter {
+		l, _ := NewRedisExact(rdb, p, chargeRule, 2, 50*time.Millisecond, wall)
+		return l
+	})
+	checkCharged(t, alone, connected, g)
+}
+
+func TestLeaseChargesWhatAGatewayAdmittedAlone(t *testing.T) {
+	alone, connected, g := pair(t, func(rdb *redis.Client, p string) Limiter {
+		l, _ := NewLease(rdb, p, chargeRule, 2, 20*time.Millisecond, time.Second, 50*time.Millisecond, wall)
+		return l
+	})
+	checkCharged(t, alone, connected, g)
+}
+
+func TestRedisExactForgetsWhatNobodyElseSpent(t *testing.T) {
+	g, cut := gated(t)
+	l, _ := NewRedisExact(cut, prefix(t), chargeRule, 1, 50*time.Millisecond, wall)
+	checkForgiven(t, l, g)
+}
+
+func TestLeaseForgetsWhatNobodyElseSpent(t *testing.T) {
+	g, cut := gated(t)
+	l, _ := NewLease(cut, prefix(t), chargeRule, 1, 20*time.Millisecond, time.Second, 50*time.Millisecond, wall)
+	checkForgiven(t, l, g)
+}
+
+func TestLocalSyncForgetsWhatNobodyElseSpent(t *testing.T) {
+	g, cut := gated(t)
+	l, err := NewLocalSync(cut, prefix(t), chargeRule, 1, "gw", 20*time.Millisecond, 50*time.Millisecond, wall)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(l.Close)
+	checkForgiven(t, l, g)
 }
 
 func hammer(t *testing.T, limiters []Limiter, key string, perInstance int, gap time.Duration) int {

@@ -10,6 +10,8 @@ export default function Results() {
   const step = latestRun<ProxyReport>('e1-step/w1')
   const overload = latestRun<ProxyReport>('e1-overload/w1')
   const limiter = latestRun<LimiterSummary[]>('e2')
+  const before = latestRun<LimiterSummary[]>('e2-breaker/before')
+  const after = latestRun<LimiterSummary[]>('e2-breaker/after')
   const failover = latestRun<FailoverSummary[]>('e3')
   const sim = latestSim()
   if (!proxy && !limiter && !failover && !sim) {
@@ -26,7 +28,7 @@ export default function Results() {
         </p>
       </section>
       {proxy && <ProxyResults run={proxy.name} report={proxy.summary} step={step} overload={overload} />}
-      {limiter && <LimiterResults run={limiter.name} sums={limiter.summary} />}
+      {limiter && <LimiterResults run={limiter.name} sums={limiter.summary} breaker={before && after ? { before, after } : undefined} />}
       {failover && <FailoverResults run={failover.name} sums={failover.summary} />}
       {sim && <CanarySim sim={sim} />}
     </div>

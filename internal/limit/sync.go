@@ -20,6 +20,7 @@ type syncKey struct {
 	mu     sync.Mutex
 	budget float64
 	spent  float64
+	owed   float64
 	demand float64
 	idle   int
 }
@@ -89,7 +90,7 @@ func (s *localSync) Allow(_ context.Context, key string) Decision {
 		st.mu.Lock()
 		st.demand++
 		if ok {
-			st.spent++
+			st.owed++
 		}
 		st.mu.Unlock()
 		return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
@@ -129,6 +130,7 @@ type pending struct {
 	key    string
 	st     *syncKey
 	spent  float64
+	owed   float64
 	demand float64
 	cmd    *redis.Cmd
 }
@@ -138,7 +140,7 @@ func (s *localSync) sync(ctx context.Context) {
 	var batch []pending
 	for k, st := range s.keys {
 		st.mu.Lock()
-		if st.spent == 0 && st.demand == 0 {
+		if st.spent == 0 && st.owed == 0 && st.demand == 0 {
 			st.idle++
 			if st.idle > 10 {
 				delete(s.keys, k)
@@ -147,7 +149,7 @@ func (s *localSync) sync(ctx context.Context) {
 			continue
 		}
 		st.idle = 0
-		batch = append(batch, pending{key: k, st: st, spent: st.spent, demand: st.demand})
+		batch = append(batch, pending{key: k, st: st, spent: st.spent, owed: st.owed, demand: st.demand})
 		st.mu.Unlock()
 	}
 	s.mu.Unlock()
@@ -184,6 +186,7 @@ func (s *localSync) sync(ctx context.Context) {
 		}
 		p.st.mu.Lock()
 		p.st.spent -= p.spent
+		p.st.owed -= p.owed
 		p.st.demand -= p.demand
 		p.st.budget = share * max(0, level+refill)
 		p.st.mu.Unlock()
@@ -201,7 +204,7 @@ func (s *localSync) send(ctx context.Context, batch []pending) {
 	for i := range batch {
 		p := &batch[i]
 		keys := []string{s.prefix + p.key, s.prefix + p.key + ":demand"}
-		p.cmd = syncScript.EvalSha(ctx, pipe, keys, s.rule.Rate/1e6, s.rule.Burst, ttl, p.spent, s.instance, p.demand, window)
+		p.cmd = syncScript.EvalSha(ctx, pipe, keys, s.rule.Rate/1e6, s.rule.Burst, ttl, p.spent, s.instance, p.demand, window, p.owed)
 	}
 	_, _ = pipe.Exec(ctx)
 }

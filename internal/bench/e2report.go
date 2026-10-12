@@ -30,6 +30,9 @@ type LimiterSummary struct {
 	RedisCommands Stat   `json:"redisCommandsPerRequest"`
 	RedisCPUUs    Stat   `json:"redisCpuPerRequestUs"`
 	Degraded      Stat   `json:"degraded"`
+	RedisSlow     Stat   `json:"redisSlowShare"`
+	RedisTimeouts Stat   `json:"redisTimeoutShare"`
+	RedisDials    Stat   `json:"redisDials"`
 	DroppedLogs   int64  `json:"droppedDecisions"`
 }
 
@@ -75,7 +78,7 @@ func SummarizeLimiter(runs []LimiterRun) []LimiterSummary {
 	index := map[string]int{}
 	for _, cell := range order {
 		s := LimiterSummary{Cell: cell}
-		var p50, p99, over, ahead, behind, worst, fa, fr, trips, cmds, cpu, deg []float64
+		var p50, p99, over, ahead, behind, worst, fa, fr, trips, cmds, cpu, deg, slow, timeouts, dials []float64
 		for _, r := range by[cell] {
 			s.Runs++
 			g := r.Report.Generator
@@ -88,12 +91,18 @@ func SummarizeLimiter(runs []LimiterRun) []LimiterSummary {
 			trips = append(trips, r.Report.Redis.TripsReq)
 			cmds = append(cmds, r.Report.Redis.CommandsReq)
 			cpu = append(cpu, r.Report.Redis.CPUPerReqUs)
-			var d int64
+			var d, calls, late, out, opened int64
 			for _, in := range r.Report.Instances {
 				d += in.Degraded
 				s.DroppedLogs += in.Dropped
+				calls, late, out, opened = calls+in.RedisCalls, late+in.RedisSlow, out+in.RedisTimeouts, opened+in.RedisDials
 			}
 			deg = append(deg, float64(d))
+			if calls > 0 {
+				slow = append(slow, float64(late)/float64(calls))
+				timeouts = append(timeouts, float64(out)/float64(calls))
+				dials = append(dials, float64(opened))
+			}
 			if v := r.Report.Verdict; v != nil && v.Requests > 0 {
 				over = append(over, v.OverAdmission)
 				ahead = append(ahead, float64(v.MaxAhead))
@@ -109,6 +118,7 @@ func SummarizeLimiter(runs []LimiterRun) []LimiterSummary {
 		s.FalseAdmits, s.FalseRejects = statOf(fa), statOf(fr)
 		s.RedisTrips, s.RedisCommands = statOf(trips), statOf(cmds)
 		s.RedisCPUUs, s.Degraded = statOf(cpu), statOf(deg)
+		s.RedisSlow, s.RedisTimeouts, s.RedisDials = statOf(slow), statOf(timeouts), statOf(dials)
 		index[cell] = len(out)
 		out = append(out, s)
 	}
@@ -136,7 +146,7 @@ func pctOf(s Stat) string {
 
 func WriteLimiterText(w io.Writer, sums []LimiterSummary) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "cell\truns\tp50 us\tp99 us\tadded p50\tadded p99\tover-admission\tmost ahead\tmost behind\tworst 1 s\tfalse admits\tfalse rejects\tredis trips/req\tredis cmds/req\tredis cpu us/req\tdegraded")
+	fmt.Fprintln(tw, "cell\truns\tp50 us\tp99 us\tadded p50\tadded p99\tover-admission\tmost ahead\tmost behind\tworst 1 s\tfalse admits\tfalse rejects\tredis trips/req\tredis cmds/req\tredis cpu us/req\tdegraded\tcalls over 2 ms\ttimeouts\tdials")
 	for _, s := range sums {
 		valid := s.Runs - s.InvalidRuns
 		runs := fmt.Sprint(s.Runs)
@@ -153,10 +163,14 @@ func WriteLimiterText(w io.Writer, sums []LimiterSummary) error {
 			ahead, behind = rangeOf(s.MaxAhead, valid, valid, 0), rangeOf(s.MaxBehind, valid, valid, 0)
 			fa, fr = pctOf(s.FalseAdmits), pctOf(s.FalseRejects)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
+		late, out, dials := "-", "-", "-"
+		if s.RedisSlow.Max > 0 || s.RedisDials.Max > 0 {
+			late, out, dials = pctOf(s.RedisSlow), pctOf(s.RedisTimeouts), rangeOf(s.RedisDials, valid, valid, 0)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
 			rangeOf(s.P50Us, valid, valid, 0), rangeOf(s.P99Us, valid, valid, 0), added50, added99,
 			over, ahead, behind, worst, fa, fr, rangeOf(s.RedisTrips, valid, valid, 2), rangeOf(s.RedisCommands, valid, valid, 2),
-			rangeOf(s.RedisCPUUs, valid, valid, 1), rangeOf(s.Degraded, valid, valid, 0))
+			rangeOf(s.RedisCPUUs, valid, valid, 1), rangeOf(s.Degraded, valid, valid, 0), late, out, dials)
 	}
 	return tw.Flush()
 }

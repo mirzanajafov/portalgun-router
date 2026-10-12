@@ -20,6 +20,7 @@ type exact struct {
 	fallback  *Buckets
 	now       Clock
 	guard     breaker
+	debts     *ledger
 }
 
 func NewRedisExact(rdb Redis, prefix string, rule Rule, instances int, timeout time.Duration, now Clock) (Limiter, error) {
@@ -36,17 +37,22 @@ func NewRedisExact(rdb Redis, prefix string, rule Rule, instances int, timeout t
 		fallback:  NewBuckets(split(rule, instances)),
 		now:       now,
 		guard:     breaker{now: now},
+		debts:     newLedger(),
 	}, nil
 }
 
 func (e *exact) Allow(ctx context.Context, key string) Decision {
-	if e.guard.open() {
+	if !e.guard.allow() {
 		return e.degraded(key)
 	}
+	epoch, owed := e.debts.unpaid(key)
 	rctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
-	res, err := gcraScript.Run(rctx, e.rdb, []string{e.prefix + key}, e.interval, e.tolerance).Int64Slice()
+	res, err := gcraScript.Run(rctx, e.rdb, debtKeys(e.prefix+key, epoch), e.interval, e.tolerance, owed, debtTTL.Milliseconds()).Int64Slice()
 	e.guard.record(ctx, err)
+	if err == nil {
+		e.debts.settle(key, epoch, owed)
+	}
 	if err != nil || len(res) != 2 {
 		return e.degraded(key)
 	}
@@ -54,7 +60,11 @@ func (e *exact) Allow(ctx context.Context, key string) Decision {
 }
 
 func (e *exact) degraded(key string) Decision {
-	ok, after := e.fallback.Take(key, e.now())
+	now := e.now()
+	ok, after := e.fallback.Take(key, now)
+	if ok {
+		e.debts.add(key, 1, now)
+	}
 	return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
 }
 

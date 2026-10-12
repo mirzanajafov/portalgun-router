@@ -2,9 +2,13 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/limit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/redis/go-redis/v9"
@@ -34,6 +38,8 @@ type Metrics struct {
 	unrouted   prometheus.Counter
 	shed       prometheus.Counter
 	redisTrips prometheus.Counter
+	redisCalls *prometheus.HistogramVec
+	redisDials *prometheus.HistogramVec
 	gateway    atomic.Pointer[Gateway]
 	inflight   *prometheus.Desc
 	latency    *prometheus.Desc
@@ -96,11 +102,21 @@ func NewMetrics() *Metrics {
 			Name: "portal_redis_round_trips_total",
 			Help: "Commands and pipelines sent to Redis, each one a round trip.",
 		}),
+		redisCalls: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "portal_redis_call_seconds",
+			Help:    "Time of a Redis command or pipeline as the gateway sees it, including the wait for a connection and any dial, by outcome.",
+			Buckets: redisBuckets,
+		}, []string{"outcome"}),
+		redisDials: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "portal_redis_dial_seconds",
+			Help:    "Time to open a new connection to Redis, by outcome.",
+			Buckets: redisBuckets,
+		}, []string{"outcome"}),
 		inflight: prometheus.NewDesc("portal_dimension_inflight", "Requests in flight to a dimension.", []string{"dimension", "version"}, nil),
 		latency:  prometheus.NewDesc("portal_dimension_latency_seconds", "Peak EWMA latency the balancer sees for a dimension.", []string{"dimension", "version"}, nil),
 		held:     prometheus.NewDesc("portal_inflight", "Requests the gateway holds right now, across all routes.", nil, nil),
 	}
-	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.shed, m.redisTrips, m,
+	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.shed, m.redisTrips, m.redisCalls, m.redisDials, m,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -176,22 +192,51 @@ func (rm *routeMetrics) result(u *upstream, status int) {
 	c.(*[6]prometheus.Counter)[class(status)].Inc()
 }
 
-type redisHook struct{ trips prometheus.Counter }
+var redisBuckets = []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0015, 0.002, 0.003, 0.005, 0.01, 0.05, 0.25, 1}
 
-func (h redisHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+func outcome(err error) string {
+	switch {
+	case err == nil || errors.Is(err, redis.Nil):
+		return "ok"
+	case limit.TimedOut(err):
+		return "timeout"
+	}
+	return "error"
+}
+
+type redisHook struct {
+	trips prometheus.Counter
+	calls *prometheus.HistogramVec
+	dials *prometheus.HistogramVec
+}
+
+func (h redisHook) DialHook(next redis.DialHook) redis.DialHook {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		began := time.Now()
+		c, err := next(ctx, network, addr)
+		h.dials.WithLabelValues(outcome(err)).Observe(time.Since(began).Seconds())
+		return c, err
+	}
+}
 
 func (h redisHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
 		h.trips.Inc()
-		return next(ctx, cmd)
+		began := time.Now()
+		err := next(ctx, cmd)
+		h.calls.WithLabelValues(outcome(err)).Observe(time.Since(began).Seconds())
+		return err
 	}
 }
 
 func (h redisHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
 	return func(ctx context.Context, cmds []redis.Cmder) error {
 		h.trips.Inc()
-		return next(ctx, cmds)
+		began := time.Now()
+		err := next(ctx, cmds)
+		h.calls.WithLabelValues(outcome(err)).Observe(time.Since(began).Seconds())
+		return err
 	}
 }
 
-func (m *Metrics) RedisHook() redis.Hook { return redisHook{m.redisTrips} }
+func (m *Metrics) RedisHook() redis.Hook { return redisHook{m.redisTrips, m.redisCalls, m.redisDials} }

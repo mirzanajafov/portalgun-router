@@ -138,6 +138,16 @@ export function limiterRows(sums: LimiterSummary[], loads: string[]): LimiterRow
   }))
 }
 
+export type BeforeAfterRow = { key: string; label: string; before: (LimiterSummary | undefined)[]; after: (LimiterSummary | undefined)[] }
+
+export function beforeAfter(before: LimiterSummary[], after: LimiterSummary[], loads: string[]): BeforeAfterRow[] {
+  const old = new Map(limiterRows(before, loads).map((r) => [r.key, r.cells]))
+  return limiterRows(after, loads).flatMap((r) => {
+    const cells = old.get(r.key)
+    return cells ? [{ key: r.key, label: r.label, before: cells, after: r.cells }] : []
+  })
+}
+
 export function valid(s: { runs: number; invalidRuns: number } | undefined): boolean {
   return s !== undefined && s.runs > s.invalidRuns
 }

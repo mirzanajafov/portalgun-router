@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commonRate, failoverMatrix, limiterRows, overloadLabel, overloadSystems, proxyRows, rps, signed, us, valid, type FailoverSummary, type LimiterSummary, type ProxyCell, type ProxyReport } from './measured'
+import { beforeAfter, commonRate, failoverMatrix, limiterRows, overloadLabel, overloadSystems, proxyRows, rps, signed, us, valid, type FailoverSummary, type LimiterSummary, type ProxyCell, type ProxyReport } from './measured'
 
 const stat = (median: number) => ({ median, min: median, max: median })
 
@@ -89,6 +89,15 @@ describe('limiter results', () => {
     expect(rows.map((r) => r.key)).toEqual(['redis-exact', 'lease-20ms'])
     expect(rows[1].cells[0]).toBeUndefined()
     expect(rows[1].cells[1]?.overAdmission.median).toBe(-0.01)
+  })
+
+  it('pairs each design measured on both sides of a change, load by load', () => {
+    const before = [limiter('redis-exact/over-even-2gw', 0.116), limiter('lease-5ms/over-even-2gw', 0.012), limiter('local-sync-100ms/over-even-2gw', 0)]
+    const after = [limiter('redis-exact/over-even-2gw', -0.002), limiter('redis-exact/zipf-10k-2gw', 0.004), limiter('lease-5ms/over-even-2gw', 0), limiter('lease-20ms/over-even-2gw', 0)]
+    const rows = beforeAfter(before, after, ['over-even-2gw', 'zipf-10k-2gw'])
+    expect(rows.map((r) => r.key)).toEqual(['redis-exact', 'lease-5ms'])
+    expect(rows[0].before.map((c) => c?.overAdmission.median)).toEqual([0.116, undefined])
+    expect(rows[0].after.map((c) => c?.overAdmission.median)).toEqual([-0.002, 0.004])
   })
 
   it('treats a cell without a valid run as missing', () => {

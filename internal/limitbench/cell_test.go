@@ -21,17 +21,44 @@ func TestParseInfoSumsCommandsButNotItself(t *testing.T) {
 	}
 }
 
-func TestSumMetricAcrossLabels(t *testing.T) {
+func TestCountersSumAcrossLabels(t *testing.T) {
 	text := `# HELP portal_rate_limit_degraded_total x
 # TYPE portal_rate_limit_degraded_total counter
 portal_rate_limit_degraded_total{route="fluid"} 12
 portal_rate_limit_degraded_total{route="other"} 3
 portal_rate_limit_degraded_totalish 99
 portal_rate_limited_total{route="fluid"} 40
+portal_redis_round_trips_total 7
 `
-	n, err := SumMetric(strings.NewReader(text), "portal_rate_limit_degraded_total")
-	if err != nil || n != 15 {
-		t.Fatalf("%d %v", n, err)
+	ss, err := Samples(strings.NewReader(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := Counters(ss)
+	if c[degradedMetric] != 15 || c[tripsMetric] != 7 {
+		t.Fatalf("%v", c)
+	}
+}
+
+func TestCountersSplitRedisCallsAtTheTimeout(t *testing.T) {
+	text := `portal_redis_call_seconds_bucket{outcome="ok",le="0.0015"} 900
+portal_redis_call_seconds_bucket{outcome="ok",le="0.002"} 950
+portal_redis_call_seconds_bucket{outcome="ok",le="+Inf"} 960
+portal_redis_call_seconds_count{outcome="ok"} 960
+portal_redis_call_seconds_bucket{outcome="timeout",le="0.002"} 0
+portal_redis_call_seconds_bucket{outcome="timeout",le="+Inf"} 30
+portal_redis_call_seconds_count{outcome="timeout"} 30
+portal_redis_call_seconds_sum{outcome="timeout"} 0.07
+portal_redis_dial_seconds_bucket{outcome="ok",le="0.002"} 20
+portal_redis_dial_seconds_count{outcome="ok"} 26
+`
+	ss, err := Samples(strings.NewReader(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := Counters(ss)
+	if c[callsKey] != 990 || c[slowKey] != 40 || c[timeoutsKey] != 30 || c[dialsKey] != 26 || c[slowDialKey] != 6 {
+		t.Fatalf("%v", c)
 	}
 }
 
