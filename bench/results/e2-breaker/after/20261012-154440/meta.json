@@ -1,0 +1,620 @@
+{
+  "commit": "c367aee",
+  "env": [
+    "E2_CONFIGS=C:\\Users\\User\\Desktop\\Dev2\\portalgun-router\\bench\\results\\e2-breaker\\after\\20261012-154440\\configs",
+    "E2_CELL=none_under-even-2gw",
+    "COMPOSE_PROFILES=four"
+  ],
+  "plan": {
+    "cells": [
+      {
+        "name": "none/under-even-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/over-even-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/under-even-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/under-shift-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-even-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-shift-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/burst-even-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/burst-shift-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/under-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/under-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/burst-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/burst-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/under-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/under-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "under",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/burst-even-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/burst-shift-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "burst",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 800,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-skew-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-skew-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-skew-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "skew",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-shift-4gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/over-shift-4gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-shift-4gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 4,
+        "load": "over",
+        "split": "shift",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-even-2gw-redis-slow",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "slow",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/over-even-2gw-redis-down",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "down",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-even-2gw-redis-slow",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "slow",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/over-even-2gw-redis-down",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 1000,
+          "Burst": 100
+        },
+        "keys": 1,
+        "offered": 1500,
+        "redisFault": "down",
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "none/zipf-10k-2gw",
+        "design": {
+          "kind": "none"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "redis-exact/zipf-10k-2gw",
+        "design": {
+          "kind": "redis-exact"
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-5ms/zipf-10k-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 5000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      },
+      {
+        "name": "lease-20ms/zipf-10k-2gw",
+        "design": {
+          "kind": "lease",
+          "lease": 20000000
+        },
+        "instances": 2,
+        "load": "over",
+        "split": "even",
+        "rule": {
+          "Rate": 20,
+          "Burst": 40
+        },
+        "keys": 10000,
+        "zipf": 1.1,
+        "offered": 3000,
+        "warmup": 5000000000,
+        "duration": 30000000000
+      }
+    ],
+    "reps": 1
+  },
+  "startedAt": "2026-10-12T15:44:46.2996607Z"
+}
