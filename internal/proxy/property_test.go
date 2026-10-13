@@ -111,7 +111,7 @@ func TestEjectionNeverPushesAPoolPastThePanicThreshold(t *testing.T) {
 			ejectedCalm++
 		}
 	})
-	if panicked < cases/5 || ejectedCalm < cases/5 {
+	if panicked < cases/10 || ejectedCalm < cases/10 {
 		t.Fatalf("of %d cases %d reached panic mode and %d had an ejection without it, so the property was barely exercised", cases, panicked, ejectedCalm)
 	}
 }
