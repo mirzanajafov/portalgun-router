@@ -50,7 +50,7 @@ export default function Admin() {
         </>
       ) : (
         <form onSubmit={signIn} className="flex flex-col gap-3">
-          <p className="muted text-sm">Visitors can already break dimensions and canaries, within limits. The admin token lifts them and lets you start rollouts.</p>
+          <p className="muted text-sm">Visitors can already break dimensions and start and break canaries, within limits. The admin token lifts the limits and lets you abort a rollout.</p>
           <label className="flex flex-col gap-1 text-sm">
             Token
             <input

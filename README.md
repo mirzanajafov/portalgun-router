@@ -6,7 +6,7 @@ PortalGun is an HTTP reverse proxy in Go. It decides where each request goes fro
 
 Everything a gateway promises is a number: it adds little latency, it keeps a client inside its quota across several instances, it moves traffic off a dead upstream before many requests fail, and it catches a bad release without rolling back good ones. I built the project around those four numbers rather than a feature list, and each of them is measured against something real.
 
-It's running at **[portalgun.najafov.dev](https://portalgun.najafov.dev)**. You can kill a dimension, slow one down or break the canary, and watch traffic move. The numbers below are on the Results page too.
+It's running at **[portalgun.najafov.dev](https://portalgun.najafov.dev)**. You can kill a dimension, slow one down, or start a canary rollout and break it, and watch traffic move. The numbers below are on the Results page too.
 
 ![The live dashboard: two gateways spreading traffic over four dimensions, the chaos panel with the last fault's detection time, the shared rate limit, and the canary](docs/dashboard.png)
 
@@ -200,7 +200,7 @@ clients ──> gateway ×2 ─────┴──> Toxiproxy ──> dimensio
 
 Gateways never need the controller, Redis or Postgres to keep routing: they keep the last config they had. Losing the controller freezes config and canaries, losing Redis switches the limiters to the static split, losing Postgres only stops config history. Each of those is a test in the Docker e2e suite.
 
-The dashboard's admin token stays in an httpOnly cookie on the Next server. Visitors get bounded chaos: one action at a time, at most 30 s, reverted automatically, with a cooldown and a limit per address, so nobody can hurt the server or the other apps on it. The controller talks to Toxiproxy and the dimensions' control ports, never to the Docker socket.
+The dashboard's admin token stays in an httpOnly cookie on the Next server. Visitors get bounded chaos: one action at a time, at most 30 s, reverted automatically, with a cooldown and a limit per address, so nobody can hurt the server or the other apps on it. They can also start a rollout, three an hour per address and one at a time; only the admin token can abort one. I first kept rollouts for the admin, which left the canary, one of the four things the project is about, invisible to anyone looking at the demo. A rollout only moves the demo's own traffic between two versions that both work until someone breaks one, so it's no more dangerous than the chaos buttons. The controller talks to Toxiproxy and the dimensions' control ports, never to the Docker socket.
 
 ## Running it
 
@@ -229,7 +229,7 @@ On the server it runs with `docker-compose.prod.yml`, which publishes nothing an
 
 ## API at a glance
 
-The controller, behind the dashboard. Writes need the admin token.
+The controller, behind the dashboard. Writes need the admin token, except chaos and starting a rollout, which visitors get within limits.
 
 | | |
 |---|---|

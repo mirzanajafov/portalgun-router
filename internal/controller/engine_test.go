@@ -297,3 +297,65 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 		t.Fatalf("state %+v", st)
 	}
 }
+
+func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
+	r := newRig(t)
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	counter := &fakeCounter{hits: map[string]int64{}}
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, 1)
+	srv := httptest.NewServer(api.Handler())
+	t.Cleanup(srv.Close)
+	post := func(path, auth, body string) int {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(body))
+		req.Header.Set("X-Forwarded-For", "9.9.9.9")
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	start := `{"route":"api","canary":"v2"}`
+	abort := func() {
+		t.Helper()
+		if got := post("/api/rollouts/abort", "", `{}`); got != 401 {
+			t.Fatalf("visitor abort: %d", got)
+		}
+		if got := post("/api/rollouts/abort", "Bearer s3cret", `{}`); got != 200 {
+			t.Fatalf("admin abort: %d", got)
+		}
+		r.now = r.now.Add(time.Minute)
+	}
+	if got := post("/api/rollouts", "", start); got != 201 {
+		t.Fatalf("visitor start: %d", got)
+	}
+	if got := post("/api/rollouts", "", start); got != 409 {
+		t.Fatalf("visitor start while one runs: %d", got)
+	}
+	abort()
+	if got := post("/api/rollouts", "", start); got != 201 {
+		t.Fatalf("second visitor start: %d", got)
+	}
+	abort()
+	if got := post("/api/rollouts", "", start); got != 429 {
+		t.Fatalf("third visitor start in the hour: %d", got)
+	}
+	if got := post("/api/rollouts", "Bearer s3cret", start); got != 201 {
+		t.Fatalf("admin start after the visitor limit: %d", got)
+	}
+	if n := counter.hits["rollout:ip:9.9.9.9"]; n != 3 {
+		t.Fatalf("counted %d visitor starts, want 3: the one refused because a rollout was running must not count", n)
+	}
+	var authors []string
+	for _, c := range r.store.configs {
+		if strings.Contains(c.Reason, "starts") {
+			authors = append(authors, c.Author)
+		}
+	}
+	if strings.Join(authors, ",") != "visitor,visitor,admin" {
+		t.Fatalf("rollouts started by %v", authors)
+	}
+}

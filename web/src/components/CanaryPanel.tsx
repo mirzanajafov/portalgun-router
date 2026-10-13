@@ -89,7 +89,8 @@ export function CanaryPanel({
               Everyone is on <span className="font-semibold">{stable}</span>
               {canary && canary !== stable ? (
                 <>
-                  ; {canary} is deployed on {hosts.length ? hosts.map(dimensionName).join(' and ') : 'no dimension'} and gets no traffic.
+                  ; {canary} is deployed on {hosts.length ? hosts.map(dimensionName).join(' and ') : 'no dimension'} and gets no traffic. Start rolling
+                  it out, then break it and watch the test take it back.
                 </>
               ) : (
                 '.'
@@ -115,7 +116,7 @@ export function CanaryPanel({
             Break {canary}: 50% errors
           </button>
         )}
-        {admin && !active && canary && canary !== stable && (
+        {!active && canary && canary !== stable && (
           <button className="btn btn-primary" disabled={busy} onClick={() => call('/api/rollouts', { route: ROUTE, canary })}>
             Start rolling out {canary}
           </button>

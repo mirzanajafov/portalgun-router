@@ -104,6 +104,7 @@ services:
       - -bootstrap=/etc/portalgun/cluster.json
       - -toxiproxy=http://toxiproxy:8474
       - -targets=c-137=http://dim-c137:8081,j19-zeta-7=http://dim-j19:8081,d-99=http://dim-d99:8081,cronenberg=http://dim-cronenberg:8081
+      - -visitor-rollouts
     environment:
       PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:-portal}@postgres:5432/portal?sslmode=disable
       PORTAL_REDIS: redis:6379
