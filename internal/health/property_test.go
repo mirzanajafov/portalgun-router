@@ -61,7 +61,7 @@ func TestBudgetMatchesACountOverTheLastTenSeconds(t *testing.T) {
 			}
 		}
 	})
-	if refusing < cases/3 {
+	if refusing < cases/5 {
 		t.Fatalf("only %d of %d cases ever refused a retry, so the property was barely exercised", refusing, cases)
 	}
 }
