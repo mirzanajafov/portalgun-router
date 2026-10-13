@@ -3,7 +3,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 dump="${1:-$(find backups/db -name 'portal-*.dump' 2> /dev/null | sort | tail -n 1)}"
-[ -n "$dump" ] && [ -f "$dump" ] || { echo "No dump found in backups/db." >&2; exit 1; }
+if [ -z "$dump" ] || [ ! -f "$dump" ]; then
+  echo "No dump found in backups/db." >&2
+  exit 1
+fi
 
 name="portalgun-restore-check-$$"
 cleanup() { docker rm -f "$name" > /dev/null 2>&1 || true; }
