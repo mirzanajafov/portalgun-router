@@ -29,12 +29,13 @@ func main() {
 	toxiproxy := flag.String("toxiproxy", "", "Toxiproxy API URL for the chaos controls")
 	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch")
 	hops := flag.Int("trusted-hops", 1, "proxies in front of the controller whose X-Forwarded-For entries are trusted")
+	visitorRollouts := flag.Bool("visitor-rollouts", false, "let anyone start a rollout, a few an hour per address; aborting still needs the admin token")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, hops: *hops, token: os.Getenv("PORTAL_ADMIN_TOKEN")}
+	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, hops: *hops, visitorRollouts: *visitorRollouts, token: os.Getenv("PORTAL_ADMIN_TOKEN")}
 	if err := run(ctx, logger, o); err != nil {
 		logger.Error("controller stopped", "err", err)
 		os.Exit(1)
@@ -44,6 +45,7 @@ func main() {
 type options struct {
 	addr, postgres, redis, bootstrap, toxiproxy, targets, token string
 	hops                                                        int
+	visitorRollouts                                             bool
 }
 
 func chaosTargets(spec string) ([]string, map[string]*chaos.DimensionControl, error) {
@@ -97,6 +99,9 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	api := controller.NewAPI(cfgs, engine, st, hub, token)
+	if o.visitorRollouts {
+		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.hops)
+	}
 	var chaosSvc *controller.ChaosService
 	if o.toxiproxy != "" {
 		names, controls, err := chaosTargets(o.targets)

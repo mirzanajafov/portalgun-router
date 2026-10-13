@@ -8,5 +8,5 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.text()
-  return relay(await toController('/api/rollouts', { method: 'POST', body, admin: true, headers: { 'Content-Type': 'application/json' } }))
+  return relay(await toController('/api/rollouts', { method: 'POST', body, admin: true, req, headers: { 'Content-Type': 'application/json' } }))
 }
