@@ -60,8 +60,8 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     pids_limit: 64
-    cpus: 0.25
-    mem_limit: 64m
+    cpus: 0.5
+    mem_limit: 128m
 
   dim-c137:
     <<: *dimension

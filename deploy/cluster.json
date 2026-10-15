@@ -22,7 +22,7 @@
   "pools": [
     {
       "name": "dimensions",
-      "healthCheck": { "interval": "1s", "timeout": "250ms" },
+      "healthCheck": { "interval": "1s", "timeout": "500ms" },
       "dimensions": [
         { "id": "c-137", "address": "toxiproxy:18080", "version": "v1", "maxInflight": 256 },
         { "id": "j19-zeta-7", "address": "toxiproxy:18081", "version": "v1", "maxInflight": 256 },
