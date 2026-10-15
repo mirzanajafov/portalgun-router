@@ -100,7 +100,7 @@ func newRig(t *testing.T) *rig {
 	if err := r.cfgs.Load(context.Background(), []byte(baseConfig)); err != nil {
 		t.Fatal(err)
 	}
-	opts := EngineOptions{Steps: []float64{0.1, 0.5}, MaxStep: time.Hour, MinStep: 0, Alpha: 0.01, Beta: 0.05, Rho: 2}
+	opts := EngineOptions{Steps: []float64{0.1, 0.5}, MaxStep: time.Hour, MinStep: 0, DeadSeconds: 10, Alpha: 0.01, Beta: 0.05, Rho: 2}
 	r.engine = NewEngine(opts, r.cfgs, r.store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	r.engine.now = func() time.Time { return r.now }
 	return r
@@ -202,17 +202,53 @@ func TestSecondsFromAnOlderConfigDoNotCount(t *testing.T) {
 	}
 }
 
-func TestBrakeAndDeadCanariesRollBack(t *testing.T) {
-	for name, opt := range map[string]func(*Merged){
-		"brake": func(m *Merged) { rs := m.Routes["api"]; rs.Brake = true; m.Routes["api"] = rs },
-		"dead":  func(m *Merged) { m.Dimensions[0].Outlier = "ejected" },
-	} {
-		r := newRig(t)
-		ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
-		r.feed(bin{stable: 900, canary: 100}, opt)
-		if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
-			t.Fatalf("%s: outcome %q", name, r.store.outcomes[ro.ID])
-		}
+func TestTheBrakeRollsBackAtOnce(t *testing.T) {
+	r := newRig(t)
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	r.feed(bin{stable: 900, canary: 100}, func(m *Merged) { rs := m.Routes["api"]; rs.Brake = true; m.Routes["api"] = rs })
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
+		t.Fatalf("outcome %q", r.store.outcomes[ro.ID])
+	}
+}
+
+func withStable(healthy bool) func(*Merged) {
+	return func(m *Merged) {
+		m.Dimensions = append(m.Dimensions, proxy.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: "closed"})
+	}
+}
+
+func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
+	r := newRig(t)
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	dead := func(m *Merged) { m.Dimensions[0].Outlier = "ejected" }
+	for range 9 {
+		r.feed(bin{}, dead, withStable(true))
+	}
+	r.feed(bin{}, withStable(true))
+	for range 9 {
+		r.feed(bin{}, dead, withStable(true))
+	}
+	if !r.engine.Status().Active {
+		t.Fatalf("rolled back after two 9 s spells of a dead canary with a healthy second between them: %q", r.store.outcomes[ro.ID])
+	}
+	r.feed(bin{}, dead, withStable(true))
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
+		t.Fatalf("still %q after 10 s of a dead canary", r.store.outcomes[ro.ID])
+	}
+	if reason := r.store.steps[ro.ID][0].Reason; !strings.Contains(reason, "for 10 s") {
+		t.Fatalf("reason %q", reason)
+	}
+}
+
+func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
+	r := newRig(t)
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	down := func(m *Merged) { m.Dimensions[0].Healthy = false }
+	for range 60 {
+		r.feed(bin{}, down, withStable(false))
+	}
+	if !r.engine.Status().Active {
+		t.Fatalf("rolled back while both versions were down: %q", r.store.outcomes[ro.ID])
 	}
 }
 

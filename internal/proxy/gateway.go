@@ -706,8 +706,11 @@ func (g *Gateway) onOutlier(u *upstream, t health.Transition) {
 	}
 	g.metrics.transition(u.id, t.To.String())
 	g.logEvent(u.id, t.At, t.To.String(), t.Reason)
-	g.logger.Info("dimension state", "dimension", u.id, "from", t.From.String(), "to", t.To.String(),
-		"reason", t.Reason, "ejected_for", time.Duration(t.Until-t.At).String())
+	attrs := []any{"dimension", u.id, "from", t.From.String(), "to", t.To.String(), "reason", t.Reason}
+	if t.To == health.Ejected {
+		attrs = append(attrs, "ejected_for", time.Duration(t.Until-t.At).String())
+	}
+	g.logger.Info("dimension state", attrs...)
 }
 
 func (g *Gateway) onHealth(u *upstream, healthy bool) {
