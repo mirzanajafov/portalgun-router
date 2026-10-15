@@ -1,11 +1,15 @@
 package proxy
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -307,5 +311,72 @@ func TestAnIdleDimensionIsNotReportedEjectedAfterItsEjectionEnds(t *testing.T) {
 		if u.ID == "b" && (u.Outlier != "half-open" || u.EjectedMs != 0) {
 			t.Fatalf("state reports %+v", u)
 		}
+	}
+}
+
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+func TestOnlyAnEjectionLogsHowLongItLasts(t *testing.T) {
+	cfg := resilient(t, config.BalancerRoundRobin, func(p *config.Pool, _ *config.Route) {
+		p.Outlier = config.Outlier{Consecutive: 1, BaseEjection: config.Duration(50 * time.Millisecond), MaxEjection: config.Duration(50 * time.Millisecond)}
+	},
+		config.Dimension{ID: "a", Address: dim(t, "a", nil)},
+		config.Dimension{ID: "b", Address: dim(t, "b", func(b *dimension.Behavior) { b.ErrorRate = 1 })},
+	)
+	var logs lockedBuffer
+	g, err := New(cfg, Options{ManualTick: true, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(g.Close)
+	srv := httptest.NewServer(g)
+	t.Cleanup(srv.Close)
+	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 4)
+	time.Sleep(80 * time.Millisecond)
+	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 4)
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.Contains(logs.String(), `"to":"half-open"`) {
+		if time.Now().After(deadline) {
+			t.Fatalf("b never left its ejection:\n%s", logs.String())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	ejections := 0
+	for line := range strings.Lines(logs.String()) {
+		var e struct {
+			Msg        string  `json:"msg"`
+			To         string  `json:"to"`
+			EjectedFor *string `json:"ejected_for"`
+		}
+		if json.Unmarshal([]byte(line), &e) != nil || e.Msg != "dimension state" {
+			continue
+		}
+		switch {
+		case e.To == "ejected" && (e.EjectedFor == nil || *e.EjectedFor != "50ms"):
+			t.Fatalf("an ejection logged %v, want 50ms: %s", e.EjectedFor, line)
+		case e.To != "ejected" && e.EjectedFor != nil:
+			t.Fatalf("a move to %s logged ejected_for %s: %s", e.To, *e.EjectedFor, line)
+		}
+		if e.To == "ejected" {
+			ejections++
+		}
+	}
+	if ejections == 0 {
+		t.Fatal("no ejection was logged")
 	}
 }

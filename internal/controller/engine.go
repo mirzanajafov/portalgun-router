@@ -22,22 +22,24 @@ type RolloutStore interface {
 }
 
 type EngineOptions struct {
-	Steps   []float64
-	MaxStep time.Duration
-	MinStep time.Duration
-	Alpha   float64
-	Beta    float64
-	Rho     float64
+	Steps       []float64
+	MaxStep     time.Duration
+	MinStep     time.Duration
+	DeadSeconds int
+	Alpha       float64
+	Beta        float64
+	Rho         float64
 }
 
 func DefaultEngineOptions() EngineOptions {
 	return EngineOptions{
-		Steps:   []float64{0.01, 0.05, 0.25, 0.5},
-		MaxStep: 5 * time.Minute,
-		MinStep: 30 * time.Second,
-		Alpha:   0.01,
-		Beta:    0.05,
-		Rho:     2,
+		Steps:       []float64{0.01, 0.05, 0.25, 0.5},
+		MaxStep:     5 * time.Minute,
+		MinStep:     30 * time.Second,
+		DeadSeconds: 10,
+		Alpha:       0.01,
+		Beta:        0.05,
+		Rho:         2,
 	}
 }
 
@@ -53,6 +55,7 @@ type active struct {
 	stepVersion int64
 	policy      *canary.Hybrid
 	seconds     int
+	dead        int
 }
 
 type Engine struct {
@@ -160,9 +163,14 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 		e.finish(ctx, "rolled_back", "an instance's emergency brake stopped the canary")
 		return
 	}
-	if !canaryAlive(m.Dimensions, a.rollout.Canary) {
-		e.finish(ctx, "rolled_back", "no healthy dimension runs the canary")
-		return
+	if !alive(m.Dimensions, a.rollout.Canary) && alive(m.Dimensions, a.rollout.Stable) {
+		a.dead++
+		if a.dead >= e.opts.DeadSeconds {
+			e.finish(ctx, "rolled_back", fmt.Sprintf("no healthy dimension ran the canary for %d s while the stable version had one", a.dead))
+			return
+		}
+	} else {
+		a.dead = 0
 	}
 	bin := canary.Bin{
 		Requests: [2]int64{rs.Versions[0].Attempts, rs.Versions[1].Attempts},
@@ -191,7 +199,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	}
 }
 
-func canaryAlive(dims []proxy.DimensionSnapshot, version string) bool {
+func alive(dims []proxy.DimensionSnapshot, version string) bool {
 	seen := false
 	for _, d := range dims {
 		if d.Version != version {
