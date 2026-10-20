@@ -52,7 +52,7 @@ func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, toke
 }
 
 func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, hops int, logger *slog.Logger) {
-	a.visitors = &visitorRollouts{limit: &visitorLimit{name: "rollout", perHour: limits.PerHour, counter: counter, logger: logger}, hops: hops}
+	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), hops: hops}
 }
 
 func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }

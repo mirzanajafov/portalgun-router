@@ -405,6 +405,7 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	t.Cleanup(srv.Close)
 	post := func(auth string) *http.Response {
 		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rollouts", strings.NewReader(`{"route":"api","canary":"v2"}`))
+		req.Header.Set("X-Forwarded-For", "9.9.9.9")
 		if auth != "" {
 			req.Header.Set("Authorization", auth)
 		}
@@ -421,8 +422,8 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	if r.engine.Status().Active {
 		t.Fatal("a rollout started without counting the visitor")
 	}
-	if !strings.Contains(logs.String(), "connection refused") {
-		t.Fatalf("the counter's error was not logged: %q", logs.String())
+	if !strings.Contains(logs.String(), "connection refused") || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
+		t.Fatalf("the log should carry the counter's error and the limit, and not the visitor: %q", logs.String())
 	}
 	if resp := post("Bearer s3cret"); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("admin with the counter down: %d", resp.StatusCode)

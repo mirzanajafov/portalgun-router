@@ -97,7 +97,7 @@ type ChaosService struct {
 }
 
 func NewChaosService(inj Injector, log ChaosLog, counter Counter, hub *Hub, limits ChaosLimits, targets []string, hops int, logger *slog.Logger) *ChaosService {
-	return &ChaosService{inj: inj, log: log, visitors: &visitorLimit{name: "chaos", perHour: limits.PerHour, counter: counter, logger: logger}, hub: hub, limits: limits, targets: targets, hops: hops, logger: logger, now: time.Now}
+	return &ChaosService{inj: inj, log: log, visitors: newVisitorLimit("chaos", limits.PerHour, counter, logger), hub: hub, limits: limits, targets: targets, hops: hops, logger: logger, now: time.Now}
 }
 
 func (c *ChaosService) fault(req ChaosRequest, admin bool) (chaos.Fault, time.Duration, error) {

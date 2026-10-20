@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -173,6 +174,9 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	counter := downCounter()
 	inj := &fakeInjector{}
 	svc := NewChaosService(inj, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(logs, nil)))
+	var elapsed atomic.Int64
+	start := time.Now()
+	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
 	mux := http.NewServeMux()
 	api := &API{token: "s3cret"}
 	svc.Routes(mux, api.admin, "s3cret")
@@ -200,7 +204,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 		t.Fatalf("injected %d faults without counting the visitor", n)
 	}
 	if n := strings.Count(logs.String(), "connection refused"); n != 1 {
-		t.Fatalf("logged the counter's error %d times in a minute, want once: %q", n, logs.String())
+		t.Fatalf("logged the counter's error %d times, want once: %q", n, logs.String())
 	}
 	if strings.Contains(logs.String(), "1.2.3.4") || !strings.Contains(logs.String(), "limit=chaos") {
 		t.Fatalf("the log should name the limit and not the visitor: %q", logs.String())
@@ -212,15 +216,18 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 		t.Fatalf("admin stop: %d", resp.StatusCode)
 	}
 	counter.fail(nil)
+	if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("visitor within a minute of the failure: %d, want the pause to hold", resp.StatusCode)
+	}
+	elapsed.Store(int64(recountAfter))
 	if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("visitor once the counter is back: %d", resp.StatusCode)
+		t.Fatalf("visitor a minute after the failure: %d", resp.StatusCode)
 	}
 }
 
 func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	logs := &logSink{}
-	counter := downCounter()
-	counter.fail(context.Canceled)
+	counter := &fakeCounter{hits: map[string]int64{}, err: context.Canceled}
 	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(logs, nil)))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -229,6 +236,10 @@ func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	}
 	if logs.String() != "" {
 		t.Fatalf("logged a cancelled request: %q", logs.String())
+	}
+	counter.fail(nil)
+	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "5.6.7.8"); err != nil {
+		t.Fatalf("the next visitor was refused after a cancelled request: %v", err)
 	}
 }
 

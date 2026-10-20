@@ -40,30 +40,41 @@ type visitorLimit struct {
 	perHour int64
 	counter Counter
 	logger  *slog.Logger
+	now     func() time.Time
 
-	mu     sync.Mutex
-	logged time.Time
+	mu       sync.Mutex
+	failedAt time.Time
+}
+
+func newVisitorLimit(name string, perHour int64, counter Counter, logger *slog.Logger) *visitorLimit {
+	return &visitorLimit{name: name, perHour: perHour, counter: counter, logger: logger, now: time.Now}
 }
 
 func (l *visitorLimit) exceeded(ctx context.Context, client string) (bool, error) {
+	if l.pausedAfterFailure() {
+		return false, ErrLimitUnchecked
+	}
 	n, err := l.counter.Hit(ctx, l.name+":ip:"+client, time.Hour)
 	if err != nil {
 		if ctx.Err() == nil {
-			l.logUnchecked(err)
+			l.pause(err)
 		}
-		return false, ErrLimitUnchecked
+		return false, fmt.Errorf("%w: %w", ErrLimitUnchecked, err)
 	}
 	return n > l.perHour, nil
 }
 
-func (l *visitorLimit) logUnchecked(err error) {
+func (l *visitorLimit) pausedAfterFailure() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if time.Since(l.logged) < recountAfter {
-		return
-	}
-	l.logged = time.Now()
-	l.logger.Error("refusing visitors that cannot be counted", "limit", l.name, "err", err)
+	return l.now().Sub(l.failedAt) < recountAfter
+}
+
+func (l *visitorLimit) pause(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.failedAt = l.now()
+	l.logger.Error("refusing visitors for a minute, they cannot be counted", "limit", l.name, "err", err)
 }
 
 func uncounted(w http.ResponseWriter) {
