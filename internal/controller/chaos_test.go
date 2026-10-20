@@ -47,19 +47,44 @@ func (f *fakeInjector) clears() int {
 type fakeCounter struct {
 	mu   sync.Mutex
 	hits map[string]int64
+	err  error
 }
 
 func (f *fakeCounter) Hit(_ context.Context, key string, _ time.Duration) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.err != nil {
+		return 0, f.err
+	}
 	f.hits[key]++
 	return f.hits[key], nil
 }
 
-type downCounter struct{}
+func (f *fakeCounter) fail(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.err = err
+}
 
-func (downCounter) Hit(context.Context, string, time.Duration) (int64, error) {
-	return 0, errors.New("dial tcp redis:6379: connection refused")
+func downCounter() *fakeCounter {
+	return &fakeCounter{hits: map[string]int64{}, err: errors.New("dial tcp redis:6379: connection refused")}
+}
+
+type logSink struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *logSink) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *logSink) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
 }
 
 func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector) {
@@ -137,22 +162,51 @@ func TestVisitorsHaveAnHourlyLimit(t *testing.T) {
 	}
 }
 
-func TestVisitorsAreRefusedWhenTheirFaultsCannotBeCounted(t *testing.T) {
-	var logs strings.Builder
+func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
+	logs := &logSink{}
+	counter := downCounter()
 	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, downCounter{}, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(&logs, nil)))
-	ctx := context.Background()
-	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {
-		t.Fatalf("visitor with the counter down: %v", err)
+	svc := NewChaosService(inj, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(logs, nil)))
+	mux := http.NewServeMux()
+	api := &API{token: "s3cret"}
+	svc.Routes(mux, api.admin, "s3cret")
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	call := func(method, auth string) *http.Response {
+		req, _ := http.NewRequest(method, srv.URL+"/api/chaos", strings.NewReader(`{"mode":"crash","target":"dim-a"}`))
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	for range 2 {
+		if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
+			t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
+		}
 	}
 	if len(inj.injected) != 0 {
 		t.Fatalf("injected %v without counting the visitor", inj.injected)
 	}
-	if !strings.Contains(logs.String(), "level=ERROR") {
-		t.Fatalf("the refusal was not logged: %q", logs.String())
+	if n := strings.Count(logs.String(), "connection refused"); n != 1 {
+		t.Fatalf("logged the counter's error %d times for one outage, want once: %q", n, logs.String())
 	}
-	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
-		t.Fatalf("admin with the counter down: %v", err)
+	if resp := call(http.MethodPost, "Bearer s3cret"); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("admin with the counter down: %d", resp.StatusCode)
+	}
+	if resp := call(http.MethodDelete, "Bearer s3cret"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("admin stop: %d", resp.StatusCode)
+	}
+	counter.fail(nil)
+	if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("visitor once the counter is back: %d", resp.StatusCode)
+	}
+	if !strings.Contains(logs.String(), "counting visitors again") {
+		t.Fatalf("the recovery was not logged: %q", logs.String())
 	}
 }
 

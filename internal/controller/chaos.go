@@ -14,7 +14,6 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
-	"github.com/redis/go-redis/v9"
 )
 
 type Injector interface {
@@ -25,25 +24,6 @@ type Injector interface {
 
 type ChaosLog interface {
 	LogChaos(ctx context.Context, e store.ChaosEvent) error
-}
-
-type Counter interface {
-	Hit(ctx context.Context, key string, window time.Duration) (int64, error)
-}
-
-type RedisCounter struct{ RDB *redis.Client }
-
-func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration) (int64, error) {
-	var incr *redis.IntCmd
-	_, err := r.RDB.TxPipelined(ctx, func(p redis.Pipeliner) error {
-		incr = p.Incr(ctx, key)
-		p.ExpireNX(ctx, key, window)
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	return incr.Val(), nil
 }
 
 type ChaosLimits struct {
@@ -93,16 +73,15 @@ type Incident struct {
 }
 
 var (
-	ErrChaosBusy      = errors.New("another fault is running")
-	ErrChaosCooldown  = errors.New("the portal gun is cooling down")
-	ErrChaosLimit     = errors.New("that is enough chaos from this address for an hour")
-	ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right now, so try again in a minute")
+	ErrChaosBusy     = errors.New("another fault is running")
+	ErrChaosCooldown = errors.New("the portal gun is cooling down")
+	ErrChaosLimit    = errors.New("that is enough chaos from this address for an hour")
 )
 
 type ChaosService struct {
 	inj     Injector
 	log     ChaosLog
-	counter Counter
+	counter *visitorCounter
 	hub     *Hub
 	limits  ChaosLimits
 	targets []string
@@ -118,7 +97,7 @@ type ChaosService struct {
 }
 
 func NewChaosService(inj Injector, log ChaosLog, counter Counter, hub *Hub, limits ChaosLimits, targets []string, hops int, logger *slog.Logger) *ChaosService {
-	return &ChaosService{inj: inj, log: log, counter: counter, hub: hub, limits: limits, targets: targets, hops: hops, logger: logger, now: time.Now}
+	return &ChaosService{inj: inj, log: log, counter: &visitorCounter{counter: counter, logger: logger}, hub: hub, limits: limits, targets: targets, hops: hops, logger: logger, now: time.Now}
 }
 
 func (c *ChaosService) fault(req ChaosRequest, admin bool) (chaos.Fault, time.Duration, error) {
@@ -163,12 +142,11 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		if wait := c.cooldown.Sub(now); wait > 0 {
 			return Running{}, wait, ErrChaosCooldown
 		}
-		n, err := c.counter.Hit(ctx, "chaos:ip:"+client, time.Hour)
+		over, err := c.counter.overHourly(ctx, "chaos:ip:"+client, c.limits.PerHour)
 		if err != nil {
-			c.logger.Error("refusing a visitor's fault that could not be counted", "err", err)
-			return Running{}, 0, ErrLimitUnchecked
+			return Running{}, 0, err
 		}
-		if n > c.limits.PerHour {
+		if over {
 			return Running{}, time.Hour, ErrChaosLimit
 		}
 	}

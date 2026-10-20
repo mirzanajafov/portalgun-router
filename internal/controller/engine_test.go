@@ -398,9 +398,9 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 
 func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
-	var logs strings.Builder
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret", slog.New(slog.NewTextHandler(&logs, nil)))
-	api.LetVisitorsRollOut(downCounter{}, DefaultRolloutLimits(), 1)
+	logs := &logSink{}
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret", slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), 1)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	post := func(auth string) *http.Response {
@@ -415,14 +415,14 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 		resp.Body.Close()
 		return resp
 	}
-	if resp := post(""); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") == "" {
+	if resp := post(""); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
 		t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if r.engine.Status().Active {
 		t.Fatal("a rollout started without counting the visitor")
 	}
-	if !strings.Contains(logs.String(), "level=ERROR") {
-		t.Fatalf("the refusal was not logged: %q", logs.String())
+	if !strings.Contains(logs.String(), "connection refused") {
+		t.Fatalf("the counter's error was not logged: %q", logs.String())
 	}
 	if resp := post("Bearer s3cret"); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("admin with the counter down: %d", resp.StatusCode)
