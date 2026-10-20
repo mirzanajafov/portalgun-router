@@ -30,7 +30,11 @@ const BREAKER: { load: string; label: string }[] = [
 type Breaker = { before: Run<LimiterSummary[]>; after: Run<LimiterSummary[]> }
 
 function BreakerResults({ before, after }: Breaker) {
-  const rows = beforeAfter(before.summary, after.summary, BREAKER.map((b) => b.load))
+  const rows = beforeAfter(
+    before.summary,
+    after.summary,
+    BREAKER.map((b) => b.load),
+  )
   if (rows.length === 0) return null
   return (
     <>
@@ -83,11 +87,11 @@ export function LimiterResults({ run, sums, breaker }: { run: string; sums: Limi
     <section className="panel overflow-x-auto p-4">
       <h2 className="mb-1 font-semibold">One limit across two gateways</h2>
       <p className="muted mb-3 text-sm">
-        1,000 requests per second allowed for one key, split over two gateways that share Redis. Added latency and Redis trips are measured at 800 rps, under the
-        limit, against the same load with no limiter; differences under about 0.1 ms are noise on this laptop. Admitted is measured at 1,500 rps and compares what
-        got through with a perfect single bucket replayed over the same requests: plus means over the limit, minus means good requests turned away. Shifting
-        sends 90% of the traffic to one gateway and swaps every 5 s; burst is 800 rps with spikes at 5,000, also shifting. Without Redis counts the decisions a
-        gateway made on its own at 1,500 rps and an even split, out of about 52,000 per run. Run <span className="mono">{run}</span>.
+        1,000 requests per second allowed for one key, split over two gateways that share Redis. Added latency and Redis trips are measured at 800 rps, under
+        the limit, against the same load with no limiter; differences under about 0.1 ms are noise on this laptop. Admitted is measured at 1,500 rps and
+        compares what got through with a perfect single bucket replayed over the same requests: plus means over the limit, minus means good requests turned
+        away. Shifting sends 90% of the traffic to one gateway and swaps every 5 s; burst is 800 rps with spikes at 5,000, also shifting. Without Redis counts
+        the decisions a gateway made on its own at 1,500 rps and an even split, out of about 52,000 per run. Run <span className="mono">{run}</span>.
       </p>
       <table className="mono w-full min-w-[800px] text-sm">
         <thead className="muted text-left text-xs">
@@ -138,8 +142,8 @@ export function LimiterResults({ run, sums, breaker }: { run: string; sums: Limi
         <>
           <h3 className="mt-5 mb-1 text-sm font-semibold">When Redis is slow or gone</h3>
           <p className="muted mb-3 text-sm">
-            1,500 rps with Redis 5 ms slower for the whole run, or stopped. Degraded counts the decisions a gateway made on its own because Redis did not answer in
-            time.
+            1,500 rps with Redis 5 ms slower for the whole run, or stopped. Degraded counts the decisions a gateway made on its own because Redis did not answer
+            in time.
           </p>
           <table className="mono w-full min-w-[560px] text-sm">
             <thead className="muted text-left text-xs">

@@ -29,7 +29,13 @@ export function Dashboard({ admin }: { admin: boolean }) {
         <div className="flex items-center gap-3 text-sm">
           <span className={`inline-block h-2 w-2 rounded-full ${live.connected ? 'bg-[var(--color-portal)]' : 'bg-[var(--color-fault)]'}`} />
           <span className="muted">{live.connected ? `${live.viewers} watching` : 'reconnecting'}</span>
-          {admin ? <span className="rounded-md border border-[var(--color-warn)] px-1.5 text-xs text-[var(--color-warn)]">admin</span> : <Link href="/admin" className="muted text-xs underline-offset-2 hover:underline">admin</Link>}
+          {admin ? (
+            <span className="rounded-md border border-[var(--color-warn)] px-1.5 text-xs text-[var(--color-warn)]">admin</span>
+          ) : (
+            <Link href="/admin" className="muted text-xs underline-offset-2 hover:underline">
+              admin
+            </Link>
+          )}
         </div>
       </section>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

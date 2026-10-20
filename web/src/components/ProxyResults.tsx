@@ -34,10 +34,10 @@ function OverloadResults({ run, report }: { run: string; report: ProxyReport }) 
     <>
       <h3 className="mt-5 mb-1 text-sm font-semibold">Past the knee</h3>
       <p className="muted mb-3 text-sm">
-        Each point starts from a freshly restarted proxy and goes straight to the offered rate. Each cell shows the 2xx responses served per second, the p99
-        of those responses only, and the highest memory any repetition reached. Anything above the cap gets a 503 at once and isn&apos;t counted as served. A
-        run counts as collapsed when more than 1% of its requests time out or never get sent. PortalGun&apos;s default cap is 256, the largest that never
-        collapsed here. Run <span className="mono">{run}</span>.
+        Each point starts from a freshly restarted proxy and goes straight to the offered rate. Each cell shows the 2xx responses served per second, the p99 of
+        those responses only, and the highest memory any repetition reached. Anything above the cap gets a 503 at once and isn&apos;t counted as served. A run
+        counts as collapsed when more than 1% of its requests time out or never get sent. PortalGun&apos;s default cap is 256, the largest that never collapsed
+        here. Run <span className="mono">{run}</span>.
       </p>
       <table className="mono w-full min-w-[720px] text-sm">
         <thead className="muted text-left text-xs">
@@ -129,9 +129,10 @@ export function ProxyResults({
     <section className="panel overflow-x-auto p-4">
       <h2 className="mb-1 font-semibold">What a proxy in the path costs</h2>
       <p className="muted mb-3 text-sm">
-        GET with a 1 KB response, open-loop load, every proxy pinned to one CPU with 256 MB. Added latency is the median over repetitions minus the same request with
-        no proxy at all. CPU per request is the proxy container&apos;s own, at {rps(common)} rps, the highest rate every proxy held. Max is the highest offered rate
-        at which most repetitions kept p99 under 50 ms, failures under 0.1% and throughput at 95% of the offered rate. Run <span className="mono">{run}</span>.
+        GET with a 1 KB response, open-loop load, every proxy pinned to one CPU with 256 MB. Added latency is the median over repetitions minus the same request
+        with no proxy at all. CPU per request is the proxy container&apos;s own, at {rps(common)} rps, the highest rate every proxy held. Max is the highest
+        offered rate at which most repetitions kept p99 under 50 ms, failures under 0.1% and throughput at 95% of the offered rate. Run{' '}
+        <span className="mono">{run}</span>.
       </p>
       <table className="mono w-full min-w-[640px] text-sm">
         <thead className="muted text-left text-xs">
@@ -159,9 +160,11 @@ export function ProxyResults({
       </table>
       <p className="muted mt-3 text-sm">
         Past their maximum, the Go proxies and Envoy keep accepting work: requests queue in memory until the container reaches 256 MB and starts swapping, and
-        throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy stay far below the limit. PortalGun ran here without its cap on what it holds in
-        total, so it fails the same way; the cap is measured below.
-        {report.maxRate.direct ? ` The lab itself tops out near ${rps(report.maxRate.direct)} rps with no proxy at all, so the fastest maximums are partly the lab's.` : ''}
+        throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy stay far below the limit. PortalGun ran here without its cap on what it
+        holds in total, so it fails the same way; the cap is measured below.
+        {report.maxRate.direct
+          ? ` The lab itself tops out near ${rps(report.maxRate.direct)} rps with no proxy at all, so the fastest maximums are partly the lab's.`
+          : ''}
       </p>
       {step && <StepResults run={step.name} report={step.summary} />}
       {overload && <OverloadResults run={overload.name} report={overload.summary} />}

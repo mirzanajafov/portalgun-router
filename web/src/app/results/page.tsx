@@ -22,9 +22,9 @@ export default function Results() {
       <section className="flex max-w-3xl flex-col gap-2">
         <h1 className="text-xl font-semibold">Results</h1>
         <p className="muted text-sm">
-          Measured on one laptop, a 16-vCPU WSL2 VM, with CPU limits on every container and the proxy comparison on separate CPU sets. At least
-          three repetitions per cell, medians shown. A laptop is noisier than a server, so small differences here mean little. The dimensions are containers
-          behind fault injection: the failures and latencies are real, the geography is not.
+          Measured on one laptop, a 16-vCPU WSL2 VM, with CPU limits on every container and the proxy comparison on separate CPU sets. At least three
+          repetitions per cell, medians shown. A laptop is noisier than a server, so small differences here mean little. The dimensions are containers behind
+          fault injection: the failures and latencies are real, the geography is not.
         </p>
       </section>
       {proxy && <ProxyResults run={proxy.name} report={proxy.summary} step={step} overload={overload} />}

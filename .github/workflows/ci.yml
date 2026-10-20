@@ -83,6 +83,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec next typegen
       - run: pnpm typecheck
+      - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
 

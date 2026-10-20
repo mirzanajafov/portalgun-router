@@ -76,7 +76,13 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
       </div>
       <div className="flex flex-wrap gap-2">
         {ACTIONS.map((a) => (
-          <button key={a.label} className="btn btn-danger" title={a.hint} disabled={busy || !!current || (!admin && cooldown > 0) || !chosen} onClick={() => fire(a)}>
+          <button
+            key={a.label}
+            className="btn btn-danger"
+            title={a.hint}
+            disabled={busy || !!current || (!admin && cooldown > 0) || !chosen}
+            onClick={() => fire(a)}
+          >
             {a.label}
           </button>
         ))}
