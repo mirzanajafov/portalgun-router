@@ -1,0 +1,52 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errorlint
+    - gocritic
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    errorlint:
+      errorf: false
+    gocritic:
+      disabled-checks:
+        - appendAssign
+        - exitAfterDefer
+    revive:
+      enable-default-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: context-as-argument
+          disabled: true
+        - name: empty-block
+          disabled: true
+        - name: error-return
+          disabled: true
+        - name: redefines-builtin-id
+          disabled: true
+        - name: unexported-return
+          disabled: true
+        - name: unused-parameter
+          disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF1009
+        - -SA4000
+        - -ST1008
+
+formatters:
+  enable:
+    - gofmt
