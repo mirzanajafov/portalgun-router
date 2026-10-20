@@ -98,9 +98,10 @@ func (f *fakeToxiproxy) toggles(proxy string) (downs, ups int) {
 		if c.method != http.MethodPost || c.path != "/proxies/"+proxy {
 			continue
 		}
-		if c.body["enabled"] == true {
+		switch c.body["enabled"] {
+		case true:
 			ups++
-		} else {
+		case false:
 			downs++
 		}
 	}
@@ -122,6 +123,9 @@ func TestCrashDisablesAndRestoresTheProxy(t *testing.T) {
 	}
 	if on, _ := fake.state("dim-a"); !on {
 		t.Fatal("proxy not restored")
+	}
+	if downs, ups := fake.toggles("dim-a"); downs != 1 || ups != 1 {
+		t.Fatalf("downs %d ups %d, want one of each", downs, ups)
 	}
 }
 
