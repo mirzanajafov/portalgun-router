@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -42,17 +43,16 @@ func DefaultRolloutLimits() RolloutLimits {
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
 type visitorRollouts struct {
-	counter Counter
-	limits  RolloutLimits
-	hops    int
+	limit *visitorLimit
+	hops  int
 }
 
 func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string) *API {
 	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token}
 }
 
-func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, hops int) {
-	a.visitors = &visitorRollouts{counter: counter, limits: limits, hops: hops}
+func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, hops int, logger *slog.Logger) {
+	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), hops: hops}
 }
 
 func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
@@ -117,6 +117,11 @@ func unauthorized(w http.ResponseWriter) {
 	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this needs the admin token"})
 }
 
+func uncounted(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
+}
+
 func Authorized(r *http.Request, token string) bool {
 	if token == "" {
 		return false
@@ -163,8 +168,12 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
 			return
 		}
-		n, err := a.visitors.counter.Hit(r.Context(), "rollout:ip:"+proxy.ClientIP(r, a.visitors.hops), time.Hour)
-		if err == nil && n > a.visitors.limits.PerHour {
+		exceeded, err := a.visitors.limit.exceeded(r.Context(), proxy.ClientIP(r, a.visitors.hops))
+		if err != nil {
+			uncounted(w)
+			return
+		}
+		if exceeded {
 			w.Header().Set("Retry-After", fmt.Sprint(int(time.Hour.Seconds())))
 			writeJSON(w, http.StatusTooManyRequests, map[string]any{"error": ErrRolloutLimit.Error(), "retryAfterSec": time.Hour.Seconds()})
 			return

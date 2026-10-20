@@ -338,7 +338,7 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, 1)
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, 1, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	post := func(path, auth, body string) int {
@@ -393,5 +393,73 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	}
 	if strings.Join(authors, ",") != "visitor,visitor,admin" {
 		t.Fatalf("rollouts started by %v", authors)
+	}
+}
+
+func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
+	r := newRig(t)
+	logs := &logSink{}
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), 1, slog.New(slog.NewTextHandler(logs, nil)))
+	srv := httptest.NewServer(api.Handler())
+	t.Cleanup(srv.Close)
+	post := func(auth string) *http.Response {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rollouts", strings.NewReader(`{"route":"api","canary":"v2"}`))
+		req.Header.Set("X-Forwarded-For", "9.9.9.9")
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	if resp := post(""); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
+		t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
+	}
+	if r.engine.Status().Active {
+		t.Fatal("a rollout started without counting the visitor")
+	}
+	if !strings.Contains(logs.String(), "connection refused") || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
+		t.Fatalf("the log should carry the counter's error and the limit, and not the visitor: %q", logs.String())
+	}
+	if resp := post("Bearer s3cret"); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("admin with the counter down: %d", resp.StatusCode)
+	}
+}
+
+type barrierCounter struct{ arrived sync.WaitGroup }
+
+func (b *barrierCounter) Hit(context.Context, string, time.Duration) (int64, error) {
+	b.arrived.Done()
+	b.arrived.Wait()
+	return 0, errors.New("dial tcp redis:6379: i/o timeout")
+}
+
+func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
+	r := newRig(t)
+	logs := &logSink{}
+	counter := &barrierCounter{}
+	counter.arrived.Add(5)
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), 1, slog.New(slog.NewTextHandler(logs, nil)))
+	srv := httptest.NewServer(api.Handler())
+	t.Cleanup(srv.Close)
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Go(func() {
+			resp, err := http.Post(srv.URL+"/api/rollouts", "application/json", strings.NewReader(`{"route":"api","canary":"v2"}`))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			resp.Body.Close()
+		})
+	}
+	wg.Wait()
+	if n := strings.Count(logs.String(), "i/o timeout"); n != 1 {
+		t.Fatalf("five visitors failing together were logged %d times, want once: %q", n, logs.String())
 	}
 }

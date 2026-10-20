@@ -100,7 +100,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	api := controller.NewAPI(cfgs, engine, st, hub, token)
 	if o.visitorRollouts {
-		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.hops)
+		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.hops, logger)
 	}
 	var chaosSvc *controller.ChaosService
 	if o.toxiproxy != "" {
