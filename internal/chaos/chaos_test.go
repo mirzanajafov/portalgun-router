@@ -91,6 +91,23 @@ func (f *fakeToxiproxy) toxic(proxy, name string) Toxic {
 	return f.toxics[proxy][name]
 }
 
+func (f *fakeToxiproxy) toggles(proxy string) (downs, ups int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, c := range f.calls {
+		if c.method != http.MethodPost || c.path != "/proxies/"+proxy {
+			continue
+		}
+		switch c.body["enabled"] {
+		case true:
+			ups++
+		case false:
+			downs++
+		}
+	}
+	return downs, ups
+}
+
 func TestCrashDisablesAndRestoresTheProxy(t *testing.T) {
 	fake, toxi := newFakeToxiproxy(t)
 	in := NewInjector(toxi, nil)
@@ -107,9 +124,8 @@ func TestCrashDisablesAndRestoresTheProxy(t *testing.T) {
 	if on, _ := fake.state("dim-a"); !on {
 		t.Fatal("proxy not restored")
 	}
-	ev := in.Events()
-	if len(ev) != 2 || ev[0].Action != "inject" || ev[1].Action != "clear" || ev[1].UnixNano < ev[0].UnixNano {
-		t.Fatalf("events %+v", ev)
+	if downs, ups := fake.toggles("dim-a"); downs != 1 || ups != 1 {
+		t.Fatalf("downs %d ups %d, want one of each", downs, ups)
 	}
 }
 
@@ -200,23 +216,14 @@ func TestFlappingTogglesUntilCleared(t *testing.T) {
 		t.Fatal("second flapping on the same target accepted")
 	}
 	time.Sleep(350 * time.Millisecond)
+	if downs, ups := fake.toggles("dim-a"); downs < 2 || ups < 1 {
+		t.Fatalf("downs %d ups %d", downs, ups)
+	}
 	if err := in.Clear(context.Background(), f); err != nil {
 		t.Fatal(err)
 	}
 	if on, _ := fake.state("dim-a"); !on {
 		t.Fatal("proxy left down after flapping")
-	}
-	var downs, ups int
-	for _, e := range in.Events() {
-		switch e.Action {
-		case "down":
-			downs++
-		case "up":
-			ups++
-		}
-	}
-	if downs < 2 || ups < 1 {
-		t.Fatalf("downs %d ups %d", downs, ups)
 	}
 }
 
