@@ -161,7 +161,7 @@ export function ProxyResults({
       <p className="muted mt-3 text-sm">
         Past their maximum, the Go proxies and Envoy keep accepting work: requests queue in memory until the container reaches 256 MB and starts swapping, and
         throughput falls to a few hundred rps, or the kernel kills it. nginx and HAProxy stay far below the limit. PortalGun ran here without its cap on what it
-        holds in total, so it fails the same way; the cap is measured below.
+        holds in total, so it fails the same way. The cap is measured below.
         {report.maxRate.direct
           ? ` The lab itself tops out near ${rps(report.maxRate.direct)} rps with no proxy at all, so the fastest maximums are partly the lab's.`
           : ''}

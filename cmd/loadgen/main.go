@@ -19,7 +19,7 @@ import (
 
 func main() {
 	var cfg loadgen.Config
-	flag.Func("url", "target URL, repeatable; requests go to each in turn", func(v string) error {
+	flag.Func("url", "target URL, repeatable, with requests going to each in turn", func(v string) error {
 		cfg.URLs = append(cfg.URLs, v)
 		return nil
 	})
