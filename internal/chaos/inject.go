@@ -55,12 +55,6 @@ func (f Fault) Validate() error {
 	return nil
 }
 
-type Event struct {
-	UnixNano int64  `json:"unixNano"`
-	Fault    Fault  `json:"fault"`
-	Action   string `json:"action"`
-}
-
 type DimensionControl struct {
 	BaseURL string
 	Client  *http.Client
@@ -103,27 +97,13 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 type Injector struct {
 	toxi *Toxiproxy
 	dims map[string]*DimensionControl
-	now  func() time.Time
 
-	mu     sync.Mutex
-	flaps  map[string]func()
-	events []Event
+	mu    sync.Mutex
+	flaps map[string]func()
 }
 
 func NewInjector(toxi *Toxiproxy, dims map[string]*DimensionControl) *Injector {
-	return &Injector{toxi: toxi, dims: dims, now: time.Now, flaps: map[string]func(){}}
-}
-
-func (in *Injector) record(f Fault, action string) {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-	in.events = append(in.events, Event{UnixNano: in.now().UnixNano(), Fault: f, Action: action})
-}
-
-func (in *Injector) Events() []Event {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-	return append([]Event(nil), in.events...)
+	return &Injector{toxi: toxi, dims: dims, flaps: map[string]func(){}}
 }
 
 func toxicName(f Fault, stream string) string {
@@ -156,11 +136,7 @@ func (in *Injector) Inject(ctx context.Context, f Fault) error {
 	case Flapping:
 		err = in.startFlapping(f)
 	}
-	if err != nil {
-		return err
-	}
-	in.record(f, "inject")
-	return nil
+	return err
 }
 
 func (in *Injector) Clear(ctx context.Context, f Fault) error {
@@ -187,11 +163,7 @@ func (in *Injector) Clear(ctx context.Context, f Fault) error {
 		in.stopFlapping(f.Target)
 		err = in.toxi.SetEnabled(ctx, f.Target, true)
 	}
-	if err != nil {
-		return err
-	}
-	in.record(f, "clear")
-	return nil
+	return err
 }
 
 func (in *Injector) dimension(target string) (*DimensionControl, error) {
@@ -222,13 +194,7 @@ func (in *Injector) startFlapping(f Fault) error {
 		defer t.Stop()
 		up := false
 		for {
-			if err := in.toxi.SetEnabled(ctx, f.Target, up); err == nil {
-				action := "down"
-				if up {
-					action = "up"
-				}
-				in.record(f, action)
-			}
+			_ = in.toxi.SetEnabled(ctx, f.Target, up)
 			up = !up
 			select {
 			case <-ctx.Done():
