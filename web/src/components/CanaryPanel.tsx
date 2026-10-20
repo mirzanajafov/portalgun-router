@@ -91,15 +91,14 @@ export function CanaryPanel({
         <p className="text-sm">
           {stable ? (
             <>
-              Everyone is on <span className="font-semibold">{stable}</span>
+              Everyone is on <span className="font-semibold">{stable}</span>.
               {canary && canary !== stable ? (
                 <>
-                  ; {canary} is deployed on {hosts.length ? hosts.map(dimensionName).join(' and ') : 'no dimension'} and gets no traffic. Start rolling it out,
-                  then break it and watch the test take it back.
+                  {' '}
+                  The canary, {canary}, runs on {hosts.length ? new Intl.ListFormat('en').format(hosts.map(dimensionName)) : 'no dimension'} but gets no
+                  traffic. Start rolling it out, then break it and watch the test take it back.
                 </>
-              ) : (
-                '.'
-              )}
+              ) : null}
             </>
           ) : (
             'Waiting for the first snapshot.'
