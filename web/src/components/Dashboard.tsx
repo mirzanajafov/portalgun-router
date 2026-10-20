@@ -24,7 +24,7 @@ export function Dashboard({ admin }: { admin: boolean }) {
       <section className="flex flex-wrap items-center justify-between gap-3">
         <p className="muted max-w-2xl text-sm">
           Every request picks a dimension. Two gateways spread traffic by latency and health, eject what breaks, keep each client inside its quota and decide
-          releases with a sequential test. The traffic is simulated and starts when you open this page; the failures are real.
+          releases with a sequential test. The traffic is simulated and starts when you open this page, but the failures are real.
         </p>
         <div className="flex items-center gap-3 text-sm">
           <span className={`inline-block h-2 w-2 rounded-full ${live.connected ? 'bg-[var(--color-portal)]' : 'bg-[var(--color-fault)]'}`} />
