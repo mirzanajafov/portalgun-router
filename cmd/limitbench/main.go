@@ -32,7 +32,7 @@ func main() {
 	flag.StringVar(&c.Redis, "redis", "redis:6379", "Redis address for INFO, not through toxiproxy")
 	flag.StringVar(&c.RedisFault, "redis-fault", "", "slow or down, empty for none")
 	flag.DurationVar(&c.RedisLatency, "redis-latency", 5*time.Millisecond, "latency added to Redis replies when slow")
-	flag.BoolVar(&c.Limited, "limited", true, "the route is rate limited; false for the baseline without a limiter")
+	flag.BoolVar(&c.Limited, "limited", true, "the route is rate limited (false for the baseline without a limiter)")
 	flag.Float64Var(&c.Rule.Rate, "rule-rate", 1000, "the configured rate, for the oracle")
 	flag.Float64Var(&c.Rule.Burst, "rule-burst", 100, "the configured burst, for the oracle")
 	flag.Float64Var(&l.Rate, "rate", 1500, "offered requests per second")

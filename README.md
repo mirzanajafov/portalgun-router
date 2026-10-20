@@ -86,7 +86,7 @@ What I took from it:
 
 - Without a cap, a cold start at 8k was enough to take down both Go proxies, at a rate both of them hold once they're warm. Empty connection pools and the full load at once build a queue, the queue holds memory, swapping slows the core, and it never comes back.
 - With a cap of 128 or 256 nothing collapsed in 30 runs. 512 got through 15k and 1,024 mostly did, but both collapsed in every run at 20k.
-- Saying no isn't free. A 503 costs 30-45 µs of CPU, against about 75 µs for a request the gateway proxies, so at 20k offered a third of the core goes to refusing and the gateway serves 8k instead of 12k. Somewhere around 25-30k one core would do nothing else. The cap protects the process from what it accepts, not from what arrives. Past that, the protection has to sit in front of it.
+- Saying no isn't free. A 503 costs 30-45 µs of CPU, against about 75 µs for a request the gateway proxies, so at 20k offered a third of the core goes to refusing and the gateway serves 8k instead of 12k. Somewhere around 25-30k one core would do nothing else. The cap protects the process from what it accepts, not from what arrives. Against more than one core can turn away, the protection has to sit in front of it.
 
 I made 256 the default. 128 did better on every overload number (half the p99, and 16% more served at 15k), but a fixed cap is also a ceiling on concurrency. With 200 ms upstreams, 128 refuses everything over 640 rps on a core that could carry several thousand, and 256 doubles that. 128 only wins once the gateway is already overloaded, while 256 wins every day for anyone with slow upstreams. It also fits the production gateways, which get half a core and 128 MB each, where 1,024 wouldn't fit at all. A fixed number can't be right for every upstream, so the real answer is an adaptive limit that follows latency, and that's next.
 
@@ -117,7 +117,7 @@ One key allowed 1,000 requests a second with a burst of 100, two gateways sharin
 | lease, 20 ms | none | 0.13 | 0.0% | 0.0% | 0.0% | -0.5% |
 | lease, 100 ms | none | 0.03 | -0.1% | -0.1% | -0.1% | -2.5% |
 
-Plus means requests let through over the limit, minus means good requests turned away. "None" is under 20 µs, below what this laptop can tell apart. The redis-exact row is its first breaker, which I've since rebuilt. Against the old code on another evening it went to -0.2%, -1.8%, -2.5% and -2.3% (below), but I keep the table to one session.
+Plus means requests let through over the limit, minus means good requests turned away. "None" is under 20 µs, below what this laptop can tell apart. The redis-exact row is its first breaker, which I've since rebuilt. Against the old code on another evening it went to -0.2%, -1.8%, -2.5% and -2.3% (below). I keep this table to one session, so it still shows the old breaker.
 
 What I take from this:
 
@@ -155,7 +155,7 @@ An earlier smoke run had found two more. The first was that local-sync's script 
 What I take from this:
 
 - With all three together, no request was lost in any of the six faults, and the p99 during the fault stayed at 5.8-6.0 ms, the same as before it. Retries never went above 1.001 attempts per request.
-- Probes alone are slow, and on a crash worse than slow: 1,560 lost, more than the dead dimension's third of the traffic. A refused connection fails in microseconds and leaves nothing in flight, so to P2C the dead dimension looks like the cheapest one, and it got 53% of the requests until the probes caught it. I had already kept failures out of the latency average for exactly this reason, and it wasn't enough. Passive ejection catches it in 10 ms and is on in every config I ship, so this only bites with it off. A penalty for failures in P2C's cost would fix it there.
+- Probes alone are slow, and on a crash worse than slow: 1,560 lost, more than the dead dimension's third of the traffic. A refused connection fails in microseconds and leaves nothing in flight, so to P2C the dead dimension looks like the cheapest one, and it got 53% of the requests until the probes caught it. I had already kept failures out of the latency average for exactly this reason, and it wasn't enough. Passive ejection catches it in 10 ms and is on in every config I ship, so this only bites with it off. For that case, a penalty for failures in P2C's cost would fix it.
 - The blackhole is where my prediction was wrong. I expected the per-try timeout to dominate: everything sent to the hung dimension during the first timeout waits for it, about 170 requests at 250 ms. It lost 11-18 at every timeout I tried, and none with retries. Hung requests pile up in flight, P2C multiplies the dimension's cost by that count, and it stops getting picked within milliseconds, long before anything detects it. The timeout only decides how long those few requests wait, so I left it at 1 s.
 - 30% errors stays under the "half of the last 50" rule, and gets caught anyway by five failures in a row, after about 0.9 s, as I'd worked out on paper. Retries hide the errors meanwhile.
 - A dimension 500 ms slower: round robin's p99 went to 554 ms until the probes took it out. P2C moved the traffic off at once and p99 didn't move. Passive ejection never fires on a dimension that's only slow, which is what I want.
@@ -164,7 +164,7 @@ What I take from this:
 - All three dimensions failing 20% at once is what the panic threshold is for. With it, 2,507 of about 60,000 requests were lost, and retries stopped at 1.2 attempts per request, so the retry budget held. Without it, every dimension got ejected and the gateway answered 503 itself: 35,527 lost, and 12,798 more after the fault was over, because the ejections outlasted it. 4% lost instead of 59%.
 - Two settings bought nothing in this lab: ejecting on the first refused connection (detected in 6 ms instead of 7, nothing lost either way) and slow start (back to 90% of its share in 8.7 s with it and 4.7 s without, no errors either way). These dimensions have no caches to warm, so slow start only costs time here. I kept it for services that do.
 
-The lab broke too. In two of the three repetitions, Toxiproxy itself died about 20 s after round robin had pushed a third of the traffic through 500 ms of latency, and took every dimension with it. The harness now restarts it and runs the cell once more, but I haven't found out why it dies.
+The lab broke too. In two of the three repetitions, Toxiproxy itself died about 20 s after round robin had pushed a third of the traffic through 500 ms of latency, and took every dimension with it. The harness now restarts it and runs the cell once more. I haven't found out why it dies.
 
 ### Catching a bad release
 

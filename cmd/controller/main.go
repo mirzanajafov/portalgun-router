@@ -29,7 +29,7 @@ func main() {
 	toxiproxy := flag.String("toxiproxy", "", "Toxiproxy API URL for the chaos controls")
 	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch")
 	hops := flag.Int("trusted-hops", 1, "proxies in front of the controller whose X-Forwarded-For entries are trusted")
-	visitorRollouts := flag.Bool("visitor-rollouts", false, "let anyone start a rollout, a few an hour per address; aborting still needs the admin token")
+	visitorRollouts := flag.Bool("visitor-rollouts", false, "let anyone start a rollout, a few an hour per address, while aborting still needs the admin token")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
