@@ -117,6 +117,11 @@ func unauthorized(w http.ResponseWriter) {
 	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this needs the admin token"})
 }
 
+func uncounted(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
+}
+
 func Authorized(r *http.Request, token string) bool {
 	if token == "" {
 		return false

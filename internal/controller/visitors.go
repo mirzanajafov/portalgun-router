@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"sync"
 	"time"
 
@@ -56,7 +55,7 @@ func (l *visitorLimit) exceeded(ctx context.Context, client string) (bool, error
 	}
 	n, err := l.counter.Hit(ctx, l.name+":ip:"+client, time.Hour)
 	if err != nil {
-		if ctx.Err() == nil {
+		if !errors.Is(err, context.Canceled) {
 			l.pause(err)
 		}
 		return false, fmt.Errorf("%w: %w", ErrLimitUnchecked, err)
@@ -73,11 +72,9 @@ func (l *visitorLimit) pausedAfterFailure() bool {
 func (l *visitorLimit) pause(err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.failedAt = l.now()
-	l.logger.Error("refusing visitors for a minute, they cannot be counted", "limit", l.name, "err", err)
-}
-
-func uncounted(w http.ResponseWriter) {
-	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
-	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
+	now := l.now()
+	if now.Sub(l.failedAt) >= recountAfter {
+		l.logger.Error("refusing visitors that cannot be counted", "limit", l.name, "err", err)
+	}
+	l.failedAt = now
 }
