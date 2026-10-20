@@ -93,9 +93,10 @@ type Incident struct {
 }
 
 var (
-	ErrChaosBusy     = errors.New("another fault is running")
-	ErrChaosCooldown = errors.New("the portal gun is cooling down")
-	ErrChaosLimit    = errors.New("that is enough chaos from this address for an hour")
+	ErrChaosBusy      = errors.New("another fault is running")
+	ErrChaosCooldown  = errors.New("the portal gun is cooling down")
+	ErrChaosLimit     = errors.New("that is enough chaos from this address for an hour")
+	ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right now, so try again in a minute")
 )
 
 type ChaosService struct {
@@ -162,11 +163,13 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		if wait := c.cooldown.Sub(now); wait > 0 {
 			return Running{}, wait, ErrChaosCooldown
 		}
-		if c.counter != nil {
-			n, err := c.counter.Hit(ctx, "chaos:ip:"+client, time.Hour)
-			if err == nil && n > c.limits.PerHour {
-				return Running{}, time.Hour, ErrChaosLimit
-			}
+		n, err := c.counter.Hit(ctx, "chaos:ip:"+client, time.Hour)
+		if err != nil {
+			c.logger.Error("refusing a visitor's fault that could not be counted", "err", err)
+			return Running{}, 0, ErrLimitUnchecked
+		}
+		if n > c.limits.PerHour {
+			return Running{}, time.Hour, ErrChaosLimit
 		}
 	}
 	if err := c.inj.Inject(ctx, f); err != nil {
@@ -307,6 +310,8 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 				status = http.StatusConflict
 			}
 			writeJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
+		case errors.Is(err, ErrLimitUnchecked):
+			uncounted(w)
 		case err != nil:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		default:

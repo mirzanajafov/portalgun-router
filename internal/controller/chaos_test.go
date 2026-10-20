@@ -56,6 +56,12 @@ func (f *fakeCounter) Hit(_ context.Context, key string, _ time.Duration) (int64
 	return f.hits[key], nil
 }
 
+type downCounter struct{}
+
+func (downCounter) Hit(context.Context, string, time.Duration) (int64, error) {
+	return 0, errors.New("dial tcp redis:6379: connection refused")
+}
+
 func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector) {
 	inj := &fakeInjector{}
 	svc := NewChaosService(inj, nil, &fakeCounter{hits: map[string]int64{}}, NewHub(), limits, []string{"dim-a", "dim-b"}, 1, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -128,6 +134,25 @@ func TestVisitorsHaveAnHourlyLimit(t *testing.T) {
 			t.Fatalf("fourth run: %v", err)
 		}
 		_ = svc.Stop(ctx)
+	}
+}
+
+func TestVisitorsAreRefusedWhenTheirFaultsCannotBeCounted(t *testing.T) {
+	var logs strings.Builder
+	inj := &fakeInjector{}
+	svc := NewChaosService(inj, nil, downCounter{}, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(&logs, nil)))
+	ctx := context.Background()
+	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {
+		t.Fatalf("visitor with the counter down: %v", err)
+	}
+	if len(inj.injected) != 0 {
+		t.Fatalf("injected %v without counting the visitor", inj.injected)
+	}
+	if !strings.Contains(logs.String(), "level=ERROR") {
+		t.Fatalf("the refusal was not logged: %q", logs.String())
+	}
+	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
+		t.Fatalf("admin with the counter down: %v", err)
 	}
 }
 

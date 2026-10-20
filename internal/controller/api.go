@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -26,6 +27,7 @@ type API struct {
 	history  History
 	hub      *Hub
 	token    string
+	logger   *slog.Logger
 	latest   atomic.Pointer[Merged]
 	extra    func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)
 	visitors *visitorRollouts
@@ -47,8 +49,8 @@ type visitorRollouts struct {
 	hops    int
 }
 
-func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string) *API {
-	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token}
+func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string, logger *slog.Logger) *API {
+	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token, logger: logger}
 }
 
 func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, hops int) {
@@ -117,6 +119,11 @@ func unauthorized(w http.ResponseWriter) {
 	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this needs the admin token"})
 }
 
+func uncounted(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "60")
+	writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": ErrLimitUnchecked.Error()})
+}
+
 func Authorized(r *http.Request, token string) bool {
 	if token == "" {
 		return false
@@ -164,7 +171,12 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		n, err := a.visitors.counter.Hit(r.Context(), "rollout:ip:"+proxy.ClientIP(r, a.visitors.hops), time.Hour)
-		if err == nil && n > a.visitors.limits.PerHour {
+		if err != nil {
+			a.logger.Error("refusing a visitor's rollout that could not be counted", "err", err)
+			uncounted(w)
+			return
+		}
+		if n > a.visitors.limits.PerHour {
 			w.Header().Set("Retry-After", fmt.Sprint(int(time.Hour.Seconds())))
 			writeJSON(w, http.StatusTooManyRequests, map[string]any{"error": ErrRolloutLimit.Error(), "retryAfterSec": time.Hour.Seconds()})
 			return
