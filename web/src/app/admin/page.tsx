@@ -21,20 +21,20 @@ export default function Admin() {
     e.preventDefault()
     setBusy(true)
     setError('')
-    try {
-      const res = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError(body.error ?? 'that did not work')
-        return
-      }
-      router.push('/')
-      router.refresh()
-    } catch {
+    const res = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }).catch(() => null)
+    if (!res) {
       setError('the server did not answer, so try again')
-    } finally {
       setBusy(false)
+      return
     }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? 'that did not work')
+      setBusy(false)
+      return
+    }
+    router.push('/')
+    router.refresh()
   }
 
   async function signOut() {
