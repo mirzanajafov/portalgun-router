@@ -280,7 +280,7 @@ func TestStartChecksItsInputs(t *testing.T) {
 
 func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	post := func(auth, body string) int {
@@ -336,9 +336,9 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 
 func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, 1)
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, 1, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	post := func(path, auth, body string) int {
@@ -399,8 +399,8 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret", slog.New(slog.NewTextHandler(logs, nil)))
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), 1)
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), 1, slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	post := func(auth string) *http.Response {

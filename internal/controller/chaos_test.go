@@ -38,6 +38,12 @@ func (f *fakeInjector) Clear(_ context.Context, fault chaos.Fault) error {
 
 func (f *fakeInjector) ClearAll(context.Context) error { return nil }
 
+func (f *fakeInjector) injections() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.injected)
+}
+
 func (f *fakeInjector) clears() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -174,6 +180,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	t.Cleanup(srv.Close)
 	call := func(method, auth string) *http.Response {
 		req, _ := http.NewRequest(method, srv.URL+"/api/chaos", strings.NewReader(`{"mode":"crash","target":"dim-a"}`))
+		req.Header.Set("X-Forwarded-For", "1.2.3.4")
 		if auth != "" {
 			req.Header.Set("Authorization", auth)
 		}
@@ -189,11 +196,14 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 			t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 		}
 	}
-	if len(inj.injected) != 0 {
-		t.Fatalf("injected %v without counting the visitor", inj.injected)
+	if n := inj.injections(); n != 0 {
+		t.Fatalf("injected %d faults without counting the visitor", n)
 	}
 	if n := strings.Count(logs.String(), "connection refused"); n != 1 {
-		t.Fatalf("logged the counter's error %d times for one outage, want once: %q", n, logs.String())
+		t.Fatalf("logged the counter's error %d times in a minute, want once: %q", n, logs.String())
+	}
+	if strings.Contains(logs.String(), "1.2.3.4") || !strings.Contains(logs.String(), "limit=chaos") {
+		t.Fatalf("the log should name the limit and not the visitor: %q", logs.String())
 	}
 	if resp := call(http.MethodPost, "Bearer s3cret"); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("admin with the counter down: %d", resp.StatusCode)
@@ -205,8 +215,20 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("visitor once the counter is back: %d", resp.StatusCode)
 	}
-	if !strings.Contains(logs.String(), "counting visitors again") {
-		t.Fatalf("the recovery was not logged: %q", logs.String())
+}
+
+func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
+	logs := &logSink{}
+	counter := downCounter()
+	counter.fail(context.Canceled)
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(logs, nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {
+		t.Fatalf("cancelled visitor: %v", err)
+	}
+	if logs.String() != "" {
+		t.Fatalf("logged a cancelled request: %q", logs.String())
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -35,27 +35,35 @@ var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right n
 
 const recountAfter = time.Minute
 
-type visitorCounter struct {
+type visitorLimit struct {
+	name    string
+	perHour int64
 	counter Counter
 	logger  *slog.Logger
-	down    atomic.Bool
+
+	mu     sync.Mutex
+	logged time.Time
 }
 
-func (v *visitorCounter) overHourly(ctx context.Context, key string, perHour int64) (bool, error) {
-	n, err := v.counter.Hit(ctx, key, time.Hour)
-	switch {
-	case errors.Is(err, context.Canceled):
-		return false, err
-	case err != nil:
-		if !v.down.Swap(true) {
-			v.logger.Error("refusing visitors until they can be counted again", "key", key, "err", err)
+func (l *visitorLimit) exceeded(ctx context.Context, client string) (bool, error) {
+	n, err := l.counter.Hit(ctx, l.name+":ip:"+client, time.Hour)
+	if err != nil {
+		if ctx.Err() == nil {
+			l.logUnchecked(err)
 		}
 		return false, ErrLimitUnchecked
 	}
-	if v.down.Swap(false) {
-		v.logger.Info("counting visitors again")
+	return n > l.perHour, nil
+}
+
+func (l *visitorLimit) logUnchecked(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if time.Since(l.logged) < recountAfter {
+		return
 	}
-	return n > perHour, nil
+	l.logged = time.Now()
+	l.logger.Error("refusing visitors that cannot be counted", "limit", l.name, "err", err)
 }
 
 func uncounted(w http.ResponseWriter) {
