@@ -57,8 +57,8 @@ export function CanaryPanel({
       {active ? (
         <>
           <p className="text-sm">
-            <span className="font-semibold text-[var(--color-warn)]">{active.rollout?.canary}</span> replacing {active.rollout?.stable} on /
-            {active.rollout?.route}/, step {(active.step?.step ?? 0) + 1} of {active.steps.length} at{' '}
+            <span className="font-semibold text-[var(--color-warn)]">{active.rollout?.canary}</span> replacing {active.rollout?.stable} on{' '}
+            {`/${active.rollout?.route ?? ''}/`}, step {(active.step?.step ?? 0) + 1} of {active.steps.length} at{' '}
             <span className="mono font-semibold">{pct(active.step?.weight ?? 0)}</span>
           </p>
           <ol className="flex gap-1" aria-label="Rollout steps">
