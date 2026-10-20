@@ -53,7 +53,9 @@ export function latestSim(): SimResults | null {
   const dir = path.join(resultsDir(), 'e4')
   let runs: string[]
   try {
-    runs = readdirSync(dir).filter((d) => d.startsWith('sim-')).sort()
+    runs = readdirSync(dir)
+      .filter((d) => d.startsWith('sim-'))
+      .sort()
   } catch {
     return null
   }

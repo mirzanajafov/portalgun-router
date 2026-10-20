@@ -57,8 +57,9 @@ export function CanaryPanel({
       {active ? (
         <>
           <p className="text-sm">
-            <span className="font-semibold text-[var(--color-warn)]">{active.rollout?.canary}</span> replacing {active.rollout?.stable} on /{active.rollout?.route}/,
-            step {(active.step?.step ?? 0) + 1} of {active.steps.length} at <span className="mono font-semibold">{pct(active.step?.weight ?? 0)}</span>
+            <span className="font-semibold text-[var(--color-warn)]">{active.rollout?.canary}</span> replacing {active.rollout?.stable} on /
+            {active.rollout?.route}/, step {(active.step?.step ?? 0) + 1} of {active.steps.length} at{' '}
+            <span className="mono font-semibold">{pct(active.step?.weight ?? 0)}</span>
           </p>
           <ol className="flex gap-1" aria-label="Rollout steps">
             {active.steps.map((w, i) => {
@@ -67,7 +68,11 @@ export function CanaryPanel({
                 <li
                   key={w}
                   className={`mono flex-1 rounded-md px-1 py-0.5 text-center text-xs ${
-                    i < now ? 'bg-[var(--color-portal-dim)] text-white' : i === now ? 'bg-[var(--color-portal)] font-semibold text-black' : 'border border-[var(--line)]'
+                    i < now
+                      ? 'bg-[var(--color-portal-dim)] text-white'
+                      : i === now
+                        ? 'bg-[var(--color-portal)] font-semibold text-black'
+                        : 'border border-[var(--line)]'
                   }`}
                 >
                   {pct(w, 0)}
@@ -89,8 +94,8 @@ export function CanaryPanel({
               Everyone is on <span className="font-semibold">{stable}</span>
               {canary && canary !== stable ? (
                 <>
-                  ; {canary} is deployed on {hosts.length ? hosts.map(dimensionName).join(' and ') : 'no dimension'} and gets no traffic. Start rolling
-                  it out, then break it and watch the test take it back.
+                  ; {canary} is deployed on {hosts.length ? hosts.map(dimensionName).join(' and ') : 'no dimension'} and gets no traffic. Start rolling it out,
+                  then break it and watch the test take it back.
                 </>
               ) : (
                 '.'

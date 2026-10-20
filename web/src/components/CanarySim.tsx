@@ -23,13 +23,16 @@ export function CanarySim({ sim }: { sim: SimResults }) {
       <section className="flex max-w-3xl flex-col gap-2 pt-2">
         <h2 className="text-lg font-semibold">Canary decisions, simulated</h2>
         <p className="muted text-sm">
-          72 cells, 2,000 trials for every cell where the canary is as good as the stable version and 500 for every regression, five-minute steps, the same random
-          traffic for every rule within a trial. Run <span className="mono">{sim.name}</span>.
+          72 cells, 2,000 trials for every cell where the canary is as good as the stable version and 500 for every regression, five-minute steps, the same
+          random traffic for every rule within a trial. Run <span className="mono">{sim.name}</span>.
         </p>
       </section>
       <section className="panel overflow-x-auto p-4">
         <h2 className="mb-1 font-semibold">How often a good version gets rolled back</h2>
-        <p className="muted mb-3 text-sm">Range over the 36 cells: base error 0.1 to 2%, canary share 1 to 25%, 200 and 2,000 rps, with and without a 30 s outage downstream that hits both versions.</p>
+        <p className="muted mb-3 text-sm">
+          Range over the 36 cells: base error 0.1 to 2%, canary share 1 to 25%, 200 and 2,000 rps, with and without a 30 s outage downstream that hits both
+          versions.
+        </p>
         <table className="mono w-full min-w-[520px] text-sm">
           <tbody>
             {POLICIES.map((p) => {
@@ -51,8 +54,8 @@ export function CanarySim({ sim }: { sim: SimResults }) {
       <section className="panel overflow-x-auto p-4">
         <h2 className="mb-1 font-semibold">How fast a bad version goes, and how often it is caught</h2>
         <p className="muted mb-3 text-sm">
-          Median seconds to roll back, share of trials rolled back in brackets. The fixed-horizon and threshold rules look at errors only, so their numbers on the
-          latency rows are the false rollbacks they would have made anyway.
+          Median seconds to roll back, share of trials rolled back in brackets. The fixed-horizon and threshold rules look at errors only, so their numbers on
+          the latency rows are the false rollbacks they would have made anyway.
         </p>
         <table className="mono w-full min-w-[640px] text-sm">
           <thead className="muted text-left text-xs">

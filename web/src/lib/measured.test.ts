@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { beforeAfter, commonRate, failoverMatrix, limiterRows, overloadLabel, overloadSystems, proxyRows, rps, signed, us, valid, type FailoverSummary, type LimiterSummary, type ProxyCell, type ProxyReport } from './measured'
+import {
+  beforeAfter,
+  commonRate,
+  failoverMatrix,
+  limiterRows,
+  overloadLabel,
+  overloadSystems,
+  proxyRows,
+  rps,
+  signed,
+  us,
+  valid,
+  type FailoverSummary,
+  type LimiterSummary,
+  type ProxyCell,
+  type ProxyReport,
+} from './measured'
 
 const stat = (median: number) => ({ median, min: median, max: median })
 
@@ -25,7 +41,15 @@ function cell(system: string, rate: number, saturated = 0, runs = 3): ProxyCell 
 describe('proxy results', () => {
   const report: ProxyReport = {
     workload: 'w1',
-    cells: [cell('direct', 1000), cell('stdlib', 1000), cell('envoy', 1000), cell('direct', 4000), cell('stdlib', 4000), cell('envoy', 4000, 2), cell('stdlib', 6000)],
+    cells: [
+      cell('direct', 1000),
+      cell('stdlib', 1000),
+      cell('envoy', 1000),
+      cell('direct', 4000),
+      cell('stdlib', 4000),
+      cell('envoy', 4000, 2),
+      cell('stdlib', 6000),
+    ],
     maxRate: { direct: 4000, stdlib: 6000, envoy: 1000 },
   }
 
@@ -85,7 +109,10 @@ function limiter(cell: string, over: number, invalidRuns = 0): LimiterSummary {
 
 describe('limiter results', () => {
   it('lines up designs with the loads asked for and skips designs that were not run', () => {
-    const rows = limiterRows([limiter('redis-exact/over-even-2gw', 0), limiter('lease-20ms/over-shift-2gw', -0.01), limiter('none/over-even-2gw', 0)], ['over-even-2gw', 'over-shift-2gw'])
+    const rows = limiterRows(
+      [limiter('redis-exact/over-even-2gw', 0), limiter('lease-20ms/over-shift-2gw', -0.01), limiter('none/over-even-2gw', 0)],
+      ['over-even-2gw', 'over-shift-2gw'],
+    )
     expect(rows.map((r) => r.key)).toEqual(['redis-exact', 'lease-20ms'])
     expect(rows[1].cells[0]).toBeUndefined()
     expect(rows[1].cells[1]?.overAdmission.median).toBe(-0.01)
@@ -93,7 +120,12 @@ describe('limiter results', () => {
 
   it('pairs each design measured on both sides of a change, load by load', () => {
     const before = [limiter('redis-exact/over-even-2gw', 0.116), limiter('lease-5ms/over-even-2gw', 0.012), limiter('local-sync-100ms/over-even-2gw', 0)]
-    const after = [limiter('redis-exact/over-even-2gw', -0.002), limiter('redis-exact/zipf-10k-2gw', 0.004), limiter('lease-5ms/over-even-2gw', 0), limiter('lease-20ms/over-even-2gw', 0)]
+    const after = [
+      limiter('redis-exact/over-even-2gw', -0.002),
+      limiter('redis-exact/zipf-10k-2gw', 0.004),
+      limiter('lease-5ms/over-even-2gw', 0),
+      limiter('lease-20ms/over-even-2gw', 0),
+    ]
     const rows = beforeAfter(before, after, ['over-even-2gw', 'zipf-10k-2gw'])
     expect(rows.map((r) => r.key)).toEqual(['redis-exact', 'lease-5ms'])
     expect(rows[0].before.map((c) => c?.overAdmission.median)).toEqual([0.116, undefined])

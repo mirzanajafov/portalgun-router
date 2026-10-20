@@ -24,7 +24,21 @@ const merged = (dims: DimensionSnapshot[], stable = 'v1', canary?: string): Merg
   second: 100,
   instances: ['gw-1'],
   configVersions: { 'gw-1': 1 },
-  routes: { portal: { requests: 0, limited: 0, failed: 0, stable, canary, weight: 0, versions: [{ attempts: 0, errors: 0, slow: 0 }, { attempts: 0, errors: 0, slow: 0 }], slowThresholdMs: 0 } },
+  routes: {
+    portal: {
+      requests: 0,
+      limited: 0,
+      failed: 0,
+      stable,
+      canary,
+      weight: 0,
+      versions: [
+        { attempts: 0, errors: 0, slow: 0 },
+        { attempts: 0, errors: 0, slow: 0 },
+      ],
+      slowThresholdMs: 0,
+    },
+  },
   dimensions: dims,
 })
 
@@ -108,7 +122,14 @@ describe('panels', () => {
   })
 
   it('keeps the bounds of the evidence chart in view', () => {
-    const { y } = scale([{ t: 1, errors: 0, slow: 0, step: 0 }, { t: 2, errors: 40, slow: -50, step: 0 }], -3, 6)
+    const { y } = scale(
+      [
+        { t: 1, errors: 0, slow: 0, step: 0 },
+        { t: 2, errors: 40, slow: -50, step: 0 },
+      ],
+      -3,
+      6,
+    )
     expect(y(6)).toBeGreaterThanOrEqual(0)
     expect(y(-3)).toBeLessThanOrEqual(150)
     expect(y(-50)).toBeLessThanOrEqual(150)

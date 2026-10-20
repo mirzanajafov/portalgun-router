@@ -24,7 +24,9 @@ export function FluidPanel({ latest }: { latest: Merged | null }) {
     }
   }
 
-  const cells = burst ? Array.from({ length: burst.sent }, (_, i) => (i < burst.allowed ? 'allowed' : i < burst.allowed + burst.limited ? 'limited' : 'failed')) : []
+  const cells = burst
+    ? Array.from({ length: burst.sent }, (_, i) => (i < burst.allowed ? 'allowed' : i < burst.allowed + burst.limited ? 'limited' : 'failed'))
+    : []
   return (
     <section className="panel flex flex-col gap-3 p-4">
       <div className="flex items-baseline justify-between gap-2">
@@ -32,8 +34,8 @@ export function FluidPanel({ latest }: { latest: Merged | null }) {
         <span className="muted text-xs">20/s, burst 40, synced between both gateways</span>
       </div>
       <p className="muted text-sm">
-        Your own bucket on /fluid/. Fire 60 requests at once and watch where it runs dry. They all land on one gateway, and until the two gateways sync (every 100
-        ms) a client they haven&apos;t seen gets half the burst on each.
+        Your own bucket on /fluid/. Fire 60 requests at once and watch where it runs dry. They all land on one gateway, and until the two gateways sync (every
+        100 ms) a client they haven&apos;t seen gets half the burst on each.
       </p>
       <div className="flex items-center gap-3">
         <button className="btn btn-primary" onClick={fire} disabled={busy}>
@@ -41,7 +43,8 @@ export function FluidPanel({ latest }: { latest: Merged | null }) {
         </button>
         {burst && (
           <span className="mono text-sm">
-            <span className="text-[var(--color-portal)]">{burst.allowed} through</span> · <span className="text-[var(--color-fluid)]">{burst.limited} got 429</span>
+            <span className="text-[var(--color-portal)]">{burst.allowed} through</span> ·{' '}
+            <span className="text-[var(--color-fluid)]">{burst.limited} got 429</span>
             {burst.failed > 0 && <span className="text-[var(--color-fault)]"> · {burst.failed} failed</span>} · {burst.ms} ms
           </span>
         )}

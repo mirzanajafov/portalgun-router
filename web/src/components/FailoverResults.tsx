@@ -37,8 +37,8 @@ export function FailoverResults({ run, sums }: { run: string; sums: FailoverSumm
       <h2 className="mb-1 font-semibold">When a dimension breaks</h2>
       <p className="muted mb-3 text-sm">
         2,000 rps spread over three dimensions, one of them broken for 30 s. Each cell is the median number of requests that failed in those 30 s, and how long
-        until less than 1% of the traffic still touched the broken one (100 ms bins). Probes are active health checks, passive means ejecting on observed errors,
-        retries go to another dimension. Run <span className="mono">{run}</span>.
+        until less than 1% of the traffic still touched the broken one (100 ms bins). Probes are active health checks, passive means ejecting on observed
+        errors, retries go to another dimension. Run <span className="mono">{run}</span>.
       </p>
       <table className="mono w-full min-w-[640px] text-sm">
         <thead className="muted text-left text-xs">
