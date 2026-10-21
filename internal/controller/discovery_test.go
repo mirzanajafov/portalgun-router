@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,21 +18,39 @@ func dimension(name, addr, version string) registry.Instance {
 	return registry.Instance{Name: name, Addr: addr, Meta: map[string]string{"version": version}}
 }
 
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 type discoveryRig struct {
 	*rig
 	d    *Discovery
-	logs *bytes.Buffer
+	logs *lockedBuffer
 }
 
-func discovering(t *testing.T) *discoveryRig {
+func discovering(t *testing.T, pool string) *discoveryRig {
 	t.Helper()
 	r := newRig(t)
-	var logs bytes.Buffer
-	d := NewDiscovery("p", r.cfgs, slog.New(slog.NewTextHandler(&logs, nil)))
-	return &discoveryRig{rig: r, d: d, logs: &logs}
+	logs := &lockedBuffer{}
+	d := NewDiscovery(pool, r.cfgs, slog.New(slog.NewTextHandler(logs, nil)))
+	d.retry = 20 * time.Millisecond
+	return &discoveryRig{rig: r, d: d, logs: logs}
 }
 
-func (r *discoveryRig) feed(t *testing.T, lists ...[]registry.Instance) {
+func (r *discoveryRig) send(t *testing.T, lists ...[]registry.Instance) {
 	t.Helper()
 	ch := make(chan []registry.Instance)
 	done := make(chan struct{})
@@ -50,6 +69,33 @@ func (r *discoveryRig) feed(t *testing.T, lists ...[]registry.Instance) {
 	}
 }
 
+func (r *discoveryRig) running(t *testing.T) chan<- []registry.Instance {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	lists := make(chan []registry.Instance)
+	done := make(chan struct{})
+	go func() {
+		r.d.Run(ctx, lists)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	return lists
+}
+
+func eventually(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !ok() {
+		if time.Now().After(deadline) {
+			t.Fatalf("never saw %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func (r *rig) latest(t *testing.T) (int, string, string, []config.Dimension) {
 	t.Helper()
 	r.store.mu.Lock()
@@ -60,13 +106,12 @@ func (r *rig) latest(t *testing.T) (int, string, string, []config.Dimension) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dims := slices.SortedFunc(slices.Values(poolNamed(cfg, "p").Dimensions), func(a, b config.Dimension) int { return strings.Compare(a.ID, b.ID) })
-	return n, last.Author, last.Reason, dims
+	return n, last.Author, last.Reason, slices.SortedFunc(slices.Values(poolNamed(cfg, "p").Dimensions), byDimensionID)
 }
 
 func TestTheRegistryListBecomesThePoolAndTheReasonSaysWhoJoinedAndLeft(t *testing.T) {
-	r := discovering(t)
-	r.feed(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("s2", "s2:8080", "v1")})
+	r := discovering(t, "p")
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("s2", "s2:8080", "v1")})
 	n, author, reason, dims := r.latest(t)
 	if n != 2 || author != "registry" || reason != "s2 joined, c1 left" {
 		t.Fatalf("version %d by %s: %q", n, author, reason)
@@ -78,17 +123,26 @@ func TestTheRegistryListBecomesThePoolAndTheReasonSaysWhoJoinedAndLeft(t *testin
 	if !slices.Equal(dims, want) {
 		t.Fatalf("pool %+v", dims)
 	}
-	r.feed(t,
-		[]registry.Instance{dimension("s2", "s2:8080", "v1"), dimension("s1", "s1:8080", "v1")},
-		[]registry.Instance{dimension("s1", "s1:9090", "v1"), {Name: "s2", Addr: "s2:8080"}},
-	)
-	if n, _, reason, _ := r.latest(t); n != 3 || reason != "s1 changed" {
-		t.Fatalf("the same instances in another order, then a moved address: version %d, %q", n, reason)
+}
+
+func TestTheSameInstancesInAnotherOrderWriteNothing(t *testing.T) {
+	r := discovering(t, "p")
+	r.send(t, []registry.Instance{dimension("c1", "c1:8080", "v2"), dimension("s1", "s1:8080", "v1")})
+	if n, _, _, _ := r.latest(t); n != 1 {
+		t.Fatalf("version %d written for the pool as it is", n)
+	}
+}
+
+func TestAMovedAddressIsAChange(t *testing.T) {
+	r := discovering(t, "p")
+	r.send(t, []registry.Instance{dimension("s1", "s1:9090", "v1"), dimension("c1", "c1:8080", "v2")})
+	if n, _, reason, _ := r.latest(t); n != 2 || reason != "s1 changed" {
+		t.Fatalf("version %d, %q", n, reason)
 	}
 }
 
 func TestMaxInflightComesFromTheRegistrationOrStaysWithTheDimension(t *testing.T) {
-	r := discovering(t)
+	r := discovering(t, "p")
 	if _, err := r.cfgs.Update(context.Background(), "admin", "caps", func(c *config.Config) error {
 		c.Pools[0].Dimensions[0].MaxInflight = 64
 		return nil
@@ -97,7 +151,7 @@ func TestMaxInflightComesFromTheRegistrationOrStaysWithTheDimension(t *testing.T
 	}
 	announced := dimension("s2", "s2:8080", "v1")
 	announced.Meta["maxInflight"] = "256"
-	r.feed(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), announced, dimension("s3", "s3:8080", "v1")})
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), announced, dimension("s3", "s3:8080", "v1")})
 	_, _, _, dims := r.latest(t)
 	got := map[string]int{}
 	for _, d := range dims {
@@ -109,8 +163,8 @@ func TestMaxInflightComesFromTheRegistrationOrStaysWithTheDimension(t *testing.T
 }
 
 func TestAnEmptyListKeepsThePoolAndIsLoggedOnce(t *testing.T) {
-	r := discovering(t)
-	r.feed(t, []registry.Instance{}, []registry.Instance{})
+	r := discovering(t, "p")
+	r.send(t, []registry.Instance{}, []registry.Instance{})
 	n, _, _, dims := r.latest(t)
 	if n != 1 || len(dims) != 2 {
 		t.Fatalf("version %d with %+v", n, dims)
@@ -121,12 +175,12 @@ func TestAnEmptyListKeepsThePoolAndIsLoggedOnce(t *testing.T) {
 }
 
 func TestAnInstanceWithoutAPortIsLeftOutAndTheRestApplied(t *testing.T) {
-	r := discovering(t)
-	r.feed(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("bad", "bad", "v1")})
+	r := discovering(t, "p")
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("bad", "bad", "v1")})
 	if n, _, _, _ := r.latest(t); n != 1 {
 		t.Fatalf("the usable instances are the pool already, but version %d was written", n)
 	}
-	r.feed(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("bad", "bad", "v1")})
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("bad", "bad", "v1")})
 	if n, _, reason, _ := r.latest(t); n != 2 || reason != "c1 left" {
 		t.Fatalf("version %d, %q", n, reason)
 	}
@@ -136,24 +190,16 @@ func TestAnInstanceWithoutAPortIsLeftOutAndTheRestApplied(t *testing.T) {
 }
 
 func TestAListWithoutTheCanaryIsAppliedOnARetryOnceTheRolloutIsOver(t *testing.T) {
-	r := discovering(t)
-	r.d.retry = 20 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	r := discovering(t, "p")
+	ctx := context.Background()
 	if _, err := r.cfgs.Update(ctx, "admin", "rollout", func(c *config.Config) error {
 		c.Routes[0].Versions = config.Versions{Stable: "v1", Canary: "v2", Weight: 0.1, Rollout: "ro-1"}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	lists := make(chan []registry.Instance)
-	done := make(chan struct{})
-	go func() {
-		r.d.Run(ctx, lists)
-		close(done)
-	}()
-	lists <- []registry.Instance{dimension("s1", "s1:8080", "v1")}
-	time.Sleep(100 * time.Millisecond)
+	r.running(t) <- []registry.Instance{dimension("s1", "s1:8080", "v1")}
+	eventually(t, "the list refused during the rollout", func() bool { return strings.Contains(r.logs.String(), "not applied") })
 	if n, _, _, dims := r.latest(t); n != 2 || len(dims) != 2 {
 		t.Fatalf("applied during the rollout: version %d with %+v", n, dims)
 	}
@@ -163,58 +209,39 @@ func TestAListWithoutTheCanaryIsAppliedOnARetryOnceTheRolloutIsOver(t *testing.T
 	}); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for {
+	eventually(t, "the list applied on a retry after the rollback", func() bool {
 		n, author, reason, dims := r.latest(t)
-		if n == 4 && author == "registry" && reason == "c1 left" && len(dims) == 1 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("not applied on a retry after the rollback: version %d by %s %q with %+v", n, author, reason, dims)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	cancel()
-	<-done
+		return n == 4 && author == "registry" && reason == "c1 left" && len(dims) == 1
+	})
 }
 
 func TestAnAppliedListIsNotPutBackOverAnAdminChange(t *testing.T) {
-	r := discovering(t)
-	r.d.retry = 20 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	lists := make(chan []registry.Instance)
-	done := make(chan struct{})
-	go func() {
-		r.d.Run(ctx, lists)
-		close(done)
-	}()
-	lists <- []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("s2", "s2:8080", "v1")}
-	time.Sleep(100 * time.Millisecond)
+	r := discovering(t, "p")
+	ctx := context.Background()
+	r.running(t) <- []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("s2", "s2:8080", "v1")}
+	eventually(t, "s2 joining", func() bool {
+		n, _, reason, _ := r.latest(t)
+		return n == 2 && reason == "s2 joined"
+	})
 	if _, err := r.cfgs.Update(ctx, "admin", "drain s2", func(c *config.Config) error {
 		c.Pools[0].Dimensions = slices.DeleteFunc(c.Pools[0].Dimensions, func(d config.Dimension) bool { return d.ID == "s2" })
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(10 * r.d.retry)
 	if n, author, _, _ := r.latest(t); n != 3 || author != "admin" {
 		t.Fatalf("version %d by %s, want the admin's change to stand until the registry says something new", n, author)
 	}
-	cancel()
-	<-done
 }
 
 func TestAPoolTheConfigDoesNotHaveIsLoggedOnceAndNothingWritten(t *testing.T) {
-	r := newRig(t)
-	var logs bytes.Buffer
-	d := NewDiscovery("dimensions", r.cfgs, slog.New(slog.NewTextHandler(&logs, nil)))
-	dr := &discoveryRig{rig: r, d: d, logs: &logs}
-	dr.feed(t, []registry.Instance{dimension("s1", "s1:8080", "v1")}, []registry.Instance{dimension("s2", "s2:8080", "v1")})
+	r := discovering(t, "dimensions")
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1")}, []registry.Instance{dimension("s2", "s2:8080", "v1")})
 	if n, _, _, _ := r.latest(t); n != 1 {
 		t.Fatalf("version %d written for a pool the config doesn't have", n)
 	}
-	if got := strings.Count(logs.String(), "no pool"); got != 1 {
-		t.Fatalf("logged %d times:\n%s", got, logs.String())
+	if got := strings.Count(r.logs.String(), "no pool"); got != 1 {
+		t.Fatalf("logged %d times:\n%s", got, r.logs.String())
 	}
 }

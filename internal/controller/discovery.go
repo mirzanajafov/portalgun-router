@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net"
 	"slices"
 	"strconv"
 	"strings"
@@ -56,8 +55,7 @@ func (d *Discovery) Run(ctx context.Context, lists <-chan []registry.Instance) {
 }
 
 func usable(in registry.Instance) bool {
-	host, port, err := net.SplitHostPort(in.Addr)
-	return in.Name != "" && err == nil && host != "" && port != ""
+	return in.Name != "" && config.HostPort(in.Addr)
 }
 
 func dimensionsFrom(list []registry.Instance, current []config.Dimension) []config.Dimension {
@@ -81,10 +79,10 @@ func dimensionsFrom(list []registry.Instance, current []config.Dimension) []conf
 	return out
 }
 
-func byID(a, b config.Dimension) int { return strings.Compare(a.ID, b.ID) }
+func byDimensionID(a, b config.Dimension) int { return strings.Compare(a.ID, b.ID) }
 
 func sameDimensions(a, b []config.Dimension) bool {
-	return slices.Equal(slices.SortedFunc(slices.Values(a), byID), slices.SortedFunc(slices.Values(b), byID))
+	return slices.Equal(slices.SortedFunc(slices.Values(a), byDimensionID), slices.SortedFunc(slices.Values(b), byDimensionID))
 }
 
 func describe(before, after []config.Dimension) string {
@@ -103,7 +101,7 @@ func describe(before, after []config.Dimension) string {
 		}
 		delete(old, d.ID)
 	}
-	for _, d := range slices.SortedFunc(maps.Values(old), byID) {
+	for _, d := range slices.SortedFunc(maps.Values(old), byDimensionID) {
 		changes = append(changes, d.ID+" left")
 	}
 	return strings.Join(changes, ", ")
@@ -141,11 +139,6 @@ func (d *Discovery) reconcile(ctx context.Context, list []registry.Instance) {
 		return nil
 	})
 	if err != nil {
-		if now, _ := d.cfgs.Current(); poolNamed(now, d.pool) != nil && sameDimensions(poolNamed(now, d.pool).Dimensions, next) {
-			d.refused = ""
-			d.logger.Warn("dimensions from the registry saved, but publishing them failed", "pool", d.pool, "reason", reason, "err", err)
-			return
-		}
 		d.refuse(err.Error(), list)
 		return
 	}
