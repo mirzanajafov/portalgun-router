@@ -179,7 +179,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	_, version := cfgs.Raw()
-	logger.Info("controller up", "addr", addr, "config", version, "admin", token != "", "registry", o.registry != "")
+	logger.Info("controller up", "addr", ln.Addr().String(), "config", version, "admin", token != "", "registry", o.registry != "")
 	select {
 	case <-ctx.Done():
 	case err := <-errc:

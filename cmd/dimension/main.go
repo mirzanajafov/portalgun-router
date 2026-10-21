@@ -42,7 +42,6 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	context.AfterFunc(ctx, stop)
 	var keep func(context.Context)
 	if *endpoints != "" {
 		c, inst, err := registration(registrationFlags{endpoints: *endpoints, service: *service, id: *id, version: *version, advertise: *advertise, maxInflight: *maxInflight, ttl: *ttl})
@@ -62,6 +61,8 @@ type registrationFlags struct {
 	endpoints, service, id, version, advertise, maxInflight string
 	ttl                                                     time.Duration
 }
+
+const leaveDrain = time.Second
 
 func registration(f registrationFlags) (*registry.Client, registry.Instance, error) {
 	var urls []string
@@ -137,6 +138,9 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 		return err
 	}
 	<-kept
+	if keep != nil {
+		time.Sleep(leaveDrain)
+	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = errors.Join(s.Shutdown(shutdownCtx), control.Shutdown(shutdownCtx))
