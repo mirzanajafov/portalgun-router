@@ -60,7 +60,7 @@
     },
     "response": {
       "status": 400,
-      "body": { "error": "client: invalid argument: instance name \"e/7\" must be non-empty UTF-8, without a slash and at most 128 bytes" }
+      "body": { "error": "client: invalid argument: instance name \"e/7\" must be a UTF-8 path segment of at most 128 bytes" }
     }
   },
   {
