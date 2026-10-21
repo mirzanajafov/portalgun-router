@@ -1,0 +1,15 @@
+{
+  "commit": "ac9b2f9",
+  "imageId": "sha256:dac5bd0ef54275c8846c020e834228cb0ebf50e94ff94a9ab705a828070bf6e7",
+  "plan": {
+    "join": 20,
+    "leader": 10,
+    "failover": 10,
+    "down": 3,
+    "rate": 500,
+    "label": "laptop",
+    "image": "fivefamilies-node:main-056ae86",
+    "imageCommit": "056ae86"
+  },
+  "startedAt": "2026-10-21T22:55:36.5588762Z"
+}

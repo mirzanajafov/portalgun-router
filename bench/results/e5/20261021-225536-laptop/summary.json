@@ -1,0 +1,115 @@
+[
+  {
+    "cell": "join",
+    "runs": 20,
+    "failed": 0,
+    "invalid": 0,
+    "requests": 150149,
+    "lost": 0,
+    "dropped": 0,
+    "registryVersions": 40,
+    "refusals": 0,
+    "lostRegistrations": 0,
+    "registerMs": {
+      "median": 21.611156,
+      "min": 14.990478,
+      "max": 45.773315
+    },
+    "joinMs": {
+      "median": 14.6832275,
+      "min": 8.828034,
+      "max": 30.002137
+    },
+    "appliedMs": {
+      "median": 9.7322945,
+      "min": 7.327689,
+      "max": 18.963476
+    },
+    "gatewaysMs": {
+      "median": 10.1511985,
+      "min": 7.846792,
+      "max": 21.569479
+    },
+    "leaveAppliedMs": {
+      "median": 14.591796500000001,
+      "min": 10.714633,
+      "max": 18.043181
+    },
+    "leaveGatewaysMs": {
+      "median": 15.0561545,
+      "min": 11.190542,
+      "max": 18.604286
+    },
+    "leftBeforeEndMs": {
+      "median": 6395.72077,
+      "min": 6226.245246,
+      "max": 6461.091103
+    }
+  },
+  {
+    "cell": "leader",
+    "runs": 10,
+    "failed": 0,
+    "invalid": 0,
+    "requests": 99797,
+    "lost": 0,
+    "dropped": 0,
+    "registryVersions": 0,
+    "refusals": 0,
+    "lostRegistrations": 2
+  },
+  {
+    "cell": "failover",
+    "runs": 10,
+    "failed": 0,
+    "invalid": 0,
+    "requests": 125517,
+    "lost": 0,
+    "dropped": 0,
+    "registryVersions": 10,
+    "refusals": 0,
+    "lostRegistrations": 2,
+    "registerMs": {
+      "median": 2105.6377045,
+      "min": 652.030972,
+      "max": 8141.365546
+    },
+    "joinMs": {
+      "median": 21.775785,
+      "min": 10.926467,
+      "max": 2039.482912
+    },
+    "appliedMs": {
+      "median": 11.164466000000001,
+      "min": 9.061652,
+      "max": 2034.531235
+    },
+    "gatewaysMs": {
+      "median": 11.5153885,
+      "min": 9.881061,
+      "max": 2034.824946
+    },
+    "upAfterKillMs": {
+      "median": 732.1278130000001,
+      "min": 692.107351,
+      "max": 840.462733
+    },
+    "killToFirstMs": {
+      "median": 3874.7427175,
+      "min": 1391.997978,
+      "max": 8904.48703
+    }
+  },
+  {
+    "cell": "down",
+    "runs": 3,
+    "failed": 0,
+    "invalid": 0,
+    "requests": 67584,
+    "lost": 0,
+    "dropped": 0,
+    "registryVersions": 0,
+    "refusals": 0,
+    "lostRegistrations": 12
+  }
+]
