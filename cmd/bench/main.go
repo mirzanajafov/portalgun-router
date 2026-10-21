@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
@@ -44,6 +43,11 @@ func main() {
 		err = reportE3(os.Args[2:])
 	case "e5":
 		err = e5(ctx, os.Args[2:])
+	case "report-e5":
+		if len(os.Args) < 3 {
+			usage()
+		}
+		err = bench.ReportE5(os.Args[2])
 	case "hotpath":
 		err = hotpath(ctx, os.Args[2:])
 	case "report-hotpath":
@@ -63,7 +67,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|hotpath [flags] | bench report|report-overload|report-e2|report-e3|report-hotpath <dir> | bench merge <out> <dir>...")
+	fmt.Fprintln(os.Stderr, "usage: bench e1|e2|e3|e5|hotpath [flags] | bench report|report-overload|report-e2|report-e3|report-e5|report-hotpath <dir> | bench merge <out> <dir>...")
 	os.Exit(2)
 }
 
@@ -157,7 +161,7 @@ func reportOverload(args []string) error {
 
 func e5(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("e5", flag.ExitOnError)
-	var plan bench.RegistryPlan
+	plan := bench.RegistryPlan{Image: cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node")}
 	fs.IntVar(&plan.Join, "join", 20, "trials of a dimension registering and leaving")
 	fs.IntVar(&plan.Leader, "leader", 10, "trials of the registry's leader being killed")
 	fs.IntVar(&plan.Failover, "failover", 10, "trials of a dimension registering as the leader is killed")
@@ -168,10 +172,6 @@ func e5(ctx context.Context, args []string) error {
 	out := fs.String("out", filepath.Join("bench", "results", "e5"), "results directory")
 	if err := fs.Parse(args); err != nil {
 		return err
-	}
-	image := cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node")
-	if err := exec.CommandContext(ctx, "docker", "image", "inspect", image).Run(); err != nil {
-		return fmt.Errorf("no %s image: build FiveFamilies' node image in its repo, or name another one in FF_IMAGE", image)
 	}
 	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
 	dir, err := runner.RunE5(ctx, plan)

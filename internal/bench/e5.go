@@ -18,7 +18,10 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
-var registryNodes = []string{"ff1", "ff2", "ff3", "ff4", "ff5"}
+var (
+	registryNodes  = []string{"ff1", "ff2", "ff3", "ff4", "ff5"}
+	registeredDims = []string{"dim-a", "dim-b", "dim-c", "dim-d"}
+)
 
 type RegistryPlan struct {
 	Join     int     `json:"join"`
@@ -27,24 +30,27 @@ type RegistryPlan struct {
 	Down     int     `json:"down"`
 	Rate     float64 `json:"rate"`
 	Label    string  `json:"label"`
+	Image    string  `json:"image"`
 }
 
 type RegistryTrial struct {
-	Cell          string   `json:"cell"`
-	Trial         int      `json:"trial"`
-	StartedAt     string   `json:"startedAt"`
-	Requests      int      `json:"requests"`
-	Lost          int      `json:"lost"`
-	Dropped       int      `json:"dropped"`
-	Versions      []string `json:"registryVersions"`
-	JoinMs        *float64 `json:"joinMs,omitempty"`
-	AppliedMs     *float64 `json:"appliedMs,omitempty"`
-	GatewaysMs    *float64 `json:"gatewaysMs,omitempty"`
-	LeaveMs       *float64 `json:"leaveMs,omitempty"`
-	RegisterMs    *float64 `json:"registerMs,omitempty"`
-	KillToFirstMs *float64 `json:"killToFirstMs,omitempty"`
-	Killed        string   `json:"killed,omitempty"`
-	Error         string   `json:"error,omitempty"`
+	Cell              string   `json:"cell"`
+	Trial             int      `json:"trial"`
+	StartedAt         string   `json:"startedAt"`
+	Requests          int      `json:"requests"`
+	Lost              int      `json:"lost"`
+	Dropped           int      `json:"dropped"`
+	Invalid           []string `json:"invalid,omitempty"`
+	Versions          []string `json:"registryVersions"`
+	LostRegistrations int      `json:"lostRegistrations"`
+	JoinMs            *float64 `json:"joinMs,omitempty"`
+	AppliedMs         *float64 `json:"appliedMs,omitempty"`
+	GatewaysMs        *float64 `json:"gatewaysMs,omitempty"`
+	LeaveMs           *float64 `json:"leaveMs,omitempty"`
+	RegisterMs        *float64 `json:"registerMs,omitempty"`
+	KillToFirstMs     *float64 `json:"killToFirstMs,omitempty"`
+	Killed            string   `json:"killed,omitempty"`
+	Error             string   `json:"error,omitempty"`
 }
 
 type logLine struct {
@@ -59,9 +65,19 @@ func (l logLine) configVersion() int64 {
 	return int64(v)
 }
 
+type nodeStatus struct {
+	ID     uint64 `json:"id"`
+	Role   string `json:"role"`
+	Leader uint64 `json:"leader"`
+}
+
 func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 	if plan.Rate <= 0 || plan.Join+plan.Leader+plan.Failover+plan.Down == 0 {
 		return "", errors.New("the plan needs a rate and at least one trial")
+	}
+	image, err := exec.CommandContext(ctx, "docker", "image", "inspect", "-f", "{{.Id}}", plan.Image).Output()
+	if err != nil {
+		return "", fmt.Errorf("no %s image: build FiveFamilies' node image in its repo, or name another one in FF_IMAGE", plan.Image)
 	}
 	dir, err := filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")+"-"+plan.Label))
 	if err != nil {
@@ -71,6 +87,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 		return "", err
 	}
 	compose := r.Compose
+	compose.Env = append(slices.Clone(compose.Env), "FF_IMAGE="+plan.Image)
 	r.logf("starting the registry stack")
 	if err := compose.Up(ctx); err != nil {
 		return "", err
@@ -80,7 +97,8 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 			r.logf("tearing down: %v", err)
 		}
 	}()
-	if err := writeJSON(filepath.Join(dir, "meta.json"), map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC()}); err != nil {
+	meta := map[string]any{"plan": plan, "commit": commit(ctx), "imageId": strings.TrimSpace(string(image)), "startedAt": time.Now().UTC()}
+	if err := writeJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
 		return dir, err
 	}
 	f, err := os.Create(filepath.Join(dir, "trials.jsonl"))
@@ -92,7 +110,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 	cells := []struct {
 		name   string
 		trials int
-		run    func(context.Context, Compose, float64, int) (RegistryTrial, error)
+		run    func(context.Context, Compose, float64, int, *RegistryTrial) error
 	}{
 		{"join", plan.Join, r.joinTrial},
 		{"leader", plan.Leader, r.leaderTrial},
@@ -105,9 +123,8 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 			if err := r.steady(ctx, compose); err != nil {
 				return dir, fmt.Errorf("%s trial %d: %w", c.name, i+1, err)
 			}
-			t, err := c.run(ctx, compose, plan.Rate, i)
-			t.Cell, t.Trial = c.name, i+1
-			if err != nil {
+			t := RegistryTrial{Cell: c.name, Trial: i + 1, StartedAt: time.Now().UTC().Format(time.RFC3339)}
+			if err := c.run(ctx, compose, plan.Rate, i, &t); err != nil {
 				if ctx.Err() != nil {
 					return dir, err
 				}
@@ -117,16 +134,38 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 				return dir, err
 			}
 			all = append(all, t)
-			r.logf("%-8s %2d  lost %d of %d  join %s  leave %s  register %s  kill-to-first %s  versions %v %s",
-				c.name, i+1, t.Lost, t.Requests, msOrDash(t.JoinMs), msOrDash(t.LeaveMs), msOrDash(t.RegisterMs), msOrDash(t.KillToFirstMs), t.Versions, t.Error)
+			r.logf("%-8s %2d  lost %d of %d  join %s  leave %s  register %s  kill-to-first %s  versions %v  lost registrations %d %s",
+				c.name, i+1, t.Lost, t.Requests, msOrDash(t.JoinMs), msOrDash(t.LeaveMs), msOrDash(t.RegisterMs), msOrDash(t.KillToFirstMs), t.Versions, t.LostRegistrations, t.Error)
 		}
 	}
 	return dir, writeJSON(filepath.Join(dir, "summary.json"), SummarizeE5(all))
 }
 
-func (c Compose) fetch(ctx context.Context, url string) ([]byte, error) {
-	out, err := c.run(ctx, "exec", "-T", "loadgen", "wget", "-q", "-T", "3", "-O", "-", url)
-	return out, err
+func ReportE5(dir string) error {
+	f, err := os.Open(filepath.Join(dir, "trials.jsonl"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var trials []RegistryTrial
+	dec := json.NewDecoder(f)
+	for dec.More() {
+		var t RegistryTrial
+		if err := dec.Decode(&t); err != nil {
+			return fmt.Errorf("trials.jsonl: %w", err)
+		}
+		trials = append(trials, t)
+	}
+	return writeJSON(filepath.Join(dir, "summary.json"), SummarizeE5(trials))
+}
+
+func (c Compose) status(ctx context.Context, node string) (nodeStatus, error) {
+	var st nodeStatus
+	out, err := c.Exec(ctx, "loadgen", "wget", "-q", "-T", "3", "-O", "-", "http://"+node+":3171/v1/status")
+	if err == nil {
+		err = json.Unmarshal([]byte(out), &st)
+	}
+	return st, err
 }
 
 func (r *Runner) steady(ctx context.Context, compose Compose) error {
@@ -135,11 +174,7 @@ func (r *Runner) steady(ctx context.Context, compose Compose) error {
 		why := ""
 		leaders := map[uint64]bool{}
 		for _, n := range registryNodes {
-			raw, err := compose.fetch(ctx, "http://"+n+":3171/v1/status")
-			var st struct{ Leader uint64 }
-			if err == nil {
-				err = json.Unmarshal(raw, &st)
-			}
+			st, err := compose.status(ctx, n)
 			if err != nil || st.Leader == 0 {
 				why = n + " has no leader"
 				break
@@ -153,15 +188,14 @@ func (r *Runner) steady(ctx context.Context, compose Compose) error {
 			if why != "" {
 				break
 			}
-			raw, err := compose.fetch(ctx, "http://"+g+":9090/state")
+			out, err := compose.Exec(ctx, "loadgen", "wget", "-q", "-T", "3", "-O", "-", "http://"+g+":9090/state")
 			var st struct {
 				Upstreams []struct {
-					ID      string `json:"id"`
-					Healthy bool   `json:"healthy"`
+					Healthy bool `json:"healthy"`
 				} `json:"upstreams"`
 			}
 			if err == nil {
-				err = json.Unmarshal(raw, &st)
+				err = json.Unmarshal([]byte(out), &st)
 			}
 			healthy := 0
 			for _, u := range st.Upstreams {
@@ -197,25 +231,37 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 type load struct {
-	done chan error
-	file string
+	done   chan error
+	sum    loadgen.Summary
+	file   string
+	waited bool
 }
 
 func startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
 	l := &load{done: make(chan error, 1), file: fmt.Sprintf("/tmp/e5-%d.bin", seed)}
 	go func() {
-		_, err := compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
+		sum, err := compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
 			"-rate", strconv.FormatFloat(rate, 'f', -1, 64), "-arrival", "poisson", "-seed", strconv.Itoa(seed+1),
 			"-warmup", "0s", "-duration", d.String(), "-timeout", "5s", "-records", l.file)
+		l.sum = sum
 		l.done <- err
 	}()
 	return l
 }
 
-func (l *load) wait(ctx context.Context, compose Compose) (*loadgen.Log, error) {
+func (l *load) drain() {
+	if !l.waited {
+		<-l.done
+		l.waited = true
+	}
+}
+
+func (l *load) wait(ctx context.Context, compose Compose, t *RegistryTrial) (*loadgen.Log, error) {
+	l.waited = true
 	if err := <-l.done; err != nil {
 		return nil, err
 	}
+	t.Invalid = l.sum.Invalid
 	local := filepath.Join(os.TempDir(), filepath.Base(l.file))
 	if _, err := compose.run(ctx, "cp", "loadgen:"+l.file, local); err != nil {
 		return nil, err
@@ -226,7 +272,11 @@ func (l *load) wait(ctx context.Context, compose Compose) (*loadgen.Log, error) 
 		return nil, err
 	}
 	defer f.Close()
-	return loadgen.ReadLog(f)
+	lg, err := loadgen.ReadLog(f)
+	if err == nil {
+		tally(t, lg)
+	}
+	return lg, err
 }
 
 func (c Compose) logLines(ctx context.Context, service string) ([]logLine, error) {
@@ -245,13 +295,12 @@ func (c Compose) logLines(ctx context.Context, service string) ([]logLine, error
 	return lines, sc.Err()
 }
 
-func first(lines []logLine, ok func(logLine) bool) (logLine, bool) {
-	for _, l := range lines {
-		if ok(l) {
-			return l, true
-		}
+func logged(lines []logLine, msg string) (time.Time, bool) {
+	i := slices.IndexFunc(lines, func(l logLine) bool { return l.Msg == msg })
+	if i < 0 {
+		return time.Time{}, false
 	}
-	return logLine{}, false
+	return lines[i].Time, true
 }
 
 func ms(from, to time.Time) *float64 {
@@ -271,7 +320,7 @@ func tally(t *RegistryTrial, lg *loadgen.Log) {
 	}
 }
 
-func served(lg *loadgen.Log, dim string) (firstAt, lastAt time.Time, ok bool) {
+func servedBy(lg *loadgen.Log, dim string) (firstAt, lastAt time.Time, ok bool) {
 	idx := slices.Index(lg.Dimensions, dim)
 	if idx < 0 {
 		return time.Time{}, time.Time{}, false
@@ -292,22 +341,30 @@ func served(lg *loadgen.Log, dim string) (firstAt, lastAt time.Time, ok bool) {
 	return firstAt, lastAt, ok
 }
 
-func (r *Runner) registryVersions(ctx context.Context, compose Compose, from, to time.Time) ([]logLine, error) {
+func within(lines []logLine, msg string, from, to time.Time) []logLine {
+	return slices.DeleteFunc(slices.Clone(lines), func(l logLine) bool {
+		return l.Msg != msg || l.Time.Before(from) || l.Time.After(to)
+	})
+}
+
+func (r *Runner) registryAfter(ctx context.Context, compose Compose, t *RegistryTrial, from, to time.Time) ([]logLine, error) {
 	lines, err := compose.logLines(ctx, "controller")
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(lines, func(l logLine) bool {
-		return l.Msg != "dimensions from the registry applied" || l.Time.Before(from) || l.Time.After(to)
-	}), nil
-}
-
-func reasons(lines []logLine) []string {
-	out := []string{}
-	for _, l := range lines {
-		out = append(out, fmt.Sprintf("v%d %s", l.configVersion(), l.Reason))
+	versions := within(lines, "dimensions from the registry applied", from, to)
+	t.Versions = []string{}
+	for _, l := range versions {
+		t.Versions = append(t.Versions, fmt.Sprintf("v%d %s", l.configVersion(), l.Reason))
 	}
-	return out
+	for _, d := range registeredDims {
+		lines, err := compose.logLines(ctx, d)
+		if err != nil {
+			return nil, err
+		}
+		t.LostRegistrations += len(within(lines, "the registration was lost, registering again", from, to))
+	}
+	return versions, nil
 }
 
 func (r *Runner) appliedAt(ctx context.Context, compose Compose, version int64) (time.Time, error) {
@@ -317,38 +374,24 @@ func (r *Runner) appliedAt(ctx context.Context, compose Compose, version int64) 
 		if err != nil {
 			return last, err
 		}
-		l, ok := first(lines, func(l logLine) bool { return l.Msg == "cluster config applied" && l.configVersion() == version })
-		if !ok {
+		i := slices.IndexFunc(lines, func(l logLine) bool { return l.Msg == "cluster config applied" && l.configVersion() == version })
+		if i < 0 {
 			return last, fmt.Errorf("%s never applied version %d", g, version)
 		}
-		last = maxTime(last, l.Time)
+		if lines[i].Time.After(last) {
+			last = lines[i].Time
+		}
 	}
 	return last, nil
 }
 
-func maxTime(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
-}
-
 func (r *Runner) leader(ctx context.Context, compose Compose) (string, error) {
 	for _, n := range registryNodes {
-		raw, err := compose.fetch(ctx, "http://"+n+":3171/v1/status")
-		if err != nil {
-			continue
-		}
-		var st struct {
-			ID     uint64 `json:"id"`
-			Role   string `json:"role"`
-			Leader uint64 `json:"leader"`
-		}
-		if json.Unmarshal(raw, &st) == nil && st.Leader != 0 {
-			return fmt.Sprintf("ff%d", st.Leader), nil
+		if st, err := compose.status(ctx, n); err == nil && st.Role == "leader" {
+			return n, nil
 		}
 	}
-	return "", errors.New("no node names a leader")
+	return "", errors.New("no node says it leads")
 }
 
 func (r *Runner) kill(ctx context.Context, compose Compose, service string) (time.Time, error) {
@@ -372,158 +415,162 @@ func (r *Runner) startAgain(compose Compose, services ...string) {
 	}
 }
 
-func (r *Runner) joinTrial(ctx context.Context, compose Compose, rate float64, i int) (RegistryTrial, error) {
-	t := RegistryTrial{StartedAt: time.Now().UTC().Format(time.RFC3339)}
+func (r *Runner) removeDimE(compose Compose) {
+	if _, err := compose.run(context.Background(), "--profile", "join", "rm", "-f", "-s", "dim-e"); err != nil {
+		r.logf("removing dim-e: %v", err)
+	}
+}
+
+func (r *Runner) joinTrial(ctx context.Context, compose Compose, rate float64, i int, t *RegistryTrial) error {
+	defer r.removeDimE(compose)
 	l := startLoad(ctx, compose, rate, 12*time.Second, i)
+	defer l.drain()
 	sleepCtx(ctx, 2*time.Second)
 	if _, err := compose.run(ctx, "--profile", "join", "up", "-d", "--no-deps", "dim-e"); err != nil {
-		return t, err
+		return err
 	}
 	sleepCtx(ctx, 6*time.Second)
 	if _, err := compose.run(ctx, "--profile", "join", "stop", "-t", "10", "dim-e"); err != nil {
-		return t, err
+		return err
 	}
-	lg, err := l.wait(ctx, compose)
+	lg, err := l.wait(ctx, compose, t)
 	if err != nil {
-		return t, err
+		return err
 	}
-	tally(&t, lg)
-	defer func() { _, _ = compose.run(context.Background(), "--profile", "join", "rm", "-f", "dim-e") }()
 	dim, err := compose.logLines(ctx, "dim-e")
 	if err != nil {
-		return t, err
+		return err
 	}
-	up, ok0 := first(dim, func(l logLine) bool { return l.Msg == "dimension up" })
-	registered, ok1 := first(dim, func(l logLine) bool { return l.Msg == "registered" })
-	deregistering, ok2 := first(dim, func(l logLine) bool { return l.Msg == "deregistering" })
+	up, ok0 := logged(dim, "dimension up")
+	registered, ok1 := logged(dim, "registered")
+	deregistering, ok2 := logged(dim, "deregistering")
 	if !ok0 || !ok1 || !ok2 {
-		return t, errors.New("dim-e never logged its start, registration and deregistration")
+		return errors.New("dim-e never logged its start, registration and deregistration")
 	}
-	t.RegisterMs = ms(up.Time, registered.Time)
-	versions, err := r.registryVersions(ctx, compose, time.Unix(0, lg.StartUnixNano), deregistering.Time.Add(5*time.Second))
+	t.RegisterMs = ms(up, registered)
+	versions, err := r.registryAfter(ctx, compose, t, time.Unix(0, lg.StartUnixNano), deregistering.Add(5*time.Second))
 	if err != nil {
-		return t, err
+		return err
 	}
-	t.Versions = reasons(versions)
-	firstAt, lastAt, ok := served(lg, "e")
+	firstAt, lastAt, ok := servedBy(lg, "e")
 	if !ok {
-		return t, errors.New("dim-e served nothing")
+		return errors.New("dim-e served nothing")
 	}
-	t.JoinMs, t.LeaveMs = ms(registered.Time, firstAt), ms(deregistering.Time, lastAt)
-	if v, ok := first(versions, func(l logLine) bool { return strings.Contains(l.Reason, "e joined") }); ok {
-		t.AppliedMs = ms(registered.Time, v.Time)
-		if at, err := r.appliedAt(ctx, compose, v.configVersion()); err == nil {
-			t.GatewaysMs = ms(registered.Time, at)
+	t.JoinMs, t.LeaveMs = ms(registered, firstAt), ms(deregistering, lastAt)
+	if i := slices.IndexFunc(versions, func(l logLine) bool { return strings.Contains(l.Reason, "e joined") }); i >= 0 {
+		t.AppliedMs = ms(registered, versions[i].Time)
+		if at, err := r.appliedAt(ctx, compose, versions[i].configVersion()); err == nil {
+			t.GatewaysMs = ms(registered, at)
 		}
 	}
-	return t, nil
+	return nil
 }
 
-func (r *Runner) leaderTrial(ctx context.Context, compose Compose, rate float64, i int) (RegistryTrial, error) {
-	t := RegistryTrial{StartedAt: time.Now().UTC().Format(time.RFC3339)}
+func (r *Runner) leaderTrial(ctx context.Context, compose Compose, rate float64, i int, t *RegistryTrial) error {
 	l := startLoad(ctx, compose, rate, 20*time.Second, 100+i)
+	defer l.drain()
 	sleepCtx(ctx, 3*time.Second)
 	leader, err := r.leader(ctx, compose)
 	if err != nil {
-		return t, err
+		return err
 	}
 	t.Killed = leader
 	defer r.startAgain(compose, leader)
 	if _, err := r.kill(ctx, compose, leader); err != nil {
-		return t, err
+		return err
 	}
 	sleepCtx(ctx, 10*time.Second)
 	if _, err := compose.run(ctx, "start", leader); err != nil {
-		return t, err
+		return err
 	}
-	lg, err := l.wait(ctx, compose)
+	lg, err := l.wait(ctx, compose, t)
 	if err != nil {
-		return t, err
+		return err
 	}
-	tally(&t, lg)
-	versions, err := r.registryVersions(ctx, compose, time.Unix(0, lg.StartUnixNano), time.Unix(0, lg.StartUnixNano).Add(25*time.Second))
-	t.Versions = reasons(versions)
-	return t, err
+	start := time.Unix(0, lg.StartUnixNano)
+	_, err = r.registryAfter(ctx, compose, t, start, start.Add(25*time.Second))
+	return err
 }
 
-func (r *Runner) failoverTrial(ctx context.Context, compose Compose, rate float64, i int) (RegistryTrial, error) {
-	t := RegistryTrial{StartedAt: time.Now().UTC().Format(time.RFC3339)}
-	l := startLoad(ctx, compose, rate, 15*time.Second, 200+i)
+func (r *Runner) failoverTrial(ctx context.Context, compose Compose, rate float64, i int, t *RegistryTrial) error {
+	defer r.removeDimE(compose)
+	l := startLoad(ctx, compose, rate, 25*time.Second, 200+i)
+	defer l.drain()
 	sleepCtx(ctx, 3*time.Second)
 	leader, err := r.leader(ctx, compose)
 	if err != nil {
-		return t, err
+		return err
 	}
 	t.Killed = leader
 	defer r.startAgain(compose, leader)
 	killed, err := r.kill(ctx, compose, leader)
 	if err != nil {
-		return t, err
+		return err
 	}
 	if _, err := compose.run(ctx, "--profile", "join", "up", "-d", "--no-deps", "dim-e"); err != nil {
-		return t, err
+		return err
 	}
-	defer func() { _, _ = compose.run(context.Background(), "--profile", "join", "rm", "-f", "-s", "dim-e") }()
-	lg, err := l.wait(ctx, compose)
+	lg, err := l.wait(ctx, compose, t)
 	if err != nil {
-		return t, err
-	}
-	tally(&t, lg)
-	if _, err := compose.run(ctx, "start", leader); err != nil {
-		return t, err
+		return err
 	}
 	dim, err := compose.logLines(ctx, "dim-e")
 	if err != nil {
-		return t, err
+		return err
 	}
-	up, ok0 := first(dim, func(l logLine) bool { return l.Msg == "dimension up" })
-	registered, ok1 := first(dim, func(l logLine) bool { return l.Msg == "registered" })
+	up, ok0 := logged(dim, "dimension up")
+	registered, ok1 := logged(dim, "registered")
 	if !ok0 || !ok1 {
-		return t, errors.New("dim-e never logged its start and registration")
+		return errors.New("dim-e never logged its start and registration")
 	}
-	t.RegisterMs = ms(up.Time, registered.Time)
-	if firstAt, _, ok := served(lg, "e"); ok {
-		t.KillToFirstMs, t.JoinMs = ms(killed, firstAt), ms(registered.Time, firstAt)
+	t.RegisterMs = ms(up, registered)
+	start := time.Unix(0, lg.StartUnixNano)
+	if _, err := r.registryAfter(ctx, compose, t, start, start.Add(30*time.Second)); err != nil {
+		return err
 	}
-	versions, err := r.registryVersions(ctx, compose, time.Unix(0, lg.StartUnixNano), time.Unix(0, lg.StartUnixNano).Add(20*time.Second))
-	t.Versions = reasons(versions)
-	return t, err
+	firstAt, _, ok := servedBy(lg, "e")
+	if !ok {
+		return errors.New("dim-e served nothing before the load ended")
+	}
+	t.KillToFirstMs, t.JoinMs = ms(killed, firstAt), ms(registered, firstAt)
+	return nil
 }
 
-func (r *Runner) downTrial(ctx context.Context, compose Compose, rate float64, i int) (RegistryTrial, error) {
-	t := RegistryTrial{StartedAt: time.Now().UTC().Format(time.RFC3339)}
+func (r *Runner) downTrial(ctx context.Context, compose Compose, rate float64, i int, t *RegistryTrial) error {
 	l := startLoad(ctx, compose, rate, 45*time.Second, 300+i)
+	defer l.drain()
 	sleepCtx(ctx, 5*time.Second)
 	defer r.startAgain(compose, registryNodes...)
 	if _, err := compose.run(ctx, append([]string{"kill", "-s", "KILL"}, registryNodes...)...); err != nil {
-		return t, err
+		return err
 	}
 	sleepCtx(ctx, 30*time.Second)
 	if _, err := compose.run(ctx, append([]string{"start"}, registryNodes...)...); err != nil {
-		return t, err
+		return err
 	}
-	lg, err := l.wait(ctx, compose)
+	lg, err := l.wait(ctx, compose, t)
 	if err != nil {
-		return t, err
+		return err
 	}
-	tally(&t, lg)
-	versions, err := r.registryVersions(ctx, compose, time.Unix(0, lg.StartUnixNano), time.Unix(0, lg.StartUnixNano).Add(50*time.Second))
-	t.Versions = reasons(versions)
-	return t, err
+	start := time.Unix(0, lg.StartUnixNano)
+	_, err = r.registryAfter(ctx, compose, t, start, start.Add(50*time.Second))
+	return err
 }
 
 type CellSummary struct {
-	Trials      int  `json:"trials"`
-	Failed      int  `json:"failed"`
-	Lost        int  `json:"lost"`
-	Requests    int  `json:"requests"`
-	Versions    int  `json:"registryVersions"`
-	Join        Stat `json:"joinMs"`
-	Applied     Stat `json:"appliedMs"`
-	Gateways    Stat `json:"gatewaysMs"`
-	Leave       Stat `json:"leaveMs"`
-	Register    Stat `json:"registerMs"`
-	KillToFirst Stat `json:"killToFirstMs"`
+	Trials            int   `json:"trials"`
+	Failed            int   `json:"failed"`
+	Invalid           int   `json:"invalid"`
+	Lost              int   `json:"lost"`
+	Requests          int   `json:"requests"`
+	Versions          int   `json:"registryVersions"`
+	LostRegistrations int   `json:"lostRegistrations"`
+	Join              *Stat `json:"joinMs,omitempty"`
+	Applied           *Stat `json:"appliedMs,omitempty"`
+	Gateways          *Stat `json:"gatewaysMs,omitempty"`
+	Leave             *Stat `json:"leaveMs,omitempty"`
+	Register          *Stat `json:"registerMs,omitempty"`
+	KillToFirst       *Stat `json:"killToFirstMs,omitempty"`
 }
 
 func SummarizeE5(trials []RegistryTrial) map[string]CellSummary {
@@ -532,28 +579,37 @@ func SummarizeE5(trials []RegistryTrial) map[string]CellSummary {
 	for _, t := range trials {
 		s := out[t.Cell]
 		s.Trials++
-		if t.Error != "" {
-			s.Failed++
-			out[t.Cell] = s
-			continue
-		}
 		s.Lost += t.Lost
 		s.Requests += t.Requests
 		s.Versions += len(t.Versions)
+		s.LostRegistrations += t.LostRegistrations
+		if t.Error != "" {
+			s.Failed++
+		}
+		if len(t.Invalid) > 0 {
+			s.Invalid++
+		}
 		out[t.Cell] = s
 		if values[t.Cell] == nil {
 			values[t.Cell] = map[string][]float64{}
 		}
 		for name, v := range map[string]*float64{"join": t.JoinMs, "applied": t.AppliedMs, "gateways": t.GatewaysMs, "leave": t.LeaveMs, "register": t.RegisterMs, "killToFirst": t.KillToFirstMs} {
-			if v != nil {
+			if v != nil && t.Error == "" {
 				values[t.Cell][name] = append(values[t.Cell][name], *v)
 			}
 		}
 	}
+	stat := func(vs []float64) *Stat {
+		if len(vs) == 0 {
+			return nil
+		}
+		s := statOf(vs)
+		return &s
+	}
 	for cell, s := range out {
 		v := values[cell]
-		s.Join, s.Applied, s.Gateways = statOf(v["join"]), statOf(v["applied"]), statOf(v["gateways"])
-		s.Leave, s.Register, s.KillToFirst = statOf(v["leave"]), statOf(v["register"]), statOf(v["killToFirst"])
+		s.Join, s.Applied, s.Gateways = stat(v["join"]), stat(v["applied"]), stat(v["gateways"])
+		s.Leave, s.Register, s.KillToFirst = stat(v["leave"]), stat(v["register"]), stat(v["killToFirst"])
 		out[cell] = s
 	}
 	return out
