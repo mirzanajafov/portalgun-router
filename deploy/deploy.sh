@@ -10,6 +10,13 @@ force=false
 say() { printf '\n== %s\n' "$1"; }
 
 [ -f .env ] || { echo "No .env here. Run deploy/init-env.sh first." >&2; exit 1; }
+setting() { sed -n "s/^$1=//p" .env | tail -n 1 | tr -d "\"'"; }
+if [ -n "$(setting PORTAL_REGISTRY)" ]; then
+  compose+=(-f docker-compose.registry.yml)
+  network=$(setting REGISTRY_NETWORK)
+  network=${network:-fivefamilies-registry}
+  docker network inspect "$network" > /dev/null 2>&1 || { echo "PORTAL_REGISTRY is set but there is no network $network. Start FiveFamilies first." >&2; exit 1; }
+fi
 
 healthy() {
   for _ in $(seq 1 60); do
@@ -46,6 +53,7 @@ fi
 
 say "Deploying $(git log --oneline -1 "$target")"
 git merge --ff-only --quiet "$target"
+"${compose[@]}" config --quiet || { git reset --hard --quiet "$previous"; say "The compose config is not valid, back at $(git log --oneline -1)"; exit 1; }
 release
 
 say "Waiting for the controller, both gateways and the web app"

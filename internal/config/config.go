@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -218,6 +219,20 @@ type Dimension struct {
 	MaxInflight int    `json:"maxInflight,omitempty"`
 }
 
+func (d Dimension) Check() error {
+	var errs []error
+	if strings.ContainsRune(d.ID+d.Address+d.Version, 0) {
+		errs = append(errs, fmt.Errorf("dimension %q: its id, address or version holds a NUL, which the config store can't keep", d.ID))
+	}
+	if !IsHostPort(d.Address) {
+		errs = append(errs, fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address))
+	}
+	if d.MaxInflight < 1 {
+		errs = append(errs, fmt.Errorf("dimension %q: maxInflight must be positive", d.ID))
+	}
+	return errors.Join(errs...)
+}
+
 func Parse(data []byte) (*Config, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -311,11 +326,8 @@ func (c *Config) Validate() error {
 				errs = append(errs, fmt.Errorf("dimension %q appears in pools %q and %q", d.ID, other, p.Name))
 			}
 			dims[d.ID] = p.Name
-			if host, port, err := net.SplitHostPort(d.Address); err != nil || host == "" || port == "" {
-				errs = append(errs, fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address))
-			}
-			if d.MaxInflight < 1 {
-				errs = append(errs, fmt.Errorf("dimension %q: maxInflight must be positive", d.ID))
+			if err := d.Check(); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	}
@@ -411,4 +423,13 @@ func (p Pool) validateResilience() []error {
 		}
 	}
 	return errs
+}
+
+func IsHostPort(addr string) bool {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return false
+	}
+	n, err := strconv.ParseUint(port, 10, 16)
+	return err == nil && n > 0
 }

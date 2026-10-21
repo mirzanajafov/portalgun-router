@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -26,9 +27,39 @@ const (
 	maxAnswer    = 1 << 20
 	maxBackoff   = 5 * time.Second
 	firstBackoff = 100 * time.Millisecond
+	maxName      = 128
+	maxBody      = 1 << 10
 )
 
 var ErrLeaseNotFound = errors.New("registry: the lease does not exist or has expired")
+
+type registration struct {
+	Addr string            `json:"addr"`
+	Meta map[string]string `json:"meta,omitempty"`
+	TTL  string            `json:"ttl"`
+}
+
+func registrationOf(inst Instance, ttl time.Duration) registration {
+	return registration{Addr: inst.Addr, Meta: inst.Meta, TTL: ttl.String()}
+}
+
+func CheckSize(inst Instance, ttl time.Duration) error {
+	b, err := json.Marshal(registrationOf(inst, ttl))
+	if err != nil {
+		return err
+	}
+	if len(b) > maxBody {
+		return fmt.Errorf("registry: %q is a %d-byte registration, at most %d", inst.Name, len(b), maxBody)
+	}
+	return nil
+}
+
+func CheckName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.Contains(name, "/") || len(name) > maxName || !utf8.ValidString(name) {
+		return fmt.Errorf("registry: %q is not a name, which is a UTF-8 path segment of at most %d bytes", name, maxName)
+	}
+	return nil
+}
 
 type Instance struct {
 	Name string            `json:"name"`
@@ -186,14 +217,9 @@ func (c *Client) Lookup(ctx context.Context, service string, index uint64, wait 
 }
 
 func (c *Client) Register(ctx context.Context, service string, inst Instance, ttl time.Duration) (Lease, error) {
-	in := struct {
-		Addr string            `json:"addr"`
-		Meta map[string]string `json:"meta,omitempty"`
-		TTL  string            `json:"ttl"`
-	}{inst.Addr, inst.Meta, ttl.String()}
 	var out granted
 	path := "/v1/registry/" + url.PathEscape(service) + "/" + url.PathEscape(inst.Name)
-	if err := c.do(ctx, callTimeout, http.MethodPut, path, in, &out); err != nil {
+	if err := c.do(ctx, callTimeout, http.MethodPut, path, registrationOf(inst, ttl), &out); err != nil {
 		return Lease{}, err
 	}
 	return Lease{ID: out.Lease, TTL: time.Duration(out.TTL)}, nil
@@ -327,9 +353,9 @@ func (c *Client) revokeSomewhere(ctx context.Context, lease LeaseID) error {
 	}
 }
 
-func (c *Client) renew(ctx context.Context, l Lease, asked, granted time.Time, logger *slog.Logger) error {
+func (c *Client) renew(ctx context.Context, l Lease, asked, grantedAt time.Time, logger *slog.Logger) error {
 	every := l.TTL / 3
-	expires := granted.Add(l.TTL)
+	expires := grantedAt.Add(l.TTL)
 	wait := time.Until(asked.Add(every))
 	failing := false
 	for sleep(ctx, wait) {

@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
 	"github.com/mirzanajafov/portalgun-router/internal/registry"
 )
@@ -32,8 +34,9 @@ func main() {
 	flag.IntVar(&b.ErrorStatus, "error-status", b.ErrorStatus, "status code for injected errors")
 	endpoints := flag.String("registry", os.Getenv("PORTAL_REGISTRY"), "comma-separated FiveFamilies HTTP endpoints to register with once listening (off by default)")
 	service := flag.String("registry-service", "dimensions", "service to register under")
-	advertise := flag.String("advertise", "", "address the gateways reach this dimension at, registered with -registry")
+	advertise := flag.String("advertise", os.Getenv("PORTAL_ADVERTISE"), "address the gateways reach this dimension at, registered with -registry")
 	ttl := flag.Duration("registry-ttl", 10*time.Second, "TTL of the registration's lease")
+	maxInflight := flag.String("max-inflight", os.Getenv("PORTAL_MAX_INFLIGHT"), "requests in flight the gateways may send this dimension, registered with -registry (empty announces none)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -41,12 +44,11 @@ func main() {
 	defer stop()
 	var keep func(context.Context)
 	if *endpoints != "" {
-		c, err := registration(*endpoints, *service, *id, *version, *advertise, *ttl)
+		c, inst, err := registration(registrationFlags{endpoints: *endpoints, service: *service, id: *id, version: *version, advertise: *advertise, maxInflight: *maxInflight, ttl: *ttl})
 		if err != nil {
 			logger.Error("dimension not started", "err", err)
 			os.Exit(2)
 		}
-		inst := registry.Instance{Name: *id, Addr: *advertise, Meta: map[string]string{"version": *version}}
 		keep = func(ctx context.Context) { c.Keep(ctx, *service, inst, *ttl, logger) }
 	}
 	if err := run(ctx, logger, *id, *version, *addr, *controlAddr, b, keep); err != nil {
@@ -55,29 +57,45 @@ func main() {
 	}
 }
 
-func registration(endpoints, service, id, version, advertise string, ttl time.Duration) (*registry.Client, error) {
+type registrationFlags struct {
+	endpoints, service, id, version, advertise, maxInflight string
+	ttl                                                     time.Duration
+}
+
+func registration(f registrationFlags) (*registry.Client, registry.Instance, error) {
 	var urls []string
-	for e := range strings.SplitSeq(endpoints, ",") {
+	for e := range strings.SplitSeq(f.endpoints, ",") {
 		if e = strings.TrimSpace(e); e != "" {
 			urls = append(urls, e)
 		}
 	}
-	for _, name := range []string{service, id} {
-		if name == "" || name == "." || name == ".." || strings.Contains(name, "/") || len(name) > 128 {
-			return nil, fmt.Errorf("-registry needs a -registry-service and an -id that are path segments of at most 128 bytes, got %q and %q", service, id)
+	for _, name := range []string{f.service, f.id} {
+		if err := registry.CheckName(name); err != nil {
+			return nil, registry.Instance{}, fmt.Errorf("-registry-service and -id: %w", err)
 		}
 	}
-	if len(version) > 256 || len(advertise) > 255 {
-		return nil, errors.New("-registry needs a -version of at most 256 bytes and an -advertise of at most 255")
+	if !config.IsHostPort(f.advertise) {
+		return nil, registry.Instance{}, fmt.Errorf("-registry needs -advertise as host:port, got %q", f.advertise)
 	}
-	if host, port, err := net.SplitHostPort(advertise); err != nil || host == "" || port == "" {
-		return nil, fmt.Errorf("-registry needs -advertise as host:port, got %q", advertise)
+	if f.ttl < time.Millisecond || f.ttl > 24*time.Hour {
+		return nil, registry.Instance{}, fmt.Errorf("-registry-ttl must be between 1ms and 24h, got %v", f.ttl)
 	}
-	if ttl < time.Millisecond || ttl > 24*time.Hour {
-		return nil, fmt.Errorf("-registry-ttl must be between 1ms and 24h, got %v", ttl)
+	inst := registry.Instance{Name: f.id, Addr: f.advertise, Meta: map[string]string{"version": f.version}}
+	if f.maxInflight != "" {
+		n, err := strconv.Atoi(f.maxInflight)
+		if err != nil || n < 1 {
+			return nil, registry.Instance{}, fmt.Errorf("-max-inflight must be a positive number, got %q", f.maxInflight)
+		}
+		inst.Meta["maxInflight"] = strconv.Itoa(n)
 	}
-	return registry.New(urls)
+	if err := registry.CheckSize(inst, f.ttl); err != nil {
+		return nil, registry.Instance{}, err
+	}
+	c, err := registry.New(urls)
+	return c, inst, err
 }
+
+const leaveDrain = time.Second
 
 func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAddr string, b dimension.Behavior, keep func(context.Context)) error {
 	s, err := dimension.New(id, version, b)
@@ -109,7 +127,7 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- control.Serve(cl) }()
-	logger.Info("dimension up", "id", id, "version", version, "addr", s.Addr(), "control", controlAddr)
+	logger.Info("dimension up", "id", id, "version", version, "addr", s.Addr(), "control", cl.Addr().String())
 
 	select {
 	case <-ctx.Done():
@@ -120,6 +138,9 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 		return err
 	}
 	<-kept
+	if keep != nil {
+		time.Sleep(leaveDrain)
+	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = errors.Join(s.Shutdown(shutdownCtx), control.Shutdown(shutdownCtx))
