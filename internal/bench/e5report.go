@@ -27,6 +27,7 @@ type RegistrySummary struct {
 	Gateways          *Stat  `json:"gatewaysMs,omitempty"`
 	LeaveApplied      *Stat  `json:"leaveAppliedMs,omitempty"`
 	LeaveGateways     *Stat  `json:"leaveGatewaysMs,omitempty"`
+	LeftBeforeEnd     *Stat  `json:"leftBeforeEndMs,omitempty"`
 	UpAfterKill       *Stat  `json:"upAfterKillMs,omitempty"`
 	KillToFirst       *Stat  `json:"killToFirstMs,omitempty"`
 }
@@ -62,7 +63,7 @@ func SummarizeE5(runs []RegistryRun) []RegistrySummary {
 	out := make([]RegistrySummary, 0, len(order))
 	for _, cell := range order {
 		s := RegistrySummary{Cell: cell}
-		var register, join, applied, gateways, leaveApplied, leaveGateways, upAfterKill, killToFirst []float64
+		var register, join, applied, gateways, leaveApplied, leaveGateways, leftBeforeEnd, upAfterKill, killToFirst []float64
 		for _, r := range by[cell] {
 			s.Runs++
 			s.Requests += r.Requests
@@ -84,7 +85,8 @@ func SummarizeE5(runs []RegistryRun) []RegistrySummary {
 				v    *float64
 			}{
 				{&register, r.RegisterMs}, {&join, r.JoinMs}, {&applied, r.AppliedMs}, {&gateways, r.GatewaysMs},
-				{&leaveApplied, r.LeaveAppliedMs}, {&leaveGateways, r.LeaveGatewaysMs}, {&upAfterKill, r.UpAfterKillMs}, {&killToFirst, r.KillToFirstMs},
+				{&leaveApplied, r.LeaveAppliedMs}, {&leaveGateways, r.LeaveGatewaysMs}, {&leftBeforeEnd, r.LeftBeforeEndMs},
+				{&upAfterKill, r.UpAfterKillMs}, {&killToFirst, r.KillToFirstMs},
 			} {
 				if m.v != nil {
 					*m.into = append(*m.into, *m.v)
@@ -92,7 +94,7 @@ func SummarizeE5(runs []RegistryRun) []RegistrySummary {
 			}
 		}
 		s.Register, s.Join, s.Applied, s.Gateways = statOrNil(register), statOrNil(join), statOrNil(applied), statOrNil(gateways)
-		s.LeaveApplied, s.LeaveGateways = statOrNil(leaveApplied), statOrNil(leaveGateways)
+		s.LeaveApplied, s.LeaveGateways, s.LeftBeforeEnd = statOrNil(leaveApplied), statOrNil(leaveGateways), statOrNil(leftBeforeEnd)
 		s.UpAfterKill, s.KillToFirst = statOrNil(upAfterKill), statOrNil(killToFirst)
 		out = append(out, s)
 	}
@@ -116,7 +118,7 @@ func statText(s *Stat) string {
 
 func WriteRegistryText(w io.Writer, sums []RegistrySummary) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "cell\truns\tlost\tversions\trefusals\tlost registrations\tregister ms\tjoin ms\tapplied ms\tgateways ms\tleave applied ms\tleave gateways ms\tup after kill ms\tkill to first ms")
+	fmt.Fprintln(tw, "cell\truns\tlost\tversions\trefusals\tlost registrations\tregister ms\tjoin ms\tapplied ms\tgateways ms\tleave applied ms\tleave gateways ms\tleft before end ms\tup after kill ms\tkill to first ms")
 	for _, s := range sums {
 		runs := fmt.Sprint(s.Runs)
 		if s.Invalid > 0 {
@@ -129,9 +131,9 @@ func WriteRegistryText(w io.Writer, sums []RegistrySummary) error {
 		if s.Dropped > 0 {
 			lost += fmt.Sprintf(" (%d not sent)", s.Dropped)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs, lost, s.Versions, s.Refusals, s.LostRegistrations,
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs, lost, s.Versions, s.Refusals, s.LostRegistrations,
 			statText(s.Register), statText(s.Join), statText(s.Applied), statText(s.Gateways),
-			statText(s.LeaveApplied), statText(s.LeaveGateways), statText(s.UpAfterKill), statText(s.KillToFirst))
+			statText(s.LeaveApplied), statText(s.LeaveGateways), statText(s.LeftBeforeEnd), statText(s.UpAfterKill), statText(s.KillToFirst))
 	}
 	return tw.Flush()
 }

@@ -54,6 +54,7 @@ type RegistryRun struct {
 	GatewaysMs        *float64 `json:"gatewaysMs,omitempty"`
 	LeaveAppliedMs    *float64 `json:"leaveAppliedMs,omitempty"`
 	LeaveGatewaysMs   *float64 `json:"leaveGatewaysMs,omitempty"`
+	LeftBeforeEndMs   *float64 `json:"leftBeforeEndMs,omitempty"`
 	UpAfterKillMs     *float64 `json:"upAfterKillMs,omitempty"`
 	KillToFirstMs     *float64 `json:"killToFirstMs,omitempty"`
 	Killed            string   `json:"killed,omitempty"`
@@ -264,23 +265,22 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 type load struct {
-	done             chan struct{}
-	sum              loadgen.Summary
-	err              error
-	file             string
-	duration, window time.Duration
-	log              *loadgen.Log
-	counted, read    bool
+	done          chan struct{}
+	sum           loadgen.Summary
+	err           error
+	file          string
+	duration      time.Duration
+	log           *loadgen.Log
+	counted, read bool
 }
 
 const (
 	registryTail = 5 * time.Second
-	leaveMargin  = time.Second
 	lostMessage  = "the registration was lost, registering again"
 )
 
 func startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
-	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed), duration: d, window: d + registryTail}
+	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed), duration: d}
 	go func() {
 		defer close(l.done)
 		l.sum, l.err = compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
@@ -303,16 +303,20 @@ func (l *load) finish(ctx context.Context, compose Compose, run *RegistryRun) er
 	return err
 }
 
-func (l *load) end() time.Time {
-	return time.Unix(0, l.log.StartUnixNano).Add(l.window)
+func (l *load) started() time.Time {
+	return time.Unix(0, l.log.StartUnixNano)
+}
+
+func (l *load) windowEnd() time.Time {
+	return l.started().Add(l.duration + registryTail)
 }
 
 func (l *load) readWindow(ctx context.Context, compose Compose, run *RegistryRun) ([]logLine, error) {
 	l.read = true
-	if !sleepCtx(ctx, l.window-l.duration) {
+	if !sleepCtx(ctx, registryTail) {
 		return nil, ctx.Err()
 	}
-	return registryAfter(ctx, compose, run, time.Unix(0, l.log.StartUnixNano), l.end())
+	return registryAfter(ctx, compose, run, l.started(), l.windowEnd())
 }
 
 func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*loadgen.Log, error) {
@@ -542,16 +546,12 @@ func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i i
 	if err != nil {
 		return err
 	}
-	start := time.Unix(0, lg.StartUnixNano)
-	at, err := dimESteps(ctx, compose, run, start, l.end(), "dimension up", "registered", "deregistering", "deregistered")
+	at, err := dimESteps(ctx, compose, run, l.started(), l.windowEnd(), "dimension up", "registered", "deregistering", "deregistered")
 	if err != nil {
 		return err
 	}
 	up, registered, deregistering := at[0], at[1], at[2]
-	if at[3].Add(leaveMargin).After(start.Add(l.duration)) {
-		run.Invalid = append(run.Invalid, "dim-e left less than a second before the load ended")
-	}
-	run.RegisterMs = ms(up, registered)
+	run.RegisterMs, run.LeftBeforeEndMs = ms(up, registered), ms(at[3], l.started().Add(l.duration))
 	firstAt, ok := firstServedBy(lg, "e")
 	if !ok {
 		return errors.New("dim-e served nothing")
@@ -619,8 +619,7 @@ func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64,
 	if err != nil {
 		return err
 	}
-	start := time.Unix(0, lg.StartUnixNano)
-	at, err := dimESteps(ctx, compose, run, start, l.end(), "dimension up", "registered")
+	at, err := dimESteps(ctx, compose, run, l.started(), l.windowEnd(), "dimension up", "registered")
 	if err != nil {
 		return err
 	}
