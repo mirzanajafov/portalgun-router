@@ -22,23 +22,19 @@ type Discovery struct {
 	pool    string
 	cfgs    *ConfigManager
 	logger  *slog.Logger
+	retry   time.Duration
 	refused string
 	skipped string
 }
 
-func NewDiscovery(pool string, cfgs *ConfigManager, logger *slog.Logger) (*Discovery, error) {
-	cfg, _ := cfgs.Current()
-	if poolNamed(cfg, pool) == nil {
-		return nil, fmt.Errorf("-registry-pool %q names no pool in the config", pool)
-	}
-	return &Discovery{pool: pool, cfgs: cfgs, logger: logger}, nil
+func NewDiscovery(pool string, cfgs *ConfigManager, logger *slog.Logger) *Discovery {
+	return &Discovery{pool: pool, cfgs: cfgs, logger: logger, retry: reconcileEvery}
 }
 
 func (d *Discovery) Run(ctx context.Context, lists <-chan []registry.Instance) {
-	t := time.NewTicker(reconcileEvery)
+	t := time.NewTicker(d.retry)
 	defer t.Stop()
 	var want []registry.Instance
-	heard := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -47,10 +43,13 @@ func (d *Discovery) Run(ctx context.Context, lists <-chan []registry.Instance) {
 			if !ok {
 				return
 			}
-			want, heard = list, true
+			want = list
 		case <-t.C:
+			if d.refused == "" {
+				continue
+			}
 		}
-		if heard {
+		if ctx.Err() == nil {
 			d.reconcile(ctx, want)
 		}
 	}

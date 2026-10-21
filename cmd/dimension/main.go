@@ -35,7 +35,7 @@ func main() {
 	service := flag.String("registry-service", "dimensions", "service to register under")
 	advertise := flag.String("advertise", os.Getenv("PORTAL_ADVERTISE"), "address the gateways reach this dimension at, registered with -registry")
 	ttl := flag.Duration("registry-ttl", 10*time.Second, "TTL of the registration's lease")
-	maxInflight := flag.Int("max-inflight", envInt("PORTAL_MAX_INFLIGHT"), "requests in flight the gateways may send this dimension, registered with -registry (0 leaves it to the gateways)")
+	maxInflight := flag.String("max-inflight", os.Getenv("PORTAL_MAX_INFLIGHT"), "requests in flight the gateways may send this dimension, registered with -registry (empty announces none)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -49,8 +49,12 @@ func main() {
 			os.Exit(2)
 		}
 		inst := registry.Instance{Name: *id, Addr: *advertise, Meta: map[string]string{"version": *version}}
-		if *maxInflight > 0 {
-			inst.Meta["maxInflight"] = strconv.Itoa(*maxInflight)
+		if *maxInflight != "" {
+			if n, err := strconv.Atoi(*maxInflight); err != nil || n < 1 {
+				logger.Error("dimension not started", "err", fmt.Errorf("-max-inflight must be a positive number, got %q", *maxInflight))
+				os.Exit(2)
+			}
+			inst.Meta["maxInflight"] = *maxInflight
 		}
 		keep = func(ctx context.Context) { c.Keep(ctx, *service, inst, *ttl, logger) }
 	}
@@ -58,11 +62,6 @@ func main() {
 		logger.Error("dimension stopped", "err", err)
 		os.Exit(1)
 	}
-}
-
-func envInt(name string) int {
-	n, _ := strconv.Atoi(os.Getenv(name))
-	return n
 }
 
 func registration(endpoints, service, id, version, advertise string, ttl time.Duration) (*registry.Client, error) {

@@ -27,10 +27,7 @@ func discovering(t *testing.T) *discoveryRig {
 	t.Helper()
 	r := newRig(t)
 	var logs bytes.Buffer
-	d, err := NewDiscovery("p", r.cfgs, slog.New(slog.NewTextHandler(&logs, nil)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	d := NewDiscovery("p", r.cfgs, slog.New(slog.NewTextHandler(&logs, nil)))
 	return &discoveryRig{rig: r, d: d, logs: &logs}
 }
 
@@ -138,17 +135,25 @@ func TestAnInstanceWithoutAPortIsLeftOutAndTheRestApplied(t *testing.T) {
 	}
 }
 
-func TestAListWithoutTheCanaryWaitsUntilTheRolloutIsOver(t *testing.T) {
+func TestAListWithoutTheCanaryIsAppliedOnARetryOnceTheRolloutIsOver(t *testing.T) {
 	r := discovering(t)
-	ctx := context.Background()
+	r.d.retry = 20 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if _, err := r.cfgs.Update(ctx, "admin", "rollout", func(c *config.Config) error {
 		c.Routes[0].Versions = config.Versions{Stable: "v1", Canary: "v2", Weight: 0.1, Rollout: "ro-1"}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	stable := []registry.Instance{dimension("s1", "s1:8080", "v1")}
-	r.feed(t, stable)
+	lists := make(chan []registry.Instance)
+	done := make(chan struct{})
+	go func() {
+		r.d.Run(ctx, lists)
+		close(done)
+	}()
+	lists <- []registry.Instance{dimension("s1", "s1:8080", "v1")}
+	time.Sleep(100 * time.Millisecond)
 	if n, _, _, dims := r.latest(t); n != 2 || len(dims) != 2 {
 		t.Fatalf("applied during the rollout: version %d with %+v", n, dims)
 	}
@@ -158,15 +163,58 @@ func TestAListWithoutTheCanaryWaitsUntilTheRolloutIsOver(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	r.feed(t, stable)
-	if n, author, reason, dims := r.latest(t); n != 4 || author != "registry" || reason != "c1 left" || len(dims) != 1 {
-		t.Fatalf("after the rollback: version %d by %s %q with %+v", n, author, reason, dims)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		n, author, reason, dims := r.latest(t)
+		if n == 4 && author == "registry" && reason == "c1 left" && len(dims) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("not applied on a retry after the rollback: version %d by %s %q with %+v", n, author, reason, dims)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	cancel()
+	<-done
 }
 
-func TestDiscoveryNeedsThePoolItFeeds(t *testing.T) {
+func TestAnAppliedListIsNotPutBackOverAnAdminChange(t *testing.T) {
+	r := discovering(t)
+	r.d.retry = 20 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lists := make(chan []registry.Instance)
+	done := make(chan struct{})
+	go func() {
+		r.d.Run(ctx, lists)
+		close(done)
+	}()
+	lists <- []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("s2", "s2:8080", "v1")}
+	time.Sleep(100 * time.Millisecond)
+	if _, err := r.cfgs.Update(ctx, "admin", "drain s2", func(c *config.Config) error {
+		c.Pools[0].Dimensions = slices.DeleteFunc(c.Pools[0].Dimensions, func(d config.Dimension) bool { return d.ID == "s2" })
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n, author, _, _ := r.latest(t); n != 3 || author != "admin" {
+		t.Fatalf("version %d by %s, want the admin's change to stand until the registry says something new", n, author)
+	}
+	cancel()
+	<-done
+}
+
+func TestAPoolTheConfigDoesNotHaveIsLoggedOnceAndNothingWritten(t *testing.T) {
 	r := newRig(t)
-	if _, err := NewDiscovery("dimensions", r.cfgs, slog.Default()); err == nil {
-		t.Fatal("a pool the config doesn't have was accepted")
+	var logs bytes.Buffer
+	d := NewDiscovery("dimensions", r.cfgs, slog.New(slog.NewTextHandler(&logs, nil)))
+	dr := &discoveryRig{rig: r, d: d, logs: &logs}
+	dr.feed(t, []registry.Instance{dimension("s1", "s1:8080", "v1")}, []registry.Instance{dimension("s2", "s2:8080", "v1")})
+	if n, _, _, _ := r.latest(t); n != 1 {
+		t.Fatalf("version %d written for a pool the config doesn't have", n)
+	}
+	if got := strings.Count(logs.String(), "no pool"); got != 1 {
+		t.Fatalf("logged %d times:\n%s", got, logs.String())
 	}
 }
