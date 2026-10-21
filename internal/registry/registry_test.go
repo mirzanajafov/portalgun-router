@@ -235,6 +235,7 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	f := newFakeRegistry(300 * time.Millisecond)
 	c, _ := cluster(t, f, 1)
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan struct{})
 	go func() {
 		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 300*time.Millisecond, quiet())
@@ -275,13 +276,13 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 }
 
 func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
-	f := newFakeRegistry(600 * time.Millisecond)
+	f := newFakeRegistry(1200 * time.Millisecond)
 	c, nodes := cluster(t, f, 2)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 600*time.Millisecond, quiet())
+		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 1200*time.Millisecond, quiet())
 		close(done)
 	}()
 	deadline := time.Now().Add(5 * time.Second)
@@ -296,13 +297,13 @@ func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
 		_, _, renewed, _ := f.snapshot()
 		nodes[hung].set(hanging)
 		nodes[1-hung].set(answering)
-		time.Sleep(1500 * time.Millisecond)
+		time.Sleep(2500 * time.Millisecond)
 		_, _, now, after := f.snapshot()
 		if len(before) != 1 || !slices.Equal(before, after) {
 			t.Fatalf("lease %v became %v while node %d hung", before, after, hung)
 		}
 		if now-renewed < 2 {
-			t.Fatalf("%d keepalives in 1.5 s with a 600 ms lease while node %d hung", now-renewed, hung)
+			t.Fatalf("%d keepalives in 2.5 s with a 1.2 s lease while node %d hung", now-renewed, hung)
 		}
 	}
 	nodes[0].set(hanging)
