@@ -1,0 +1,30 @@
+services:
+  controller:
+    environment:
+      PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
+    networks: [default, registry]
+  dim-c137:
+    environment:
+      PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
+      PORTAL_ADVERTISE: toxiproxy:18080
+    networks: [default, registry]
+  dim-j19:
+    environment:
+      PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
+      PORTAL_ADVERTISE: toxiproxy:18081
+    networks: [default, registry]
+  dim-d99:
+    environment:
+      PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
+      PORTAL_ADVERTISE: toxiproxy:18082
+    networks: [default, registry]
+  dim-cronenberg:
+    environment:
+      PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
+      PORTAL_ADVERTISE: toxiproxy:18083
+    networks: [default, registry]
+
+networks:
+  registry:
+    name: ${REGISTRY_NETWORK:-fivefamilies-registry}
+    external: true

@@ -32,7 +32,7 @@ func main() {
 	flag.IntVar(&b.ErrorStatus, "error-status", b.ErrorStatus, "status code for injected errors")
 	endpoints := flag.String("registry", os.Getenv("PORTAL_REGISTRY"), "comma-separated FiveFamilies HTTP endpoints to register with once listening (off by default)")
 	service := flag.String("registry-service", "dimensions", "service to register under")
-	advertise := flag.String("advertise", "", "address the gateways reach this dimension at, registered with -registry")
+	advertise := flag.String("advertise", os.Getenv("PORTAL_ADVERTISE"), "address the gateways reach this dimension at, registered with -registry")
 	ttl := flag.Duration("registry-ttl", 10*time.Second, "TTL of the registration's lease")
 	flag.Parse()
 

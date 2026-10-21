@@ -10,6 +10,9 @@ force=false
 say() { printf '\n== %s\n' "$1"; }
 
 [ -f .env ] || { echo "No .env here. Run deploy/init-env.sh first." >&2; exit 1; }
+if grep -q '^PORTAL_REGISTRY=' .env; then
+  compose+=(-f docker-compose.registry.yml)
+fi
 
 healthy() {
   for _ in $(seq 1 60); do

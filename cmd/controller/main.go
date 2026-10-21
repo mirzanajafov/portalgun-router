@@ -17,9 +17,12 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/controller"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
+	"github.com/mirzanajafov/portalgun-router/internal/registry"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 	"github.com/redis/go-redis/v9"
 )
+
+const registryWait = 10 * time.Second
 
 func main() {
 	addr := flag.String("addr", ":9100", "API listener, reached only by the dashboard's server")
@@ -30,12 +33,14 @@ func main() {
 	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch")
 	hops := flag.Int("trusted-hops", 1, "proxies in front of the controller whose X-Forwarded-For entries are trusted")
 	visitorRollouts := flag.Bool("visitor-rollouts", false, "let anyone start a rollout, a few an hour per address, while aborting still needs the admin token")
+	registryURLs := flag.String("registry", os.Getenv("PORTAL_REGISTRY"), "comma-separated FiveFamilies HTTP endpoints to take a pool's dimensions from (off by default, when the config is the whole truth)")
+	registryPool := flag.String("registry-pool", "dimensions", "the pool fed from the registry service of the same name")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, hops: *hops, visitorRollouts: *visitorRollouts, token: os.Getenv("PORTAL_ADMIN_TOKEN")}
+	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, hops: *hops, visitorRollouts: *visitorRollouts, registry: *registryURLs, registryPool: *registryPool, token: os.Getenv("PORTAL_ADMIN_TOKEN")}
 	if err := run(ctx, logger, o); err != nil {
 		logger.Error("controller stopped", "err", err)
 		os.Exit(1)
@@ -44,17 +49,25 @@ func main() {
 
 type options struct {
 	addr, postgres, redis, bootstrap, toxiproxy, targets, token string
+	registry, registryPool                                      string
 	hops                                                        int
 	visitorRollouts                                             bool
+}
+
+func splitList(spec string) []string {
+	var items []string
+	for item := range strings.SplitSeq(spec, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func chaosTargets(spec string) ([]string, map[string]*chaos.DimensionControl, error) {
 	var names []string
 	controls := map[string]*chaos.DimensionControl{}
-	for item := range strings.SplitSeq(spec, ",") {
-		if item = strings.TrimSpace(item); item == "" {
-			continue
-		}
+	for _, item := range splitList(spec) {
 		name, url, ok := strings.Cut(item, "=")
 		if !ok || name == "" || url == "" {
 			return nil, nil, fmt.Errorf("target %q is not name=controlURL", item)
@@ -95,6 +108,14 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 	if err := recoverRollouts(ctx, st, cfgs, logger); err != nil {
 		return err
+	}
+
+	if o.registry != "" {
+		rc, err := registry.New(splitList(o.registry))
+		if err != nil {
+			return err
+		}
+		go controller.NewDiscovery(o.registryPool, cfgs, logger).Run(ctx, rc.Watch(ctx, o.registryPool, registryWait, logger))
 	}
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
@@ -148,7 +169,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	_, version := cfgs.Raw()
-	logger.Info("controller up", "addr", addr, "config", version, "admin", token != "")
+	logger.Info("controller up", "addr", addr, "config", version, "admin", token != "", "registry", o.registry != "")
 	select {
 	case <-ctx.Done():
 	case err := <-errc:
