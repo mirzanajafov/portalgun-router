@@ -106,11 +106,11 @@ func TestOnlyLinesFromTheRunItselfCount(t *testing.T) {
 
 func TestAChangeIsFoundByTheWholeNameInTheReason(t *testing.T) {
 	versions := []logLine{{Reason: "ee joined"}, {Reason: "a joined, e left", Version: 9.0}}
-	if _, ok := versionWith(versions, "e joined"); ok {
+	if _, err := changed(versions, "e joined"); err == nil {
 		t.Fatal("ee joining was taken for e joining")
 	}
-	if v, ok := versionWith(versions, "e left"); !ok || v.configVersion() != 9 {
-		t.Fatalf("%+v %v", v, ok)
+	if v, err := changed(versions, "e left"); err != nil || v.configVersion() != 9 {
+		t.Fatalf("%+v %v", v, err)
 	}
 }
 

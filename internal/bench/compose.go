@@ -23,15 +23,23 @@ func (c Compose) command(ctx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
-func (c Compose) run(ctx context.Context, args ...string) ([]byte, error) {
+func capture(cmd *exec.Cmd, what string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := c.command(ctx, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("docker compose %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("%s: %w: %s", what, err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
+}
+
+func (c Compose) run(ctx context.Context, args ...string) ([]byte, error) {
+	return capture(c.command(ctx, args...), "docker compose "+strings.Join(args, " "))
+}
+
+func docker(ctx context.Context, args ...string) (string, error) {
+	out, err := capture(exec.CommandContext(ctx, "docker", args...), "docker "+strings.Join(args, " "))
+	return strings.TrimSpace(string(out)), err
 }
 
 func (c Compose) Up(ctx context.Context) error {
