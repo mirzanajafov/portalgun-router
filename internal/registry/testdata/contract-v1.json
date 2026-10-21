@@ -60,7 +60,7 @@
     },
     "response": {
       "status": 400,
-      "body": { "error": "client: invalid argument: instance name \"e/7\" must be non-empty and without a slash" }
+      "body": { "error": "client: invalid argument: instance name \"e/7\" must be non-empty, without a slash and at most 128 bytes" }
     }
   },
   {
