@@ -6,6 +6,10 @@ x-go: &go
     context: ../..
     dockerfile: Dockerfile
 
+x-registry: &registry http://ff1:3171,http://ff2:3171,http://ff3:3171,http://ff4:3171,http://ff5:3171
+
+x-cluster: &cluster "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161"
+
 x-ff: &ff
   image: ${FF_IMAGE:-fivefamilies-node}
   cpus: 0.5
@@ -14,7 +18,7 @@ x-ff: &ff
 x-dimension: &dimension
   <<: *go
   environment:
-    PORTAL_REGISTRY: http://ff1:3171,http://ff2:3171,http://ff3:3171,http://ff4:3171,http://ff5:3171
+    PORTAL_REGISTRY: *registry
   depends_on: [ff1, ff2, ff3, ff4, ff5]
   cpus: 0.5
   mem_limit: 64m
@@ -30,23 +34,23 @@ x-gateway: &gateway
 services:
   ff1:
     <<: *ff
-    command: ["-id", "1", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    command: ["-id", "1", "-cluster", *cluster, "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
     volumes: ["ff1:/data"]
   ff2:
     <<: *ff
-    command: ["-id", "2", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    command: ["-id", "2", "-cluster", *cluster, "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
     volumes: ["ff2:/data"]
   ff3:
     <<: *ff
-    command: ["-id", "3", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    command: ["-id", "3", "-cluster", *cluster, "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
     volumes: ["ff3:/data"]
   ff4:
     <<: *ff
-    command: ["-id", "4", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    command: ["-id", "4", "-cluster", *cluster, "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
     volumes: ["ff4:/data"]
   ff5:
     <<: *ff
-    command: ["-id", "5", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    command: ["-id", "5", "-cluster", *cluster, "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
     volumes: ["ff5:/data"]
 
   redis:
@@ -70,7 +74,7 @@ services:
     <<: *go
     command: ["controller", "-bootstrap=/etc/portalgun/cluster.json"]
     environment:
-      PORTAL_REGISTRY: http://ff1:3171,http://ff2:3171,http://ff3:3171,http://ff4:3171,http://ff5:3171
+      PORTAL_REGISTRY: *registry
       PORTAL_POSTGRES: postgres://portal:portal@postgres:5432/portal?sslmode=disable
       PORTAL_REDIS: redis:6379
     volumes:

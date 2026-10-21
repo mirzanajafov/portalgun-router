@@ -17,8 +17,9 @@ type RegistrySummary struct {
 	Invalid           int    `json:"invalid"`
 	Requests          int    `json:"requests"`
 	Lost              int    `json:"lost"`
+	Dropped           int    `json:"dropped"`
 	Versions          int    `json:"registryVersions"`
-	Refused           int    `json:"refusedLists"`
+	Refusals          int    `json:"refusals"`
 	LostRegistrations int    `json:"lostRegistrations"`
 	Register          *Stat  `json:"registerMs,omitempty"`
 	Join              *Stat  `json:"joinMs,omitempty"`
@@ -66,8 +67,9 @@ func SummarizeE5(runs []RegistryRun) []RegistrySummary {
 			s.Runs++
 			s.Requests += r.Requests
 			s.Lost += r.Lost
+			s.Dropped += r.Dropped
 			s.Versions += len(r.Versions)
-			s.Refused += r.Refused
+			s.Refusals += r.Refusals
 			s.LostRegistrations += r.LostRegistrations
 			switch {
 			case r.Error != "":
@@ -114,7 +116,7 @@ func statText(s *Stat) string {
 
 func WriteRegistryText(w io.Writer, sums []RegistrySummary) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "cell\truns\tlost\tversions\trefused\tlost registrations\tregister ms\tjoin ms\tapplied ms\tgateways ms\tleave applied ms\tleave gateways ms\tup after kill ms\tkill to first ms")
+	fmt.Fprintln(tw, "cell\truns\tlost\tversions\trefusals\tlost registrations\tregister ms\tjoin ms\tapplied ms\tgateways ms\tleave applied ms\tleave gateways ms\tup after kill ms\tkill to first ms")
 	for _, s := range sums {
 		runs := fmt.Sprint(s.Runs)
 		if s.Invalid > 0 {
@@ -123,7 +125,11 @@ func WriteRegistryText(w io.Writer, sums []RegistrySummary) error {
 		if s.Failed > 0 {
 			runs += fmt.Sprintf(" (%d failed)", s.Failed)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%d of %d\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs, s.Lost, s.Requests, s.Versions, s.Refused, s.LostRegistrations,
+		lost := fmt.Sprintf("%d of %d", s.Lost, s.Requests)
+		if s.Dropped > 0 {
+			lost += fmt.Sprintf(" (%d not sent)", s.Dropped)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs, lost, s.Versions, s.Refusals, s.LostRegistrations,
 			statText(s.Register), statText(s.Join), statText(s.Applied), statText(s.Gateways),
 			statText(s.LeaveApplied), statText(s.LeaveGateways), statText(s.UpAfterKill), statText(s.KillToFirst))
 	}

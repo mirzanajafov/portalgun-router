@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 var (
 	registryNodes  = []string{"ff1", "ff2", "ff3", "ff4", "ff5"}
 	registeredDims = []string{"dim-a", "dim-b", "dim-c", "dim-d"}
+	registeredIDs  = []string{"a", "b", "c", "d"}
 	e5Gateways     = []string{"gateway-1", "gateway-2"}
 )
 
@@ -33,6 +35,7 @@ type RegistryPlan struct {
 	Rate     float64 `json:"rate"`
 	Label    string  `json:"label"`
 	Image    string  `json:"image"`
+	Commit   string  `json:"imageCommit,omitempty"`
 }
 
 type RegistryRun struct {
@@ -44,7 +47,7 @@ type RegistryRun struct {
 	Dropped           int      `json:"dropped"`
 	Invalid           []string `json:"invalid,omitempty"`
 	Versions          []string `json:"registryVersions"`
-	Refused           int      `json:"refusedLists"`
+	Refusals          int      `json:"refusals"`
 	LostRegistrations int      `json:"lostRegistrations"`
 	RegisterMs        *float64 `json:"registerMs,omitempty"`
 	JoinMs            *float64 `json:"joinMs,omitempty"`
@@ -75,18 +78,37 @@ type registryStatus struct {
 	Leader uint64 `json:"leader"`
 }
 
-func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
-	if plan.Rate <= 0 || plan.Join+plan.Leader+plan.Failover+plan.Down == 0 {
-		return "", errors.New("the plan needs a rate and at least one run")
-	}
-	image, err := exec.CommandContext(ctx, "docker", "image", "inspect", "-f", "{{.Id}}", plan.Image).CombinedOutput()
+func docker(ctx context.Context, args ...string) (string, error) {
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("docker image inspect %s: %w: %s (build FiveFamilies' node image in its repo, or name another one in FF_IMAGE)", plan.Image, err, bytes.TrimSpace(image))
+		return "", fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
+	counts := []int{plan.Join, plan.Leader, plan.Failover, plan.Down}
+	if math.IsNaN(plan.Rate) || plan.Rate <= 0 || slices.Min(counts) < 0 || slices.Max(counts) == 0 {
+		return "", errors.New("the plan needs a positive rate, no negative run counts and at least one run")
+	}
+	image, err := docker(ctx, "image", "inspect", "-f", "{{.Id}}", plan.Image)
+	if err != nil {
+		return "", fmt.Errorf("%w (build FiveFamilies' node image in its repo, or name another one in FF_IMAGE)", err)
 	}
 	compose := r.Compose
 	compose.Env = append(slices.Clone(compose.Env), "FF_IMAGE="+plan.Image)
+	down := func(ctx context.Context) error {
+		_, err := compose.run(ctx, "--profile", "join", "down", "-v", "--remove-orphans")
+		return err
+	}
+	if err := down(ctx); err != nil {
+		return "", fmt.Errorf("clearing what an earlier run left: %w", err)
+	}
 	defer func() {
-		if _, err := compose.run(context.Background(), "--profile", "join", "down", "-v", "--remove-orphans"); err != nil {
+		if err := down(context.Background()); err != nil {
 			r.logf("tearing down: %v", err)
 		}
 	}()
@@ -101,7 +123,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	meta := map[string]any{"plan": plan, "commit": commit(ctx), "imageId": strings.TrimSpace(string(image)), "startedAt": time.Now().UTC()}
+	meta := map[string]any{"plan": plan, "commit": commit(ctx), "imageId": image, "startedAt": time.Now().UTC()}
 	if err := writeJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
 		return dir, err
 	}
@@ -136,9 +158,9 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 			if err := enc.Encode(run); err != nil {
 				return dir, err
 			}
-			r.logf("%-8s %2d  lost %d of %d  join %s  applied %s  leave %s  up after kill %s  kill to first %s  versions %v  refused %d  lost registrations %d %s",
+			r.logf("%-8s %2d  lost %d of %d  join %s  applied %s  leave %s  up after kill %s  kill to first %s  versions %v  refusals %d  lost registrations %d %s",
 				c.name, i+1, run.Lost, run.Requests, msOrDash(run.JoinMs), msOrDash(run.AppliedMs), msOrDash(run.LeaveGatewaysMs),
-				msOrDash(run.UpAfterKillMs), msOrDash(run.KillToFirstMs), run.Versions, run.Refused, run.LostRegistrations, run.Error)
+				msOrDash(run.UpAfterKillMs), msOrDash(run.KillToFirstMs), run.Versions, run.Refusals, run.LostRegistrations, run.Error)
 		}
 	}
 	return dir, nil
@@ -177,7 +199,10 @@ func settled(ctx context.Context, compose Compose) (int64, string) {
 	leaders := map[uint64]bool{}
 	for _, n := range registryNodes {
 		var st registryStatus
-		if err := fetch(ctx, compose, "http://"+n+":3171/v1/status", &st); err != nil || st.Leader == 0 {
+		if err := fetch(ctx, compose, "http://"+n+":3171/v1/status", &st); err != nil {
+			return 0, fmt.Sprintf("%s: %v", n, err)
+		}
+		if st.Leader == 0 {
 			return 0, n + " has no leader"
 		}
 		leaders[st.Leader] = true
@@ -186,10 +211,19 @@ func settled(ctx context.Context, compose Compose) (int64, string) {
 		return 0, "the nodes name different leaders"
 	}
 	var listed struct {
-		Instances []json.RawMessage `json:"instances"`
+		Instances []struct {
+			Name string `json:"name"`
+		} `json:"instances"`
 	}
-	if err := fetch(ctx, compose, "http://"+registryNodes[0]+":3171/v1/registry/dimensions", &listed); err != nil || len(listed.Instances) != len(registeredDims) {
-		return 0, fmt.Sprintf("the registry lists %d of %d dimensions", len(listed.Instances), len(registeredDims))
+	if err := fetch(ctx, compose, "http://"+registryNodes[0]+":3171/v1/registry/dimensions", &listed); err != nil {
+		return 0, fmt.Sprintf("listing the dimensions: %v", err)
+	}
+	var names []string
+	for _, in := range listed.Instances {
+		names = append(names, in.Name)
+	}
+	if !slices.Equal(names, registeredIDs) {
+		return 0, fmt.Sprintf("the registry lists %v, want %v", names, registeredIDs)
 	}
 	version := int64(-1)
 	for k, g := range e5Gateways {
@@ -198,14 +232,16 @@ func settled(ctx context.Context, compose Compose) (int64, string) {
 				Healthy bool `json:"healthy"`
 			} `json:"upstreams"`
 		}
+		if err := fetch(ctx, compose, "http://"+g+":9090/state", &st); err != nil {
+			return 0, fmt.Sprintf("%s: %v", g, err)
+		}
 		healthy := 0
-		err := fetch(ctx, compose, "http://"+g+":9090/state", &st)
 		for _, u := range st.Upstreams {
 			if u.Healthy {
 				healthy++
 			}
 		}
-		if err != nil || len(st.Upstreams) != len(registeredDims) || healthy != len(registeredDims) {
+		if len(st.Upstreams) != len(registeredDims) || healthy != len(registeredDims) {
 			return 0, fmt.Sprintf("%s has %d dimensions, %d healthy", g, len(st.Upstreams), healthy)
 		}
 		lines, err := serviceLog(ctx, compose, g)
@@ -237,35 +273,37 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 type load struct {
-	done   chan error
-	sum    loadgen.Summary
-	file   string
-	waited bool
+	done    chan struct{}
+	sum     loadgen.Summary
+	err     error
+	file    string
+	counted bool
 }
 
 func startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
-	l := &load{done: make(chan error, 1), file: fmt.Sprintf("/tmp/e5-%d.bin", seed)}
+	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed)}
 	go func() {
-		sum, err := compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
+		defer close(l.done)
+		l.sum, l.err = compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
 			"-rate", strconv.FormatFloat(rate, 'f', -1, 64), "-arrival", "poisson", "-seed", strconv.Itoa(seed+1),
 			"-warmup", "0s", "-duration", d.String(), "-timeout", "5s", "-records", l.file)
-		l.sum = sum
-		l.done <- err
 	}()
 	return l
 }
 
-func (l *load) drain() {
-	if !l.waited {
-		<-l.done
-		l.waited = true
+func (l *load) finish(compose Compose, run *RegistryRun) error {
+	if l.counted {
+		return nil
 	}
+	_, err := l.count(context.Background(), compose, run)
+	return err
 }
 
-func (l *load) wait(ctx context.Context, compose Compose, run *RegistryRun) (*loadgen.Log, error) {
-	l.waited = true
-	if err := <-l.done; err != nil {
-		return nil, err
+func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*loadgen.Log, error) {
+	<-l.done
+	l.counted = true
+	if l.err != nil {
+		return nil, l.err
 	}
 	run.Invalid = l.sum.Invalid
 	local := filepath.Join(os.TempDir(), filepath.Base(l.file))
@@ -332,8 +370,10 @@ func versionWith(versions []logLine, change string) (logLine, bool) {
 	return versions[i], true
 }
 
-func firstApplied(lines []logLine, version int64) (time.Time, bool) {
-	i := slices.IndexFunc(lines, func(l logLine) bool { return l.Msg == "cluster config applied" && l.configVersion() >= version })
+func firstApplied(lines []logLine, version, before int64) (time.Time, bool) {
+	i := slices.IndexFunc(lines, func(l logLine) bool {
+		return l.Msg == "cluster config applied" && l.configVersion() >= version && l.configVersion() < before
+	})
 	if i < 0 {
 		return time.Time{}, false
 	}
@@ -373,6 +413,9 @@ func firstServedBy(lg *loadgen.Log, dim string) (time.Time, bool) {
 }
 
 func registryAfter(ctx context.Context, compose Compose, run *RegistryRun, from, to time.Time) ([]logLine, error) {
+	if !sleepCtx(ctx, time.Until(to)) {
+		return nil, ctx.Err()
+	}
 	lines, err := serviceLog(ctx, compose, "controller")
 	if err != nil {
 		return nil, err
@@ -382,7 +425,7 @@ func registryAfter(ctx context.Context, compose Compose, run *RegistryRun, from,
 	for _, l := range versions {
 		run.Versions = append(run.Versions, fmt.Sprintf("v%d %s", l.configVersion(), l.Reason))
 	}
-	run.Refused = len(within(lines, "the registry's list is not applied, keeping the pool as it is", from, to))
+	run.Refusals = len(within(lines, "the registry's list is not applied, keeping the pool as it is", from, to))
 	for _, d := range registeredDims {
 		lines, err := serviceLog(ctx, compose, d)
 		if err != nil {
@@ -393,20 +436,24 @@ func registryAfter(ctx context.Context, compose Compose, run *RegistryRun, from,
 	return versions, nil
 }
 
-func reached(ctx context.Context, compose Compose, versions []logLine, change string, from time.Time) (applied, gateways *float64, err error) {
+func changed(versions []logLine, change string) (logLine, error) {
 	v, ok := versionWith(versions, change)
 	if !ok {
-		return nil, nil, fmt.Errorf("the controller wrote no version where %s", change)
+		return logLine{}, fmt.Errorf("the controller wrote no version where %s", change)
 	}
+	return v, nil
+}
+
+func reached(ctx context.Context, compose Compose, v logLine, before int64, from time.Time) (applied, gateways *float64, err error) {
 	var last time.Time
 	for _, g := range e5Gateways {
 		lines, err := serviceLog(ctx, compose, g)
 		if err != nil {
 			return nil, nil, err
 		}
-		at, ok := firstApplied(lines, v.configVersion())
+		at, ok := firstApplied(lines, v.configVersion(), before)
 		if !ok {
-			return nil, nil, fmt.Errorf("%s never applied version %d or a later one", g, v.configVersion())
+			return nil, nil, fmt.Errorf("%s applied no version from %d and before %d", g, v.configVersion(), before)
 		}
 		if at.After(last) {
 			last = at
@@ -416,13 +463,16 @@ func reached(ctx context.Context, compose Compose, versions []logLine, change st
 }
 
 func leader(ctx context.Context, compose Compose) (string, error) {
+	errs := []error{errors.New("no node says it leads")}
 	for _, n := range registryNodes {
 		var st registryStatus
-		if err := fetch(ctx, compose, "http://"+n+":3171/v1/status", &st); err == nil && st.Role == "leader" {
+		if err := fetch(ctx, compose, "http://"+n+":3171/v1/status", &st); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", n, err))
+		} else if st.Role == "leader" {
 			return n, nil
 		}
 	}
-	return "", errors.New("no node says it leads")
+	return "", errors.Join(errs...)
 }
 
 func kill(ctx context.Context, compose Compose, service string) (time.Time, error) {
@@ -433,11 +483,11 @@ func kill(ctx context.Context, compose Compose, service string) (time.Time, erro
 	if _, err := compose.run(ctx, "kill", "-s", "KILL", service); err != nil {
 		return time.Time{}, err
 	}
-	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.FinishedAt}}", ids[service]).Output()
+	out, err := docker(ctx, "inspect", "-f", "{{.State.FinishedAt}}", ids[service])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("inspecting %s: %w", service, err)
+		return time.Time{}, err
 	}
-	return time.Parse(time.RFC3339Nano, strings.TrimSpace(string(out)))
+	return time.Parse(time.RFC3339Nano, out)
 }
 
 func (r *Runner) startAgain(compose Compose, services ...string) {
@@ -464,10 +514,10 @@ func dimESteps(ctx context.Context, compose Compose, from time.Time, msgs ...str
 	return at, nil
 }
 
-func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) error {
+func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
 	defer r.removeDimE(compose)
 	l := startLoad(ctx, compose, rate, 12*time.Second, i)
-	defer l.drain()
+	defer func() { err = errors.Join(err, l.finish(compose, run)) }()
 	sleepCtx(ctx, 2*time.Second)
 	if _, err := compose.run(ctx, "--profile", "join", "up", "-d", "--no-deps", "--force-recreate", "dim-e"); err != nil {
 		return err
@@ -476,36 +526,44 @@ func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i i
 	if _, err := compose.run(ctx, "--profile", "join", "stop", "-t", "10", "dim-e"); err != nil {
 		return err
 	}
-	lg, err := l.wait(ctx, compose, run)
+	lg, err := l.count(ctx, compose, run)
 	if err != nil {
 		return err
 	}
 	start := time.Unix(0, lg.StartUnixNano)
+	versions, err := registryAfter(ctx, compose, run, start, start.Add(17*time.Second))
+	if err != nil {
+		return err
+	}
 	at, err := dimESteps(ctx, compose, start, "dimension up", "registered", "deregistering", "deregistered")
 	if err != nil {
 		return err
 	}
 	up, registered, deregistering := at[0], at[1], at[2]
 	run.RegisterMs = ms(up, registered)
-	versions, err := registryAfter(ctx, compose, run, start, deregistering.Add(5*time.Second))
-	if err != nil {
-		return err
-	}
 	firstAt, ok := firstServedBy(lg, "e")
 	if !ok {
 		return errors.New("dim-e served nothing")
 	}
 	run.JoinMs = ms(registered, firstAt)
-	if run.AppliedMs, run.GatewaysMs, err = reached(ctx, compose, versions, "e joined", registered); err != nil {
+	joined, err := changed(versions, "e joined")
+	if err != nil {
 		return err
 	}
-	run.LeaveAppliedMs, run.LeaveGatewaysMs, err = reached(ctx, compose, versions, "e left", deregistering)
+	left, err := changed(versions, "e left")
+	if err != nil {
+		return err
+	}
+	if run.AppliedMs, run.GatewaysMs, err = reached(ctx, compose, joined, left.configVersion(), registered); err != nil {
+		return err
+	}
+	run.LeaveAppliedMs, run.LeaveGatewaysMs, err = reached(ctx, compose, left, math.MaxInt64, deregistering)
 	return err
 }
 
-func (r *Runner) leaderRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) error {
+func (r *Runner) leaderRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
 	l := startLoad(ctx, compose, rate, 20*time.Second, 100+i)
-	defer l.drain()
+	defer func() { err = errors.Join(err, l.finish(compose, run)) }()
 	sleepCtx(ctx, 3*time.Second)
 	node, err := leader(ctx, compose)
 	if err != nil {
@@ -520,7 +578,7 @@ func (r *Runner) leaderRun(ctx context.Context, compose Compose, rate float64, i
 	if _, err := compose.run(ctx, "start", node); err != nil {
 		return err
 	}
-	lg, err := l.wait(ctx, compose, run)
+	lg, err := l.count(ctx, compose, run)
 	if err != nil {
 		return err
 	}
@@ -529,13 +587,13 @@ func (r *Runner) leaderRun(ctx context.Context, compose Compose, rate float64, i
 	return err
 }
 
-func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) error {
+func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
 	defer r.removeDimE(compose)
 	if _, err := compose.run(ctx, "--profile", "join", "up", "--no-start", "--no-deps", "--force-recreate", "dim-e"); err != nil {
 		return err
 	}
 	l := startLoad(ctx, compose, rate, 25*time.Second, 200+i)
-	defer l.drain()
+	defer func() { err = errors.Join(err, l.finish(compose, run)) }()
 	sleepCtx(ctx, 3*time.Second)
 	node, err := leader(ctx, compose)
 	if err != nil {
@@ -550,33 +608,37 @@ func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64,
 	if _, err := compose.run(ctx, "--profile", "join", "start", "dim-e"); err != nil {
 		return err
 	}
-	lg, err := l.wait(ctx, compose, run)
+	lg, err := l.count(ctx, compose, run)
 	if err != nil {
 		return err
 	}
 	start := time.Unix(0, lg.StartUnixNano)
+	versions, err := registryAfter(ctx, compose, run, start, start.Add(30*time.Second))
+	if err != nil {
+		return err
+	}
 	at, err := dimESteps(ctx, compose, start, "dimension up", "registered")
 	if err != nil {
 		return err
 	}
 	up, registered := at[0], at[1]
 	run.UpAfterKillMs, run.RegisterMs = ms(killed, up), ms(up, registered)
-	versions, err := registryAfter(ctx, compose, run, start, start.Add(30*time.Second))
-	if err != nil {
-		return err
-	}
 	firstAt, ok := firstServedBy(lg, "e")
 	if !ok {
 		return errors.New("dim-e served nothing before the load ended")
 	}
 	run.KillToFirstMs, run.JoinMs = ms(killed, firstAt), ms(registered, firstAt)
-	run.AppliedMs, run.GatewaysMs, err = reached(ctx, compose, versions, "e joined", registered)
+	joined, err := changed(versions, "e joined")
+	if err != nil {
+		return err
+	}
+	run.AppliedMs, run.GatewaysMs, err = reached(ctx, compose, joined, math.MaxInt64, registered)
 	return err
 }
 
-func (r *Runner) downRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) error {
+func (r *Runner) downRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
 	l := startLoad(ctx, compose, rate, 45*time.Second, 300+i)
-	defer l.drain()
+	defer func() { err = errors.Join(err, l.finish(compose, run)) }()
 	sleepCtx(ctx, 5*time.Second)
 	defer r.startAgain(compose, registryNodes...)
 	if _, err := compose.run(ctx, append([]string{"kill", "-s", "KILL"}, registryNodes...)...); err != nil {
@@ -586,7 +648,7 @@ func (r *Runner) downRun(ctx context.Context, compose Compose, rate float64, i i
 	if _, err := compose.run(ctx, append([]string{"start"}, registryNodes...)...); err != nil {
 		return err
 	}
-	lg, err := l.wait(ctx, compose, run)
+	lg, err := l.count(ctx, compose, run)
 	if err != nil {
 		return err
 	}

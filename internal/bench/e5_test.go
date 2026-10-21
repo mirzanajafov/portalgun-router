@@ -53,7 +53,7 @@ func TestTheSummaryCountsLossesInFailedAndInvalidRunsButNotTheirTimings(t *testi
 		{Cell: "join", Requests: 100, Lost: 1, JoinMs: &nine, Invalid: []string{"lag"}},
 		{Cell: "join", Requests: 100, Lost: 4, JoinMs: &nine, Error: "dim-e served nothing"},
 		{Cell: "join", Requests: 100, JoinMs: &twenty},
-		{Cell: "leader", Requests: 50, LostRegistrations: 2, Refused: 1, Versions: []string{"v3 b left"}},
+		{Cell: "leader", Requests: 50, Dropped: 3, LostRegistrations: 2, Refusals: 1, Versions: []string{"v3 b left"}},
 	})
 	if len(sums) != 2 || sums[0].Cell != "join" || sums[1].Cell != "leader" {
 		t.Fatalf("cells %+v, want join then leader", sums)
@@ -65,8 +65,8 @@ func TestTheSummaryCountsLossesInFailedAndInvalidRunsButNotTheirTimings(t *testi
 	if join.Join == nil || join.Join.Max != 20 {
 		t.Fatalf("join times %+v, want the 9 s of the failed and the invalid run left out", join.Join)
 	}
-	if leader.Join != nil || leader.LostRegistrations != 2 || leader.Refused != 1 || leader.Versions != 1 {
-		t.Fatalf("leader %+v, want no join times and the lost registrations, refusals and versions counted", leader)
+	if leader.Join != nil || leader.Dropped != 3 || leader.LostRegistrations != 2 || leader.Refusals != 1 || leader.Versions != 1 {
+		t.Fatalf("leader %+v, want no join times and the drops, lost registrations, refusals and versions counted", leader)
 	}
 }
 
@@ -114,16 +114,19 @@ func TestAChangeIsFoundByTheWholeNameInTheReason(t *testing.T) {
 	}
 }
 
-func TestAGatewayThatSkippedAVersionStillAppliedIt(t *testing.T) {
+func TestAGatewayThatSkippedAVersionStillAppliedItUnlessItSkippedPastTheNextChange(t *testing.T) {
 	lines := []logLine{
 		{Time: time.Unix(1, 0), Msg: "cluster config applied", Version: 4.0},
 		{Time: time.Unix(2, 0), Msg: "cluster config rejected", Version: 5.0},
 		{Time: time.Unix(3, 0), Msg: "cluster config applied", Version: 6.0},
 	}
-	if at, ok := firstApplied(lines, 5); !ok || at != time.Unix(3, 0) {
+	if at, ok := firstApplied(lines, 5, 7); !ok || at != time.Unix(3, 0) {
 		t.Fatalf("%v %v, want the version after it", at, ok)
 	}
-	if _, ok := firstApplied(lines, 7); ok {
+	if _, ok := firstApplied(lines, 5, 6); ok {
+		t.Fatal("the version that undid the change was taken for the change")
+	}
+	if _, ok := firstApplied(lines, 7, 9); ok {
 		t.Fatal("a version never applied was found")
 	}
 }

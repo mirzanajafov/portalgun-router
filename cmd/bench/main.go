@@ -158,7 +158,7 @@ func reportOverload(args []string) error {
 
 func e5(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("e5", flag.ExitOnError)
-	plan := bench.RegistryPlan{Image: cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node")}
+	plan := bench.RegistryPlan{Image: cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node"), Commit: os.Getenv("FF_COMMIT")}
 	fs.IntVar(&plan.Join, "join", 20, "runs of a dimension registering and leaving")
 	fs.IntVar(&plan.Leader, "leader", 10, "runs of the registry's leader being killed")
 	fs.IntVar(&plan.Failover, "failover", 10, "runs of a dimension registering as the leader is killed")
