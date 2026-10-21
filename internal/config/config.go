@@ -220,15 +220,17 @@ type Dimension struct {
 }
 
 func (d Dimension) Check() error {
-	switch {
-	case strings.ContainsRune(d.ID+d.Address+d.Version, 0):
-		return fmt.Errorf("dimension %q: its id, address or version holds a NUL, which the config store can't keep", d.ID)
-	case !IsHostPort(d.Address):
-		return fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address)
-	case d.MaxInflight < 1:
-		return fmt.Errorf("dimension %q: maxInflight must be positive", d.ID)
+	var errs []error
+	if strings.ContainsRune(d.ID+d.Address+d.Version, 0) {
+		errs = append(errs, fmt.Errorf("dimension %q: its id, address or version holds a NUL, which the config store can't keep", d.ID))
 	}
-	return nil
+	if !IsHostPort(d.Address) {
+		errs = append(errs, fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address))
+	}
+	if d.MaxInflight < 1 {
+		errs = append(errs, fmt.Errorf("dimension %q: maxInflight must be positive", d.ID))
+	}
+	return errors.Join(errs...)
 }
 
 func Parse(data []byte) (*Config, error) {
