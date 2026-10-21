@@ -157,13 +157,14 @@ func TestAnEmptyListKeepsThePoolAndIsLoggedOnce(t *testing.T) {
 	}
 }
 
-func TestAnInstanceWithoutAPortIsLeftOutAndTheRestApplied(t *testing.T) {
+func TestAnInstanceWithoutAPortOrAUsableNameIsLeftOutAndTheRestApplied(t *testing.T) {
 	r := discovering(t, "p")
-	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("bad", "bad", "v1")})
+	unstorable := dimension("x\x00y", "x:8080", "v1")
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("c1", "c1:8080", "v2"), dimension("bad", "bad", "v1"), unstorable})
 	if n, _, _, _ := r.latest(t); n != 1 {
 		t.Fatalf("the usable instances are the pool already, but version %d was written", n)
 	}
-	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("bad", "bad", "v1")})
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("bad", "bad", "v1"), unstorable})
 	if n, _, reason, _ := r.latest(t); n != 2 || reason != "c1 left" {
 		t.Fatalf("version %d, %q", n, reason)
 	}
