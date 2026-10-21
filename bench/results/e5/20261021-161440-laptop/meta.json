@@ -1,0 +1,12 @@
+{
+  "commit": "1ff4908",
+  "plan": {
+    "join": 20,
+    "leader": 10,
+    "failover": 10,
+    "down": 3,
+    "rate": 500,
+    "label": "laptop"
+  },
+  "startedAt": "2026-10-21T16:15:19.2366614Z"
+}

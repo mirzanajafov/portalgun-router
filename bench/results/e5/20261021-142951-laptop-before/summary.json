@@ -1,0 +1,150 @@
+{
+  "down": {
+    "trials": 3,
+    "failed": 0,
+    "lost": 0,
+    "requests": 67584,
+    "registryVersions": 0,
+    "joinMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "appliedMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "gatewaysMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "leaveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "registerMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "killToFirstMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  "failover": {
+    "trials": 10,
+    "failed": 0,
+    "lost": 0,
+    "requests": 75142,
+    "registryVersions": 10,
+    "joinMs": {
+      "median": 1030.398845,
+      "min": 7.694651,
+      "max": 4159.80938
+    },
+    "appliedMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "gatewaysMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "leaveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "registerMs": {
+      "median": 2127.019946,
+      "min": 94.537556,
+      "max": 10151.684721
+    },
+    "killToFirstMs": {
+      "median": 6208.817369,
+      "min": 2253.960979,
+      "max": 11090.63004
+    }
+  },
+  "join": {
+    "trials": 20,
+    "failed": 0,
+    "lost": 0,
+    "requests": 120005,
+    "registryVersions": 40,
+    "joinMs": {
+      "median": 16.7429825,
+      "min": 8.648957,
+      "max": 42.10177
+    },
+    "appliedMs": {
+      "median": 12.992619000000001,
+      "min": 7.189281,
+      "max": 36.047257
+    },
+    "gatewaysMs": {
+      "median": 15.163049,
+      "min": 7.871551,
+      "max": 36.488327
+    },
+    "leaveMs": {
+      "median": 7.6313435,
+      "min": -18.847606,
+      "max": 32.776006
+    },
+    "registerMs": {
+      "median": 29.6370265,
+      "min": 15.693848,
+      "max": 54.817818
+    },
+    "killToFirstMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  },
+  "leader": {
+    "trials": 10,
+    "failed": 0,
+    "lost": 0,
+    "requests": 99797,
+    "registryVersions": 3,
+    "joinMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "appliedMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "gatewaysMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "leaveMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "registerMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    },
+    "killToFirstMs": {
+      "median": 0,
+      "min": 0,
+      "max": 0
+    }
+  }
+}
