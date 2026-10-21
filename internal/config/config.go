@@ -311,7 +311,7 @@ func (c *Config) Validate() error {
 				errs = append(errs, fmt.Errorf("dimension %q appears in pools %q and %q", d.ID, other, p.Name))
 			}
 			dims[d.ID] = p.Name
-			if !HostPort(d.Address) {
+			if !IsHostPort(d.Address) {
 				errs = append(errs, fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address))
 			}
 			if d.MaxInflight < 1 {
@@ -413,7 +413,7 @@ func (p Pool) validateResilience() []error {
 	return errs
 }
 
-func HostPort(addr string) bool {
+func IsHostPort(addr string) bool {
 	host, port, err := net.SplitHostPort(addr)
 	return err == nil && host != "" && port != ""
 }

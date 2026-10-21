@@ -320,16 +320,16 @@ func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
 }
 
 func TestAnAnswerWithoutALeaseOrATTLIsNotARegistration(t *testing.T) {
-	for _, answer := range []map[string]any{{"lease": 63}, {"ttl": "10s"}} {
+	for _, half := range []map[string]any{{"lease": 63}, {"ttl": "10s"}} {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, answer)
+			writeJSON(w, http.StatusOK, half)
 		}))
 		c, err := New([]string{srv.URL})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if l, err := c.Register(context.Background(), "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second); err == nil || !strings.Contains(err.Error(), srv.URL) {
-			t.Errorf("%v became %+v, %v", answer, l, err)
+			t.Errorf("%v became %+v, %v", half, l, err)
 		}
 		srv.Close()
 	}

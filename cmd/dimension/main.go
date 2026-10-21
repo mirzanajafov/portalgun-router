@@ -42,6 +42,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	context.AfterFunc(ctx, stop)
 	var keep func(context.Context)
 	if *endpoints != "" {
 		c, inst, err := registration(registrationFlags{endpoints: *endpoints, service: *service, id: *id, version: *version, advertise: *advertise, maxInflight: *maxInflight, ttl: *ttl})
@@ -74,10 +75,7 @@ func registration(f registrationFlags) (*registry.Client, registry.Instance, err
 			return nil, registry.Instance{}, fmt.Errorf("-registry-service and -id: %w", err)
 		}
 	}
-	if len(f.version) > 256 || len(f.advertise) > 255 {
-		return nil, registry.Instance{}, errors.New("-registry needs a -version of at most 256 bytes and an -advertise of at most 255")
-	}
-	if !config.HostPort(f.advertise) {
+	if !config.IsHostPort(f.advertise) {
 		return nil, registry.Instance{}, fmt.Errorf("-registry needs -advertise as host:port, got %q", f.advertise)
 	}
 	if f.ttl < time.Millisecond || f.ttl > 24*time.Hour {
@@ -90,6 +88,9 @@ func registration(f registrationFlags) (*registry.Client, registry.Instance, err
 			return nil, registry.Instance{}, fmt.Errorf("-max-inflight must be a positive number, got %q", f.maxInflight)
 		}
 		inst.Meta["maxInflight"] = strconv.Itoa(n)
+	}
+	if err := registry.CheckSize(inst, f.ttl); err != nil {
+		return nil, registry.Instance{}, err
 	}
 	c, err := registry.New(urls)
 	return c, inst, err
@@ -125,7 +126,7 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- control.Serve(cl) }()
-	logger.Info("dimension up", "id", id, "version", version, "addr", s.Addr(), "control", controlAddr)
+	logger.Info("dimension up", "id", id, "version", version, "addr", s.Addr(), "control", cl.Addr().String())
 
 	select {
 	case <-ctx.Done():
