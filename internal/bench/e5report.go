@@ -1,0 +1,131 @@
+package bench
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"text/tabwriter"
+)
+
+type RegistrySummary struct {
+	Cell              string `json:"cell"`
+	Runs              int    `json:"runs"`
+	Failed            int    `json:"failed"`
+	Invalid           int    `json:"invalid"`
+	Requests          int    `json:"requests"`
+	Lost              int    `json:"lost"`
+	Versions          int    `json:"registryVersions"`
+	Refused           int    `json:"refusedLists"`
+	LostRegistrations int    `json:"lostRegistrations"`
+	Register          *Stat  `json:"registerMs,omitempty"`
+	Join              *Stat  `json:"joinMs,omitempty"`
+	Applied           *Stat  `json:"appliedMs,omitempty"`
+	Gateways          *Stat  `json:"gatewaysMs,omitempty"`
+	LeaveApplied      *Stat  `json:"leaveAppliedMs,omitempty"`
+	LeaveGateways     *Stat  `json:"leaveGatewaysMs,omitempty"`
+	UpAfterKill       *Stat  `json:"upAfterKillMs,omitempty"`
+	KillToFirst       *Stat  `json:"killToFirstMs,omitempty"`
+}
+
+func LoadRegistryRuns(dir string) ([]RegistryRun, error) {
+	f, err := os.Open(filepath.Join(dir, "runs.jsonl"))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var runs []RegistryRun
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1<<16), 1<<20)
+	for sc.Scan() {
+		var r RegistryRun
+		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
+			return nil, err
+		}
+		runs = append(runs, r)
+	}
+	return runs, sc.Err()
+}
+
+func SummarizeE5(runs []RegistryRun) []RegistrySummary {
+	var order []string
+	by := map[string][]RegistryRun{}
+	for _, r := range runs {
+		if _, ok := by[r.Cell]; !ok {
+			order = append(order, r.Cell)
+		}
+		by[r.Cell] = append(by[r.Cell], r)
+	}
+	out := make([]RegistrySummary, 0, len(order))
+	for _, cell := range order {
+		s := RegistrySummary{Cell: cell}
+		var register, join, applied, gateways, leaveApplied, leaveGateways, upAfterKill, killToFirst []float64
+		for _, r := range by[cell] {
+			s.Runs++
+			s.Requests += r.Requests
+			s.Lost += r.Lost
+			s.Versions += len(r.Versions)
+			s.Refused += r.Refused
+			s.LostRegistrations += r.LostRegistrations
+			switch {
+			case r.Error != "":
+				s.Failed++
+				continue
+			case len(r.Invalid) > 0:
+				s.Invalid++
+				continue
+			}
+			for _, m := range []struct {
+				into *[]float64
+				v    *float64
+			}{
+				{&register, r.RegisterMs}, {&join, r.JoinMs}, {&applied, r.AppliedMs}, {&gateways, r.GatewaysMs},
+				{&leaveApplied, r.LeaveAppliedMs}, {&leaveGateways, r.LeaveGatewaysMs}, {&upAfterKill, r.UpAfterKillMs}, {&killToFirst, r.KillToFirstMs},
+			} {
+				if m.v != nil {
+					*m.into = append(*m.into, *m.v)
+				}
+			}
+		}
+		s.Register, s.Join, s.Applied, s.Gateways = statOrNil(register), statOrNil(join), statOrNil(applied), statOrNil(gateways)
+		s.LeaveApplied, s.LeaveGateways = statOrNil(leaveApplied), statOrNil(leaveGateways)
+		s.UpAfterKill, s.KillToFirst = statOrNil(upAfterKill), statOrNil(killToFirst)
+		out = append(out, s)
+	}
+	return out
+}
+
+func statOrNil(vs []float64) *Stat {
+	if len(vs) == 0 {
+		return nil
+	}
+	s := statOf(vs)
+	return &s
+}
+
+func statText(s *Stat) string {
+	if s == nil {
+		return "-"
+	}
+	return rangeOf(*s, 1, 1, 0)
+}
+
+func WriteRegistryText(w io.Writer, sums []RegistrySummary) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "cell\truns\tlost\tversions\trefused\tlost registrations\tregister ms\tjoin ms\tapplied ms\tgateways ms\tleave applied ms\tleave gateways ms\tup after kill ms\tkill to first ms")
+	for _, s := range sums {
+		runs := fmt.Sprint(s.Runs)
+		if s.Invalid > 0 {
+			runs += fmt.Sprintf(" (%d invalid)", s.Invalid)
+		}
+		if s.Failed > 0 {
+			runs += fmt.Sprintf(" (%d failed)", s.Failed)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%d of %d\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs, s.Lost, s.Requests, s.Versions, s.Refused, s.LostRegistrations,
+			statText(s.Register), statText(s.Join), statText(s.Applied), statText(s.Gateways),
+			statText(s.LeaveApplied), statText(s.LeaveGateways), statText(s.UpAfterKill), statText(s.KillToFirst))
+	}
+	return tw.Flush()
+}

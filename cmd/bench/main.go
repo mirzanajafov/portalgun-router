@@ -44,10 +44,7 @@ func main() {
 	case "e5":
 		err = e5(ctx, os.Args[2:])
 	case "report-e5":
-		if len(os.Args) < 3 {
-			usage()
-		}
-		err = bench.ReportE5(os.Args[2])
+		err = reportE5(os.Args[2:])
 	case "hotpath":
 		err = hotpath(ctx, os.Args[2:])
 	case "report-hotpath":
@@ -162,10 +159,10 @@ func reportOverload(args []string) error {
 func e5(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("e5", flag.ExitOnError)
 	plan := bench.RegistryPlan{Image: cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node")}
-	fs.IntVar(&plan.Join, "join", 20, "trials of a dimension registering and leaving")
-	fs.IntVar(&plan.Leader, "leader", 10, "trials of the registry's leader being killed")
-	fs.IntVar(&plan.Failover, "failover", 10, "trials of a dimension registering as the leader is killed")
-	fs.IntVar(&plan.Down, "down", 3, "trials of the whole registry down for 30 s")
+	fs.IntVar(&plan.Join, "join", 20, "runs of a dimension registering and leaving")
+	fs.IntVar(&plan.Leader, "leader", 10, "runs of the registry's leader being killed")
+	fs.IntVar(&plan.Failover, "failover", 10, "runs of a dimension registering as the leader is killed")
+	fs.IntVar(&plan.Down, "down", 3, "runs of the whole registry down for 30 s")
 	fs.Float64Var(&plan.Rate, "rate", 500, "Poisson request rate across both gateways")
 	fs.StringVar(&plan.Label, "label", "laptop", "name of the run")
 	compose := fs.String("compose", filepath.Join("bench", "registry", "compose.yml"), "compose file")
@@ -177,8 +174,26 @@ func e5(ctx context.Context, args []string) error {
 	dir, err := runner.RunE5(ctx, plan)
 	if dir != "" {
 		fmt.Println("results in", dir)
+		if rerr := reportE5([]string{dir}); rerr != nil {
+			err = errors.Join(err, rerr)
+		}
 	}
 	return err
+}
+
+func reportE5(args []string) error {
+	if len(args) != 1 {
+		return errors.New("report-e5 needs a results directory")
+	}
+	runs, err := bench.LoadRegistryRuns(args[0])
+	if err != nil {
+		return err
+	}
+	sums := bench.SummarizeE5(runs)
+	if err := bench.WriteRegistryText(os.Stdout, sums); err != nil {
+		return err
+	}
+	return writeSummary(filepath.Join(args[0], "summary.json"), sums)
 }
 
 func e3(ctx context.Context, args []string) error {
