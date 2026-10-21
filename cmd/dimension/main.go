@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -66,11 +67,11 @@ func registration(endpoints, service, id, advertise string, ttl time.Duration) (
 			return nil, fmt.Errorf("-registry needs a -registry-service and an -id without a slash, got %q and %q", service, id)
 		}
 	}
-	switch {
-	case advertise == "":
-		return nil, errors.New("-registry needs -advertise")
-	case ttl <= 0:
-		return nil, errors.New("-registry-ttl must be positive")
+	if host, port, err := net.SplitHostPort(advertise); err != nil || host == "" || port == "" {
+		return nil, fmt.Errorf("-registry needs -advertise as host:port, got %q", advertise)
+	}
+	if ttl < time.Millisecond || ttl > 24*time.Hour {
+		return nil, fmt.Errorf("-registry-ttl must be between 1ms and 24h, got %v", ttl)
 	}
 	return registry.New(urls)
 }
@@ -81,6 +82,11 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 		return err
 	}
 	if err := s.Listen(addr); err != nil {
+		return err
+	}
+	cl, err := net.Listen("tcp", controlAddr)
+	if err != nil {
+		_ = s.Shutdown(context.Background())
 		return err
 	}
 	kctx, stopKeeping := context.WithCancel(ctx)
@@ -95,12 +101,11 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 		}()
 	}
 	control := &http.Server{
-		Addr:              controlAddr,
 		Handler:           s.ControlHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
-	go func() { errc <- control.ListenAndServe() }()
+	go func() { errc <- control.Serve(cl) }()
 	logger.Info("dimension up", "id", id, "version", version, "addr", s.Addr(), "control", controlAddr)
 
 	select {

@@ -51,68 +51,67 @@ func TestTheClientSpeaksEveryExampleOfTheContract(t *testing.T) {
 	}
 	ctx := context.Background()
 	dims := []Instance{versioned("c-137", "toxiproxy:18080", "v1"), versioned("d-99", "toxiproxy:18082", "v2")}
-	cases := map[string]func(t *testing.T, c *Client, endpoint string){
-		"list a service": func(t *testing.T, c *Client, _ string) {
+	cases := map[string]func(t *testing.T, c *Client){
+		"list a service": func(t *testing.T, c *Client) {
 			list, index, err := c.Lookup(ctx, "dimensions", 0, 30*time.Second)
 			if err != nil || index != 57 || !reflect.DeepEqual(list, dims) {
 				t.Errorf("%v at %d, %v", list, index, err)
 			}
 		},
-		"wait for a change after an index": func(t *testing.T, c *Client, _ string) {
+		"wait for a change after an index": func(t *testing.T, c *Client) {
 			list, index, err := c.Lookup(ctx, "dimensions", 57, 30*time.Second)
 			want := append(dims, Instance{Name: "e-7", Addr: "dim-e:8080"})
 			if err != nil || index != 64 || !reflect.DeepEqual(list, want) {
 				t.Errorf("%v at %d, %v", list, index, err)
 			}
 		},
-		"a service with no instances": func(t *testing.T, c *Client, _ string) {
+		"a service with no instances": func(t *testing.T, c *Client) {
 			list, index, err := c.Lookup(ctx, "billing", 0, 30*time.Second)
 			if err != nil || index != 12 || len(list) != 0 {
 				t.Errorf("%v at %d, %v", list, index, err)
 			}
 		},
-		"the cluster cannot answer in time": func(t *testing.T, c *Client, _ string) {
+		"the cluster cannot answer in time": func(t *testing.T, c *Client) {
 			if _, _, err := c.Lookup(ctx, "dimensions", 64, 30*time.Second); err == nil {
 				t.Error("a 503 came back as an answer")
 			}
 		},
-		"register an instance": func(t *testing.T, c *Client, _ string) {
+		"register an instance": func(t *testing.T, c *Client) {
 			l, err := c.Register(ctx, "dimensions", Instance{Name: "e-7", Addr: "dim-e:8080", Meta: map[string]string{"version": "v1"}}, 10*time.Second)
 			if err != nil || l != (Lease{ID: 63, TTL: 10 * time.Second}) {
 				t.Errorf("%+v, %v", l, err)
 			}
 		},
-		"register under a name with a slash": func(t *testing.T, c *Client, _ string) {
+		"register under a name with a slash": func(t *testing.T, c *Client) {
 			if _, err := c.Register(ctx, "dimensions", Instance{Name: "e/7", Addr: "dim-e:8080", Meta: map[string]string{"version": "v1"}}, 10*time.Second); err == nil {
 				t.Error("a 400 came back as a lease")
 			}
 		},
-		"renew a lease": func(t *testing.T, c *Client, _ string) {
-			if ttl, err := c.KeepAlive(ctx, 63); err != nil || ttl != 10*time.Second {
-				t.Errorf("%v, %v", ttl, err)
+		"renew a lease": func(t *testing.T, c *Client) {
+			if err := c.KeepAlive(ctx, 63); err != nil {
+				t.Error(err)
 			}
 		},
-		"renew a lease that is gone": func(t *testing.T, c *Client, _ string) {
-			if _, err := c.KeepAlive(ctx, 63); !errors.Is(err, ErrLeaseNotFound) {
+		"renew a lease that is gone": func(t *testing.T, c *Client) {
+			if err := c.KeepAlive(ctx, 63); !errors.Is(err, ErrLeaseNotFound) {
 				t.Errorf("%v, want ErrLeaseNotFound", err)
 			}
 		},
-		"deregister": func(t *testing.T, c *Client, _ string) {
+		"deregister": func(t *testing.T, c *Client) {
 			if err := c.Revoke(ctx, 63); err != nil {
 				t.Error(err)
 			}
 		},
-		"this node's view": func(t *testing.T, c *Client, endpoint string) {
-			if st, err := c.Status(ctx, endpoint); err != nil || st != (Status{ID: 3, Role: "leader", Leader: 3, Term: 7}) {
-				t.Errorf("%+v, %v", st, err)
-			}
-		},
 	}
-	if len(exchanges) != len(cases) {
-		t.Fatalf("the contract has %d examples and the test %d cases", len(exchanges), len(cases))
+	notCalled := map[string]bool{"this node's view": true}
+	if len(exchanges) != len(cases)+len(notCalled) {
+		t.Fatalf("the contract has %d examples and the test %d cases", len(exchanges), len(cases)+len(notCalled))
 	}
 	for _, ex := range exchanges {
 		t.Run(ex.Name, func(t *testing.T) {
+			if notCalled[ex.Name] {
+				t.Skip("PortalGun never makes this call")
+			}
 			run, ok := cases[ex.Name]
 			if !ok {
 				t.Fatalf("no case for the example %q", ex.Name)
@@ -136,7 +135,7 @@ func TestTheClientSpeaksEveryExampleOfTheContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			run(t, c, srv.URL)
+			run(t, c)
 		})
 	}
 }

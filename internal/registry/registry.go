@@ -40,13 +40,6 @@ type Lease struct {
 	TTL time.Duration
 }
 
-type Status struct {
-	ID     uint64 `json:"id"`
-	Role   string `json:"role"`
-	Leader uint64 `json:"leader"`
-	Term   uint64 `json:"term"`
-}
-
 type Client struct {
 	endpoints []string
 	http      *http.Client
@@ -121,7 +114,7 @@ func (c *Client) do(ctx context.Context, timeout time.Duration, method, path str
 	defer cancel()
 	at := c.at.Load()
 	err := c.send(ctx, c.endpoints[at%uint64(len(c.endpoints))], method, path, in, out)
-	if err != nil && !errors.Is(err, ErrLeaseNotFound) {
+	if err != nil && !errors.Is(err, ErrLeaseNotFound) && !errors.Is(err, context.Canceled) {
 		c.at.CompareAndSwap(at, at+1)
 	}
 	return err
@@ -180,26 +173,12 @@ func leasePath(id uint64) string {
 	return "/v1/leases/" + strconv.FormatUint(id, 10)
 }
 
-func (c *Client) KeepAlive(ctx context.Context, lease uint64) (time.Duration, error) {
-	var out struct {
-		TTL duration `json:"ttl"`
-	}
-	if err := c.do(ctx, callTimeout, http.MethodPost, leasePath(lease)+"/keepalive", nil, &out); err != nil {
-		return 0, err
-	}
-	return time.Duration(out.TTL), nil
+func (c *Client) KeepAlive(ctx context.Context, lease uint64) error {
+	return c.do(ctx, callTimeout, http.MethodPost, leasePath(lease)+"/keepalive", nil, nil)
 }
 
 func (c *Client) Revoke(ctx context.Context, lease uint64) error {
 	return c.do(ctx, callTimeout, http.MethodDelete, leasePath(lease), nil, nil)
-}
-
-func (c *Client) Status(ctx context.Context, endpoint string) (Status, error) {
-	ctx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	var st Status
-	err := c.send(ctx, endpoint, http.MethodGet, "/v1/status", nil, &st)
-	return st, err
 }
 
 func sleep(ctx context.Context, d time.Duration) bool {
@@ -268,7 +247,7 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 	failing := false
 	backoff := firstBackoff
 	for ctx.Err() == nil {
-		l, err := c.Register(context.WithoutCancel(ctx), service, inst, ttl)
+		l, err := c.registerPastStop(ctx, service, inst, ttl)
 		if err != nil {
 			if !failing && ctx.Err() == nil {
 				logger.Warn("registering failed, retrying", "service", service, "instance", inst.Name, "err", err)
@@ -287,26 +266,39 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 		}
 		if ctx.Err() != nil {
 			logger.Info("deregistering", "service", service, "instance", inst.Name, "lease", l.ID)
-			logger.Info("deregistered", "service", service, "instance", inst.Name, "lease", l.ID, "err", c.revokeSomewhere(context.WithoutCancel(ctx), l.ID))
+			if err := c.revokeSomewhere(context.WithoutCancel(ctx), l.ID); err != nil {
+				logger.Warn("deregistering failed, the lease runs out on its own", "lease", l.ID, "ttl", l.TTL, "err", err)
+				return
+			}
+			logger.Info("deregistered", "service", service, "instance", inst.Name, "lease", l.ID)
 			return
 		}
 		logger.Warn("the registration was lost, registering again", "service", service, "instance", inst.Name, "lease", l.ID, "err", err)
 	}
 }
 
+func (c *Client) registerPastStop(ctx context.Context, service string, inst Instance, ttl time.Duration) (Lease, error) {
+	rctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancel()
+	stop := context.AfterFunc(ctx, func() { time.AfterFunc(revokeTime, cancel) })
+	defer stop()
+	return c.Register(rctx, service, inst, ttl)
+}
+
 func (c *Client) revokeSomewhere(ctx context.Context, lease uint64) error {
 	ctx, cancel := context.WithTimeout(ctx, revokeTime)
 	defer cancel()
-	var err error
-	for range c.endpoints {
+	for {
 		tctx, cancelTry := context.WithTimeout(ctx, revokeTime/time.Duration(len(c.endpoints)))
-		err = c.Revoke(tctx, lease)
+		err := c.Revoke(tctx, lease)
 		cancelTry()
 		if err == nil || errors.Is(err, ErrLeaseNotFound) {
 			return nil
 		}
+		if !sleep(ctx, firstBackoff) {
+			return err
+		}
 	}
-	return err
 }
 
 func (c *Client) renew(ctx context.Context, l Lease, logger *slog.Logger) error {
@@ -314,8 +306,8 @@ func (c *Client) renew(ctx context.Context, l Lease, logger *slog.Logger) error 
 	next := every
 	failing := false
 	for sleep(ctx, next) {
-		kctx, cancel := context.WithTimeout(ctx, every/2)
-		_, err := c.KeepAlive(kctx, l.ID)
+		kctx, cancel := context.WithTimeout(ctx, every)
+		err := c.KeepAlive(kctx, l.ID)
 		cancel()
 		switch {
 		case err == nil:
@@ -330,7 +322,7 @@ func (c *Client) renew(ctx context.Context, l Lease, logger *slog.Logger) error 
 				next = min(2*next, every)
 			} else {
 				logger.Warn("keepalive failed, trying the next node", "lease", l.ID, "err", err)
-				failing, next = true, firstBackoff
+				failing, next = true, min(firstBackoff, every)
 			}
 		}
 	}

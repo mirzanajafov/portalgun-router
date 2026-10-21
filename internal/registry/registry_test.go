@@ -136,13 +136,15 @@ const (
 )
 
 type node struct {
-	mode atomic.Int32
-	next http.Handler
+	mode  atomic.Int32
+	delay atomic.Int64
+	next  http.Handler
 }
 
 func (n *node) set(m mode) { n.mode.Store(int32(m)) }
 
 func (n *node) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	time.Sleep(time.Duration(n.delay.Load()))
 	switch mode(n.mode.Load()) {
 	case failing:
 		w.Header().Set("Retry-After", "1")
@@ -323,5 +325,28 @@ func TestAnAnswerWithoutALeaseIsNotARegistration(t *testing.T) {
 	}
 	if l, err := c.Register(context.Background(), "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second); err == nil {
 		t.Fatalf("registered as %+v", l)
+	}
+}
+
+func TestARegistrationInFlightWhenTheDimensionStopsIsRevoked(t *testing.T) {
+	f := newFakeRegistry(10 * time.Second)
+	c, nodes := cluster(t, f, 1)
+	nodes[0].delay.Store(int64(300 * time.Millisecond))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second, quiet())
+		close(done)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Keep did not return after its context ended")
+	}
+	time.Sleep(500 * time.Millisecond)
+	if list, _, _, leases := f.snapshot(); len(list) != 0 || len(leases) != 0 {
+		t.Fatalf("a registration that landed after the stop is still there: %v on %v", list, leases)
 	}
 }
