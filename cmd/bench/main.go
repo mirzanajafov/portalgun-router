@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
@@ -40,6 +42,8 @@ func main() {
 		err = e3(ctx, os.Args[2:])
 	case "report-e3":
 		err = reportE3(os.Args[2:])
+	case "e5":
+		err = e5(ctx, os.Args[2:])
 	case "hotpath":
 		err = hotpath(ctx, os.Args[2:])
 	case "report-hotpath":
@@ -149,6 +153,32 @@ func reportOverload(args []string) error {
 		return err
 	}
 	return writeSummary(filepath.Join(args[0], "summary.json"), rep)
+}
+
+func e5(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("e5", flag.ExitOnError)
+	var plan bench.RegistryPlan
+	fs.IntVar(&plan.Join, "join", 20, "trials of a dimension registering and leaving")
+	fs.IntVar(&plan.Leader, "leader", 10, "trials of the registry's leader being killed")
+	fs.IntVar(&plan.Failover, "failover", 10, "trials of a dimension registering as the leader is killed")
+	fs.IntVar(&plan.Down, "down", 3, "trials of the whole registry down for 30 s")
+	fs.Float64Var(&plan.Rate, "rate", 500, "Poisson request rate across both gateways")
+	fs.StringVar(&plan.Label, "label", "laptop", "name of the run")
+	compose := fs.String("compose", filepath.Join("bench", "registry", "compose.yml"), "compose file")
+	out := fs.String("out", filepath.Join("bench", "results", "e5"), "results directory")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	image := cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node")
+	if err := exec.CommandContext(ctx, "docker", "image", "inspect", image).Run(); err != nil {
+		return fmt.Errorf("no %s image: build FiveFamilies' node image in its repo, or name another one in FF_IMAGE", image)
+	}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	dir, err := runner.RunE5(ctx, plan)
+	if dir != "" {
+		fmt.Println("results in", dir)
+	}
+	return err
 }
 
 func e3(ctx context.Context, args []string) error {

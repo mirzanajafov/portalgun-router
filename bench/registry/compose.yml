@@ -1,0 +1,121 @@
+name: pgregistry
+
+x-go: &go
+  image: pgregistry
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+
+x-ff: &ff
+  image: ${FF_IMAGE:-fivefamilies-node}
+  cpus: 0.5
+  mem_limit: 128m
+
+x-dimension: &dimension
+  <<: *go
+  environment:
+    PORTAL_REGISTRY: http://ff1:3171,http://ff2:3171,http://ff3:3171,http://ff4:3171,http://ff5:3171
+  depends_on: [ff1, ff2, ff3, ff4, ff5]
+  cpus: 0.5
+  mem_limit: 64m
+
+x-gateway: &gateway
+  <<: *go
+  volumes:
+    - ./cluster.json:/etc/portalgun/cluster.json:ro
+  depends_on: [redis]
+  cpus: 1
+  mem_limit: 256m
+
+services:
+  ff1:
+    <<: *ff
+    command: ["-id", "1", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    volumes: ["ff1:/data"]
+  ff2:
+    <<: *ff
+    command: ["-id", "2", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    volumes: ["ff2:/data"]
+  ff3:
+    <<: *ff
+    command: ["-id", "3", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    volumes: ["ff3:/data"]
+  ff4:
+    <<: *ff
+    command: ["-id", "4", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    volumes: ["ff4:/data"]
+  ff5:
+    <<: *ff
+    command: ["-id", "5", "-cluster", "1=ff1:3161,2=ff2:3161,3=ff3:3161,4=ff4:3161,5=ff5:3161", "-data", "/data", "-lease", "800ms", "-tick", "50ms", "-http", ":3171"]
+    volumes: ["ff5:/data"]
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal
+      POSTGRES_DB: portal
+    tmpfs: ["/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "portal"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  controller:
+    <<: *go
+    command: ["controller", "-bootstrap=/etc/portalgun/cluster.json"]
+    environment:
+      PORTAL_REGISTRY: http://ff1:3171,http://ff2:3171,http://ff3:3171,http://ff4:3171,http://ff5:3171
+      PORTAL_POSTGRES: postgres://portal:portal@postgres:5432/portal?sslmode=disable
+      PORTAL_REDIS: redis:6379
+    volumes:
+      - ./cluster.json:/etc/portalgun/cluster.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    cpus: 0.5
+    mem_limit: 128m
+
+  gateway-1:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/cluster.json", "-redis", "redis:6379", "-instance", "gw-1"]
+  gateway-2:
+    <<: *gateway
+    command: ["gateway", "-config", "/etc/portalgun/cluster.json", "-redis", "redis:6379", "-instance", "gw-2"]
+
+  dim-a:
+    <<: *dimension
+    command: ["dimension", "-id", "a", "-delay-ms", "2", "-delay-dist", "lognormal", "-delay-sigma", "0.3", "-advertise", "dim-a:8080"]
+  dim-b:
+    <<: *dimension
+    command: ["dimension", "-id", "b", "-delay-ms", "2", "-delay-dist", "lognormal", "-delay-sigma", "0.3", "-advertise", "dim-b:8080"]
+  dim-c:
+    <<: *dimension
+    command: ["dimension", "-id", "c", "-delay-ms", "2", "-delay-dist", "lognormal", "-delay-sigma", "0.3", "-advertise", "dim-c:8080"]
+  dim-d:
+    <<: *dimension
+    command: ["dimension", "-id", "d", "-delay-ms", "2", "-delay-dist", "lognormal", "-delay-sigma", "0.3", "-advertise", "dim-d:8080"]
+  dim-e:
+    <<: *dimension
+    command: ["dimension", "-id", "e", "-delay-ms", "2", "-delay-dist", "lognormal", "-delay-sigma", "0.3", "-advertise", "dim-e:8080"]
+    profiles: ["join"]
+
+  loadgen:
+    <<: *go
+    entrypoint: ["sleep", "infinity"]
+    cpus: 2
+    mem_limit: 512m
+
+volumes:
+  ff1:
+  ff2:
+  ff3:
+  ff4:
+  ff5:
