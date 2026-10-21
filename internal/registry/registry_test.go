@@ -261,7 +261,7 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if list, _, _, now := f.snapshot(); len(now) != 1 || now[0] == leases[0] || names(list) != "e-7" {
+	if list, _, _, now := f.snapshot(); len(now) != 1 || now[0] == leases[0] || names(list) != "e-7" || list[0].Meta["version"] != "v1" {
 		t.Fatalf("after the lease was lost: %v on %v", list, now)
 	}
 	cancel()
@@ -309,23 +309,29 @@ func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
 	nodes[0].set(hanging)
 	nodes[1].set(answering)
 	cancel()
-	<-done
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Keep did not return within its stop budget")
+	}
 	if list, _, _, leases := f.snapshot(); len(list) != 0 || len(leases) != 0 {
 		t.Fatalf("still registered after stopping with the current node hung: %v on %v", list, leases)
 	}
 }
 
-func TestAnAnswerWithoutALeaseIsNotARegistration(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"lease": 63})
-	}))
-	defer srv.Close()
-	c, err := New([]string{srv.URL})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if l, err := c.Register(context.Background(), "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second); err == nil {
-		t.Fatalf("registered as %+v", l)
+func TestAnAnswerWithoutALeaseOrATTLIsNotARegistration(t *testing.T) {
+	for _, answer := range []map[string]any{{"lease": 63}, {"ttl": "10s"}} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusOK, answer)
+		}))
+		c, err := New([]string{srv.URL})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if l, err := c.Register(context.Background(), "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second); err == nil || !strings.Contains(err.Error(), srv.URL) {
+			t.Errorf("%v became %+v, %v", answer, l, err)
+		}
+		srv.Close()
 	}
 }
 

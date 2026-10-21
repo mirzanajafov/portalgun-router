@@ -102,7 +102,7 @@ func (c *Client) send(ctx context.Context, endpoint, method, path string, in, ou
 			f.Error = string(bytes.TrimSpace(raw[:min(len(raw), 4<<10)]))
 		}
 		if resp.StatusCode == http.StatusNotFound && f.Reason == "LEASE_NOT_FOUND" {
-			return ErrLeaseNotFound
+			return fmt.Errorf("registry %s %s%s: %w", method, endpoint, path, ErrLeaseNotFound)
 		}
 		return fmt.Errorf("registry %s %s%s: %s: %s", method, endpoint, path, resp.Status, f.Error)
 	}
@@ -111,6 +111,39 @@ func (c *Client) send(ctx context.Context, endpoint, method, path string, in, ou
 	}
 	if err := json.Unmarshal(raw, out); err != nil {
 		return fmt.Errorf("registry %s %s%s: %w", method, endpoint, path, err)
+	}
+	if a, ok := out.(answer); ok {
+		if err := a.complete(); err != nil {
+			return fmt.Errorf("registry %s %s%s: %w", method, endpoint, path, err)
+		}
+	}
+	return nil
+}
+
+type answer interface {
+	complete() error
+}
+
+type listed struct {
+	Index     uint64     `json:"index"`
+	Instances []Instance `json:"instances"`
+}
+
+func (l *listed) complete() error {
+	if l.Index == 0 {
+		return errors.New("an answer without an index")
+	}
+	return nil
+}
+
+type granted struct {
+	Lease LeaseID  `json:"lease"`
+	TTL   duration `json:"ttl"`
+}
+
+func (g *granted) complete() error {
+	if g.Lease == 0 || g.TTL <= 0 {
+		return errors.New("an answer without a lease or a TTL")
 	}
 	return nil
 }
@@ -145,15 +178,9 @@ func (c *Client) Lookup(ctx context.Context, service string, index uint64, wait 
 		path += "?" + url.Values{"index": {strconv.FormatUint(index, 10)}, "wait": {wait.String()}}.Encode()
 		timeout = wait + lookupSlack
 	}
-	var out struct {
-		Index     uint64     `json:"index"`
-		Instances []Instance `json:"instances"`
-	}
+	var out listed
 	if err := c.do(ctx, timeout, http.MethodGet, path, nil, &out); err != nil {
 		return nil, 0, err
-	}
-	if out.Index == 0 {
-		return nil, 0, fmt.Errorf("registry GET %s: an answer without an index", path)
 	}
 	return out.Instances, out.Index, nil
 }
@@ -164,16 +191,10 @@ func (c *Client) Register(ctx context.Context, service string, inst Instance, tt
 		Meta map[string]string `json:"meta,omitempty"`
 		TTL  string            `json:"ttl"`
 	}{inst.Addr, inst.Meta, ttl.String()}
-	var out struct {
-		Lease LeaseID  `json:"lease"`
-		TTL   duration `json:"ttl"`
-	}
+	var out granted
 	path := "/v1/registry/" + url.PathEscape(service) + "/" + url.PathEscape(inst.Name)
 	if err := c.do(ctx, callTimeout, http.MethodPut, path, in, &out); err != nil {
 		return Lease{}, err
-	}
-	if out.Lease == 0 || out.TTL <= 0 {
-		return Lease{}, fmt.Errorf("registry PUT %s: an answer without a lease or a TTL", path)
 	}
 	return Lease{ID: out.Lease, TTL: time.Duration(out.TTL)}, nil
 }
@@ -202,6 +223,7 @@ func sleep(ctx context.Context, d time.Duration) bool {
 }
 
 func (c *Client) Watch(ctx context.Context, service string, wait time.Duration, logger *slog.Logger) <-chan []Instance {
+	wait = max(wait, time.Second)
 	out := make(chan []Instance)
 	go func() {
 		defer close(out)
@@ -276,7 +298,7 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 		failing, backoff = false, firstBackoff
 		if ctx.Err() == nil {
 			logger.Info("registered", "service", service, "instance", inst.Name, "addr", inst.Addr, "lease", l.ID, "ttl", l.TTL)
-			err = c.renew(ctx, l, asked, logger)
+			err = c.renew(ctx, l, asked, time.Now(), logger)
 		}
 		if ctx.Err() != nil {
 			logger.Info("deregistering", "service", service, "instance", inst.Name, "lease", l.ID)
@@ -305,16 +327,18 @@ func (c *Client) revokeSomewhere(ctx context.Context, lease LeaseID) error {
 	}
 }
 
-func (c *Client) renew(ctx context.Context, l Lease, since time.Time, logger *slog.Logger) error {
+func (c *Client) renew(ctx context.Context, l Lease, asked, granted time.Time, logger *slog.Logger) error {
 	every := l.TTL / 3
-	wait := time.Until(since.Add(every))
+	expires := granted.Add(l.TTL)
+	wait := time.Until(asked.Add(every))
 	failing := false
 	for sleep(ctx, wait) {
-		if time.Now().After(since.Add(l.TTL)) {
-			return ErrLeaseNotFound
+		left := time.Until(expires)
+		if left <= 0 {
+			return fmt.Errorf("the lease ran out %v ago by this client's clock: %w", -left, ErrLeaseNotFound)
 		}
 		tried := time.Now()
-		kctx, cancel := context.WithTimeout(ctx, min(every, time.Until(since.Add(l.TTL))/2))
+		kctx, cancel := context.WithTimeout(ctx, min(every, left/2))
 		err := c.KeepAlive(kctx, l.ID)
 		cancel()
 		switch {
@@ -322,7 +346,7 @@ func (c *Client) renew(ctx context.Context, l Lease, since time.Time, logger *sl
 			if failing {
 				logger.Info("keepalives work again", "lease", l.ID)
 			}
-			failing, since, wait = false, tried, time.Until(tried.Add(every))
+			failing, expires, wait = false, time.Now().Add(l.TTL), time.Until(tried.Add(every))
 		case errors.Is(err, ErrLeaseNotFound):
 			return err
 		case ctx.Err() == nil:

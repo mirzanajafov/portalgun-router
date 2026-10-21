@@ -41,7 +41,7 @@ func main() {
 	defer stop()
 	var keep func(context.Context)
 	if *endpoints != "" {
-		c, err := registration(*endpoints, *service, *id, *advertise, *ttl)
+		c, err := registration(*endpoints, *service, *id, *version, *advertise, *ttl)
 		if err != nil {
 			logger.Error("dimension not started", "err", err)
 			os.Exit(2)
@@ -55,7 +55,7 @@ func main() {
 	}
 }
 
-func registration(endpoints, service, id, advertise string, ttl time.Duration) (*registry.Client, error) {
+func registration(endpoints, service, id, version, advertise string, ttl time.Duration) (*registry.Client, error) {
 	var urls []string
 	for e := range strings.SplitSeq(endpoints, ",") {
 		if e = strings.TrimSpace(e); e != "" {
@@ -63,9 +63,12 @@ func registration(endpoints, service, id, advertise string, ttl time.Duration) (
 		}
 	}
 	for _, name := range []string{service, id} {
-		if name == "" || strings.Contains(name, "/") {
-			return nil, fmt.Errorf("-registry needs a -registry-service and an -id without a slash, got %q and %q", service, id)
+		if name == "" || name == "." || name == ".." || strings.Contains(name, "/") {
+			return nil, fmt.Errorf("-registry needs a -registry-service and an -id that are path segments, got %q and %q", service, id)
 		}
+	}
+	if len(version) > 256 || len(advertise) > 255 {
+		return nil, errors.New("-registry needs a -version of at most 256 bytes and an -advertise of at most 255")
 	}
 	if host, port, err := net.SplitHostPort(advertise); err != nil || host == "" || port == "" {
 		return nil, fmt.Errorf("-registry needs -advertise as host:port, got %q", advertise)
