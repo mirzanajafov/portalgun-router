@@ -20,6 +20,7 @@ func TestARegistrationThatCouldNeverWorkIsRefusedAtStart(t *testing.T) {
 		"a TTL over a day":        {"dimensions", "e-7", "v1", "dim-e:8080", 48 * time.Hour},
 		"a dot dot id":            {"dimensions", "..", "v1", "dim-e:8080", 10 * time.Second},
 		"a long version":          {"dimensions", "e-7", strings.Repeat("v", 300), "dim-e:8080", 10 * time.Second},
+		"a long id":               {"dimensions", strings.Repeat("e", 129), "v1", "dim-e:8080", 10 * time.Second},
 	} {
 		if _, err := registration("http://ff1:3171", c.service, c.id, c.version, c.advertise, c.ttl); err == nil {
 			t.Errorf("%s was accepted", name)

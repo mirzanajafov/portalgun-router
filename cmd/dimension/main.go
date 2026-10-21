@@ -63,8 +63,8 @@ func registration(endpoints, service, id, version, advertise string, ttl time.Du
 		}
 	}
 	for _, name := range []string{service, id} {
-		if name == "" || name == "." || name == ".." || strings.Contains(name, "/") {
-			return nil, fmt.Errorf("-registry needs a -registry-service and an -id that are path segments, got %q and %q", service, id)
+		if name == "" || name == "." || name == ".." || strings.Contains(name, "/") || len(name) > 128 {
+			return nil, fmt.Errorf("-registry needs a -registry-service and an -id that are path segments of at most 128 bytes, got %q and %q", service, id)
 		}
 	}
 	if len(version) > 256 || len(advertise) > 255 {
