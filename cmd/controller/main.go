@@ -110,12 +110,14 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		return err
 	}
 
+	var rc *registry.Client
 	if o.registry != "" {
-		rc, err := registry.New(splitList(o.registry))
-		if err != nil {
+		if err := registry.CheckName(o.registryPool); err != nil {
+			return fmt.Errorf("-registry-pool: %w", err)
+		}
+		if rc, err = registry.New(splitList(o.registry)); err != nil {
 			return err
 		}
-		go controller.NewDiscovery(o.registryPool, cfgs, logger).Run(ctx, rc.Watch(ctx, o.registryPool, registryWait, logger))
 	}
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
@@ -148,6 +150,9 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		}
 		hub.Broadcast("tick", tick)
 	})
+	if rc != nil {
+		go controller.NewDiscovery(o.registryPool, cfgs, logger).Run(ctx, rc.Watch(ctx, o.registryPool, registryWait, logger))
+	}
 	go controller.Consume(ctx, rdb, agg, logger)
 	go controller.FlushLoop(ctx, agg)
 	go func() {

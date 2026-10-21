@@ -1,32 +1,51 @@
 package main
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/registry"
 )
 
+func flags(change func(*registrationFlags)) registrationFlags {
+	f := registrationFlags{endpoints: "http://ff1:3171", service: "dimensions", id: "e-7", version: "v1", advertise: "dim-e:8080", ttl: 10 * time.Second}
+	change(&f)
+	return f
+}
+
 func TestARegistrationThatCouldNeverWorkIsRefusedAtStart(t *testing.T) {
-	for name, c := range map[string]struct {
-		service, id, version, advertise string
-		ttl                             time.Duration
-	}{
-		"an empty id":             {"dimensions", "", "v1", "dim-e:8080", 10 * time.Second},
-		"an id with a slash":      {"dimensions", "e/7", "v1", "dim-e:8080", 10 * time.Second},
-		"an empty service":        {"", "e-7", "v1", "dim-e:8080", 10 * time.Second},
-		"an address without port": {"dimensions", "e-7", "v1", "dim-e", 10 * time.Second},
-		"a URL as the address":    {"dimensions", "e-7", "v1", "http://dim-e:8080", 10 * time.Second},
-		"no TTL":                  {"dimensions", "e-7", "v1", "dim-e:8080", 0},
-		"a TTL over a day":        {"dimensions", "e-7", "v1", "dim-e:8080", 48 * time.Hour},
-		"a dot dot id":            {"dimensions", "..", "v1", "dim-e:8080", 10 * time.Second},
-		"a long version":          {"dimensions", "e-7", strings.Repeat("v", 300), "dim-e:8080", 10 * time.Second},
-		"a long id":               {"dimensions", strings.Repeat("e", 129), "v1", "dim-e:8080", 10 * time.Second},
+	for name, f := range map[string]registrationFlags{
+		"an empty id":             flags(func(f *registrationFlags) { f.id = "" }),
+		"an id with a slash":      flags(func(f *registrationFlags) { f.id = "e/7" }),
+		"an empty service":        flags(func(f *registrationFlags) { f.service = "" }),
+		"an address without port": flags(func(f *registrationFlags) { f.advertise = "dim-e" }),
+		"a URL as the address":    flags(func(f *registrationFlags) { f.advertise = "http://dim-e:8080" }),
+		"no TTL":                  flags(func(f *registrationFlags) { f.ttl = 0 }),
+		"a TTL over a day":        flags(func(f *registrationFlags) { f.ttl = 48 * time.Hour }),
+		"a dot dot id":            flags(func(f *registrationFlags) { f.id = ".." }),
+		"a long version":          flags(func(f *registrationFlags) { f.version = strings.Repeat("v", 300) }),
+		"a long id":               flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 129) }),
+		"a maxInflight of zero":   flags(func(f *registrationFlags) { f.maxInflight = "0" }),
+		"a maxInflight of words":  flags(func(f *registrationFlags) { f.maxInflight = "many" }),
 	} {
-		if _, err := registration("http://ff1:3171", c.service, c.id, c.version, c.advertise, c.ttl); err == nil {
+		if _, _, err := registration(f); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}
-	if _, err := registration(" http://ff1:3171, http://ff2:3171,", "dimensions", "e-7", "v1", "dim-e:8080", 10*time.Second); err != nil {
-		t.Errorf("a valid registration with spaces and a trailing comma: %v", err)
+}
+
+func TestARegistrationAnnouncesTheVersionAndTheCapAsTheRegistryWillList(t *testing.T) {
+	_, inst, err := registration(flags(func(f *registrationFlags) {
+		f.endpoints = " http://ff1:3171, http://ff2:3171,"
+		f.maxInflight = "+0256"
+	}))
+	want := registry.Instance{Name: "e-7", Addr: "dim-e:8080", Meta: map[string]string{"version": "v1", "maxInflight": "256"}}
+	if err != nil || !reflect.DeepEqual(inst, want) {
+		t.Fatalf("%+v, %v", inst, err)
+	}
+	if _, inst, _ := registration(flags(func(*registrationFlags) {})); len(inst.Meta) != 1 {
+		t.Fatalf("without -max-inflight the metadata is %v, want only the version", inst.Meta)
 	}
 }

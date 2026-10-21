@@ -26,9 +26,17 @@ const (
 	maxAnswer    = 1 << 20
 	maxBackoff   = 5 * time.Second
 	firstBackoff = 100 * time.Millisecond
+	maxName      = 128
 )
 
 var ErrLeaseNotFound = errors.New("registry: the lease does not exist or has expired")
+
+func CheckName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.Contains(name, "/") || len(name) > maxName {
+		return fmt.Errorf("registry: %q is not a name, which is a path segment of at most %d bytes", name, maxName)
+	}
+	return nil
+}
 
 type Instance struct {
 	Name string            `json:"name"`
