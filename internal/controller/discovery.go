@@ -54,30 +54,33 @@ func (d *Discovery) Run(ctx context.Context, lists <-chan []registry.Instance) {
 	}
 }
 
+func dimensionOf(in registry.Instance, kept int) config.Dimension {
+	announced, err := strconv.Atoi(in.Meta["maxInflight"])
+	if err != nil || announced < 0 {
+		announced = 0
+	}
+	return config.Dimension{
+		ID:          in.Name,
+		Address:     in.Addr,
+		Version:     cmp.Or(in.Meta["version"], config.DefaultVersion),
+		MaxInflight: cmp.Or(announced, kept, config.DefaultMaxInflight),
+	}
+}
+
 func usable(in registry.Instance) bool {
-	return registry.CheckName(in.Name) == nil && config.IsHostPort(in.Addr)
+	return registry.CheckName(in.Name) == nil && dimensionOf(in, 0).Check() == nil
 }
 
 func dimensionsFrom(list []registry.Instance, current []config.Dimension) []config.Dimension {
-	inflight := map[string]int{}
+	kept := map[string]int{}
 	for _, d := range current {
-		inflight[d.ID] = d.MaxInflight
+		kept[d.ID] = d.MaxInflight
 	}
 	out := make([]config.Dimension, 0, len(list))
 	for _, in := range list {
-		if !usable(in) {
-			continue
+		if usable(in) {
+			out = append(out, dimensionOf(in, kept[in.Name]))
 		}
-		announced, err := strconv.Atoi(in.Meta["maxInflight"])
-		if err != nil || announced < 0 {
-			announced = 0
-		}
-		out = append(out, config.Dimension{
-			ID:          in.Name,
-			Address:     in.Addr,
-			Version:     cmp.Or(in.Meta["version"], config.DefaultVersion),
-			MaxInflight: cmp.Or(announced, inflight[in.Name], config.DefaultMaxInflight),
-		})
 	}
 	return out
 }
@@ -154,7 +157,7 @@ func (d *Discovery) reportSkipped(list []registry.Instance) {
 	if s := strings.Join(bad, " "); s != d.skipped {
 		d.skipped = s
 		if s != "" {
-			d.logger.Warn("registered instances without a registry name or a host:port address are left out", "pool", d.pool, "instances", s)
+			d.logger.Warn("registered instances the pool cannot take are left out", "pool", d.pool, "instances", s)
 		}
 	}
 }

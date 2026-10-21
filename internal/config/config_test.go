@@ -71,6 +71,8 @@ func TestParseRejectsBadConfigs(t *testing.T) {
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:65536"}]}]}`, "not host:port"},
 		"named port": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:http"}]}]}`, "not host:port"},
+		"NUL in a version": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
+			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1", "version": "v\u0000"}]}]}`, "NUL"},
 		"duplicate dimension": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
 			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]},
 			          {"name": "q", "dimensions": [{"id": "a", "address": "b:1"}]}]}`, `appears in pools`},

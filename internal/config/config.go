@@ -219,6 +219,18 @@ type Dimension struct {
 	MaxInflight int    `json:"maxInflight,omitempty"`
 }
 
+func (d Dimension) Check() error {
+	switch {
+	case strings.ContainsRune(d.ID+d.Address+d.Version, 0):
+		return fmt.Errorf("dimension %q: its id, address or version holds a NUL, which the config store can't keep", d.ID)
+	case !IsHostPort(d.Address):
+		return fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address)
+	case d.MaxInflight < 1:
+		return fmt.Errorf("dimension %q: maxInflight must be positive", d.ID)
+	}
+	return nil
+}
+
 func Parse(data []byte) (*Config, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -312,11 +324,8 @@ func (c *Config) Validate() error {
 				errs = append(errs, fmt.Errorf("dimension %q appears in pools %q and %q", d.ID, other, p.Name))
 			}
 			dims[d.ID] = p.Name
-			if !IsHostPort(d.Address) {
-				errs = append(errs, fmt.Errorf("dimension %q: address %q is not host:port", d.ID, d.Address))
-			}
-			if d.MaxInflight < 1 {
-				errs = append(errs, fmt.Errorf("dimension %q: maxInflight must be positive", d.ID))
+			if err := d.Check(); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	}
