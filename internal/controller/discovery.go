@@ -68,7 +68,10 @@ func dimensionsFrom(list []registry.Instance, current []config.Dimension) []conf
 		if !usable(in) {
 			continue
 		}
-		announced, _ := strconv.Atoi(in.Meta["maxInflight"])
+		announced, err := strconv.Atoi(in.Meta["maxInflight"])
+		if err != nil {
+			announced = 0
+		}
 		out = append(out, config.Dimension{
 			ID:          in.Name,
 			Address:     in.Addr,

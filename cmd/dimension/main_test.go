@@ -27,6 +27,8 @@ func TestARegistrationThatCouldNeverWorkIsRefusedAtStart(t *testing.T) {
 		"a dot dot id":                 flags(func(f *registrationFlags) { f.id = ".." }),
 		"a version over 1 KiB as sent": flags(func(f *registrationFlags) { f.version = strings.Repeat("&", 200) }),
 		"a long id":                    flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 129) }),
+		"an id that isn't UTF-8":       flags(func(f *registrationFlags) { f.id = "caf\xe9" }),
+		"a port over 65535":            flags(func(f *registrationFlags) { f.advertise = "dim-e:70000" }),
 		"a maxInflight of zero":        flags(func(f *registrationFlags) { f.maxInflight = "0" }),
 		"a maxInflight of words":       flags(func(f *registrationFlags) { f.maxInflight = "many" }),
 	} {

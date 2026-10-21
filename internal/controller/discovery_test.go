@@ -132,14 +132,16 @@ func TestMaxInflightComesFromTheRegistrationOrStaysWithTheDimension(t *testing.T
 	}
 	announced := dimension("s2", "s2:8080", "v1")
 	announced.Meta["maxInflight"] = "256"
-	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), announced, dimension("s3", "s3:8080", "v1")})
+	huge := dimension("s4", "s4:8080", "v1")
+	huge.Meta["maxInflight"] = "99999999999999999999"
+	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), announced, dimension("s3", "s3:8080", "v1"), huge})
 	_, _, _, dims := r.latest(t)
 	got := map[string]int{}
 	for _, d := range dims {
 		got[d.ID] = d.MaxInflight
 	}
-	if got["s1"] != 64 || got["s2"] != 256 || got["s3"] != config.DefaultMaxInflight {
-		t.Fatalf("maxInflight %v, want s1 kept at 64, s2 at its announced 256 and s3 at the default", got)
+	if got["s1"] != 64 || got["s2"] != 256 || got["s3"] != config.DefaultMaxInflight || got["s4"] != config.DefaultMaxInflight {
+		t.Fatalf("maxInflight %v, want s1 kept at 64, s2 at its announced 256, and s3 and s4 (out of range) at the default", got)
 	}
 }
 

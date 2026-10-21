@@ -62,8 +62,6 @@ type registrationFlags struct {
 	ttl                                                     time.Duration
 }
 
-const leaveDrain = time.Second
-
 func registration(f registrationFlags) (*registry.Client, registry.Instance, error) {
 	var urls []string
 	for e := range strings.SplitSeq(f.endpoints, ",") {
@@ -96,6 +94,8 @@ func registration(f registrationFlags) (*registry.Client, registry.Instance, err
 	c, err := registry.New(urls)
 	return c, inst, err
 }
+
+const leaveDrain = time.Second
 
 func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAddr string, b dimension.Behavior, keep func(context.Context)) error {
 	s, err := dimension.New(id, version, b)

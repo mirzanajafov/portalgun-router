@@ -368,10 +368,10 @@ func TestARegistrationIsCheckedAtTheRegistrysLimitAsItIsSent(t *testing.T) {
 		inst.Meta["version"] = strings.Repeat("v", n-len(empty))
 		return inst
 	}
-	if err := CheckSize(sized(maxBody), 10*time.Second); err != nil {
-		t.Fatalf("a registration of exactly %d bytes: %v", maxBody, err)
+	if err := CheckSize(sized(1024), 10*time.Second); err != nil {
+		t.Fatalf("a registration of exactly 1,024 bytes: %v", err)
 	}
-	if err := CheckSize(sized(maxBody+1), 10*time.Second); err == nil {
-		t.Fatalf("a registration of %d bytes was accepted", maxBody+1)
+	if err := CheckSize(sized(1025), 10*time.Second); err == nil {
+		t.Fatal("a registration of 1,025 bytes was accepted")
 	}
 }
