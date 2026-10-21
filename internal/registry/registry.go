@@ -286,6 +286,7 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 			err = c.renew(ctx, l, logger)
 		}
 		if ctx.Err() != nil {
+			logger.Info("deregistering", "service", service, "instance", inst.Name, "lease", l.ID)
 			logger.Info("deregistered", "service", service, "instance", inst.Name, "lease", l.ID, "err", c.revokeSomewhere(context.WithoutCancel(ctx), l.ID))
 			return
 		}
