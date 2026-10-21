@@ -1,0 +1,16 @@
+{
+  "routes": [
+    { "name": "all", "pathPrefix": "/", "pool": "dimensions", "timeout": "10s", "perTryTimeout": "1s", "retries": { "max": 2 } }
+  ],
+  "pools": [
+    {
+      "name": "dimensions",
+      "dimensions": [
+        { "id": "a", "address": "dim-a:8080" },
+        { "id": "b", "address": "dim-b:8080" },
+        { "id": "c", "address": "dim-c:8080" },
+        { "id": "d", "address": "dim-d:8080" }
+      ]
+    }
+  ]
+}
