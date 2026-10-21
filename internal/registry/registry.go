@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -54,8 +55,8 @@ func CheckSize(inst Instance, ttl time.Duration) error {
 }
 
 func CheckName(name string) error {
-	if name == "" || name == "." || name == ".." || strings.Contains(name, "/") || len(name) > maxName {
-		return fmt.Errorf("registry: %q is not a name, which is a path segment of at most %d bytes", name, maxName)
+	if name == "" || name == "." || name == ".." || strings.Contains(name, "/") || len(name) > maxName || !utf8.ValidString(name) {
+		return fmt.Errorf("registry: %q is not a name, which is a UTF-8 path segment of at most %d bytes", name, maxName)
 	}
 	return nil
 }
