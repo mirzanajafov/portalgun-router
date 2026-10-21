@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"slices"
@@ -20,6 +21,7 @@ import (
 
 const (
 	callTimeout  = 10 * time.Second
+	revokeTime   = 3 * time.Second
 	lookupSlack  = 10 * time.Second
 	maxBackoff   = 5 * time.Second
 	firstBackoff = 100 * time.Millisecond
@@ -60,7 +62,9 @@ func New(endpoints []string) (*Client, error) {
 			return nil, fmt.Errorf("registry: endpoint %q is not an http URL", e)
 		}
 	}
-	return &Client{endpoints: slices.Clone(endpoints), http: &http.Client{}}, nil
+	c := &Client{endpoints: slices.Clone(endpoints), http: &http.Client{}}
+	c.at.Store(rand.Uint64N(uint64(len(endpoints))))
+	return c, nil
 }
 
 type failure struct {
@@ -95,7 +99,9 @@ func (c *Client) send(ctx context.Context, endpoint, method, path string, in, ou
 	}
 	if resp.StatusCode >= 300 {
 		var f failure
-		_ = json.Unmarshal(raw, &f)
+		if json.Unmarshal(raw, &f) != nil || f.Error == "" {
+			f.Error = string(bytes.TrimSpace(raw[:min(len(raw), 4<<10)]))
+		}
 		if resp.StatusCode == http.StatusNotFound && f.Reason == "LEASE_NOT_FOUND" {
 			return ErrLeaseNotFound
 		}
@@ -135,14 +141,16 @@ func (d *duration) UnmarshalJSON(b []byte) error {
 
 func (c *Client) Lookup(ctx context.Context, service string, index uint64, wait time.Duration) ([]Instance, uint64, error) {
 	path := "/v1/registry/" + url.PathEscape(service)
+	timeout := callTimeout
 	if index > 0 {
 		path += "?" + url.Values{"index": {strconv.FormatUint(index, 10)}, "wait": {wait.String()}}.Encode()
+		timeout = wait + lookupSlack
 	}
 	var out struct {
 		Index     uint64     `json:"index"`
 		Instances []Instance `json:"instances"`
 	}
-	if err := c.do(ctx, wait+lookupSlack, http.MethodGet, path, nil, &out); err != nil {
+	if err := c.do(ctx, timeout, http.MethodGet, path, nil, &out); err != nil {
 		return nil, 0, err
 	}
 	return out.Instances, out.Index, nil
@@ -161,6 +169,9 @@ func (c *Client) Register(ctx context.Context, service string, inst Instance, tt
 	path := "/v1/registry/" + url.PathEscape(service) + "/" + url.PathEscape(inst.Name)
 	if err := c.do(ctx, callTimeout, http.MethodPut, path, in, &out); err != nil {
 		return Lease{}, err
+	}
+	if out.Lease == 0 || out.TTL <= 0 {
+		return Lease{}, fmt.Errorf("registry PUT %s: an answer without a lease or a TTL", path)
 	}
 	return Lease{ID: out.Lease, TTL: time.Duration(out.TTL)}, nil
 }
@@ -232,12 +243,20 @@ func (c *Client) Watch(ctx context.Context, service string, wait time.Duration, 
 			}
 			select {
 			case out <- list:
-				sent, last = true, list
+				sent, last = true, cloneInstances(list)
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
+	return out
+}
+
+func cloneInstances(list []Instance) []Instance {
+	out := slices.Clone(list)
+	for i := range out {
+		out[i].Meta = maps.Clone(out[i].Meta)
+	}
 	return out
 }
 
@@ -265,31 +284,51 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 		logger.Info("registered", "service", service, "instance", inst.Name, "addr", inst.Addr, "lease", l.ID, "ttl", l.TTL)
 		err = c.renew(ctx, l, logger)
 		if ctx.Err() != nil {
-			rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), callTimeout)
-			err := c.Revoke(rctx, l.ID)
-			cancel()
-			logger.Info("deregistered", "service", service, "instance", inst.Name, "lease", l.ID, "err", err)
+			logger.Info("deregistered", "service", service, "instance", inst.Name, "lease", l.ID, "err", c.revokeSomewhere(context.WithoutCancel(ctx), l.ID))
 			return
 		}
 		logger.Warn("the registration was lost, registering again", "service", service, "instance", inst.Name, "lease", l.ID, "err", err)
 	}
 }
 
+func (c *Client) revokeSomewhere(ctx context.Context, lease uint64) error {
+	ctx, cancel := context.WithTimeout(ctx, revokeTime)
+	defer cancel()
+	var err error
+	for range c.endpoints {
+		tctx, cancelTry := context.WithTimeout(ctx, revokeTime/time.Duration(len(c.endpoints)))
+		err = c.Revoke(tctx, lease)
+		cancelTry()
+		if err == nil || errors.Is(err, ErrLeaseNotFound) {
+			return nil
+		}
+	}
+	return err
+}
+
 func (c *Client) renew(ctx context.Context, l Lease, logger *slog.Logger) error {
 	every := l.TTL / 3
 	next := every
+	failing := false
 	for sleep(ctx, next) {
 		kctx, cancel := context.WithTimeout(ctx, every/2)
 		_, err := c.KeepAlive(kctx, l.ID)
 		cancel()
 		switch {
 		case err == nil:
-			next = every
+			if failing {
+				logger.Info("keepalives work again", "lease", l.ID)
+			}
+			failing, next = false, every
 		case errors.Is(err, ErrLeaseNotFound):
 			return err
 		case ctx.Err() == nil:
-			logger.Warn("keepalive failed, trying the next node", "lease", l.ID, "err", err)
-			next = firstBackoff
+			if failing {
+				next = min(2*next, every)
+			} else {
+				logger.Warn("keepalive failed, trying the next node", "lease", l.ID, "err", err)
+				failing, next = true, firstBackoff
+			}
 		}
 	}
 	return ctx.Err()

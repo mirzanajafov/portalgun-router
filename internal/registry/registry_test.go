@@ -272,12 +272,16 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	}
 }
 
-func TestKeepalivesMoveOffANodeThatHangs(t *testing.T) {
+func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
 	f := newFakeRegistry(600 * time.Millisecond)
 	c, nodes := cluster(t, f, 2)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 600*time.Millisecond, quiet())
+	done := make(chan struct{})
+	go func() {
+		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 600*time.Millisecond, quiet())
+		close(done)
+	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, _, _, leases := f.snapshot(); len(leases) == 1 {
@@ -286,10 +290,38 @@ func TestKeepalivesMoveOffANodeThatHangs(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	_, _, _, before := f.snapshot()
+	for _, hung := range []int{0, 1} {
+		_, _, renewed, _ := f.snapshot()
+		nodes[hung].set(hanging)
+		nodes[1-hung].set(answering)
+		time.Sleep(1500 * time.Millisecond)
+		_, _, now, after := f.snapshot()
+		if len(before) != 1 || !slices.Equal(before, after) {
+			t.Fatalf("lease %v became %v while node %d hung", before, after, hung)
+		}
+		if now-renewed < 2 {
+			t.Fatalf("%d keepalives in 1.5 s with a 600 ms lease while node %d hung", now-renewed, hung)
+		}
+	}
 	nodes[0].set(hanging)
 	nodes[1].set(answering)
-	time.Sleep(3 * time.Second)
-	if _, _, _, after := f.snapshot(); len(before) != 1 || !slices.Equal(before, after) {
-		t.Fatalf("lease %v became %v while one node hung", before, after)
+	cancel()
+	<-done
+	if list, _, _, leases := f.snapshot(); len(list) != 0 || len(leases) != 0 {
+		t.Fatalf("still registered after stopping with the current node hung: %v on %v", list, leases)
+	}
+}
+
+func TestAnAnswerWithoutALeaseIsNotARegistration(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"lease": 63})
+	}))
+	defer srv.Close()
+	c, err := New([]string{srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l, err := c.Register(context.Background(), "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second); err == nil {
+		t.Fatalf("registered as %+v", l)
 	}
 }

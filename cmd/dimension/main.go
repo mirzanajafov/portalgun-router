@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -39,10 +40,7 @@ func main() {
 	defer stop()
 	var keep func(context.Context)
 	if *endpoints != "" {
-		c, err := registry.New(strings.Split(*endpoints, ","))
-		if err == nil && *advertise == "" {
-			err = errors.New("-registry needs -advertise")
-		}
+		c, err := registration(*endpoints, *service, *id, *advertise, *ttl)
 		if err != nil {
 			logger.Error("dimension not started", "err", err)
 			os.Exit(2)
@@ -56,6 +54,27 @@ func main() {
 	}
 }
 
+func registration(endpoints, service, id, advertise string, ttl time.Duration) (*registry.Client, error) {
+	var urls []string
+	for e := range strings.SplitSeq(endpoints, ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			urls = append(urls, e)
+		}
+	}
+	for _, name := range []string{service, id} {
+		if name == "" || strings.Contains(name, "/") {
+			return nil, fmt.Errorf("-registry needs a -registry-service and an -id without a slash, got %q and %q", service, id)
+		}
+	}
+	switch {
+	case advertise == "":
+		return nil, errors.New("-registry needs -advertise")
+	case ttl <= 0:
+		return nil, errors.New("-registry-ttl must be positive")
+	}
+	return registry.New(urls)
+}
+
 func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAddr string, b dimension.Behavior, keep func(context.Context)) error {
 	s, err := dimension.New(id, version, b)
 	if err != nil {
@@ -64,12 +83,14 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 	if err := s.Listen(addr); err != nil {
 		return err
 	}
+	kctx, stopKeeping := context.WithCancel(ctx)
+	defer stopKeeping()
 	kept := make(chan struct{})
 	if keep == nil {
 		close(kept)
 	} else {
 		go func() {
-			keep(ctx)
+			keep(kctx)
 			close(kept)
 		}()
 	}
@@ -85,6 +106,8 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 	select {
 	case <-ctx.Done():
 	case err := <-errc:
+		stopKeeping()
+		<-kept
 		_ = s.Shutdown(context.Background())
 		return err
 	}
