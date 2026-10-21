@@ -17,7 +17,6 @@ if [ -n "$(setting PORTAL_REGISTRY)" ]; then
   network=${network:-fivefamilies-registry}
   docker network inspect "$network" > /dev/null 2>&1 || { echo "PORTAL_REGISTRY is set but there is no network $network. Start FiveFamilies first." >&2; exit 1; }
 fi
-"${compose[@]}" config --quiet
 
 healthy() {
   for _ in $(seq 1 60); do
@@ -54,6 +53,7 @@ fi
 
 say "Deploying $(git log --oneline -1 "$target")"
 git merge --ff-only --quiet "$target"
+"${compose[@]}" config --quiet || { git reset --hard --quiet "$previous"; exit 1; }
 release
 
 say "Waiting for the controller, both gateways and the web app"

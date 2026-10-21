@@ -55,7 +55,7 @@ func (d *Discovery) Run(ctx context.Context, lists <-chan []registry.Instance) {
 }
 
 func usable(in registry.Instance) bool {
-	return in.Name != "" && config.HostPort(in.Addr)
+	return in.Name != "" && config.IsHostPort(in.Addr)
 }
 
 func dimensionsFrom(list []registry.Instance, current []config.Dimension) []config.Dimension {
@@ -80,10 +80,6 @@ func dimensionsFrom(list []registry.Instance, current []config.Dimension) []conf
 }
 
 func byDimensionID(a, b config.Dimension) int { return strings.Compare(a.ID, b.ID) }
-
-func sameDimensions(a, b []config.Dimension) bool {
-	return slices.Equal(slices.SortedFunc(slices.Values(a), byDimensionID), slices.SortedFunc(slices.Values(b), byDimensionID))
-}
 
 func describe(before, after []config.Dimension) string {
 	old := map[string]config.Dimension{}
@@ -124,12 +120,11 @@ func (d *Discovery) reconcile(ctx context.Context, list []registry.Instance) {
 		d.refuse(fmt.Sprintf("the config has no pool %q", d.pool), list)
 		return
 	}
-	next := dimensionsFrom(list, pool.Dimensions)
-	if sameDimensions(next, pool.Dimensions) {
+	reason := describe(pool.Dimensions, dimensionsFrom(list, pool.Dimensions))
+	if reason == "" {
 		d.refused = ""
 		return
 	}
-	reason := describe(pool.Dimensions, next)
 	version, err := d.cfgs.Update(ctx, "registry", reason, func(c *config.Config) error {
 		p := poolNamed(c, d.pool)
 		if p == nil {

@@ -17,18 +17,18 @@ func flags(change func(*registrationFlags)) registrationFlags {
 
 func TestARegistrationThatCouldNeverWorkIsRefusedAtStart(t *testing.T) {
 	for name, f := range map[string]registrationFlags{
-		"an empty id":             flags(func(f *registrationFlags) { f.id = "" }),
-		"an id with a slash":      flags(func(f *registrationFlags) { f.id = "e/7" }),
-		"an empty service":        flags(func(f *registrationFlags) { f.service = "" }),
-		"an address without port": flags(func(f *registrationFlags) { f.advertise = "dim-e" }),
-		"a URL as the address":    flags(func(f *registrationFlags) { f.advertise = "http://dim-e:8080" }),
-		"no TTL":                  flags(func(f *registrationFlags) { f.ttl = 0 }),
-		"a TTL over a day":        flags(func(f *registrationFlags) { f.ttl = 48 * time.Hour }),
-		"a dot dot id":            flags(func(f *registrationFlags) { f.id = ".." }),
-		"a long version":          flags(func(f *registrationFlags) { f.version = strings.Repeat("v", 300) }),
-		"a long id":               flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 129) }),
-		"a maxInflight of zero":   flags(func(f *registrationFlags) { f.maxInflight = "0" }),
-		"a maxInflight of words":  flags(func(f *registrationFlags) { f.maxInflight = "many" }),
+		"an empty id":                  flags(func(f *registrationFlags) { f.id = "" }),
+		"an id with a slash":           flags(func(f *registrationFlags) { f.id = "e/7" }),
+		"an empty service":             flags(func(f *registrationFlags) { f.service = "" }),
+		"an address without port":      flags(func(f *registrationFlags) { f.advertise = "dim-e" }),
+		"a URL as the address":         flags(func(f *registrationFlags) { f.advertise = "http://dim-e:8080" }),
+		"no TTL":                       flags(func(f *registrationFlags) { f.ttl = 0 }),
+		"a TTL over a day":             flags(func(f *registrationFlags) { f.ttl = 48 * time.Hour }),
+		"a dot dot id":                 flags(func(f *registrationFlags) { f.id = ".." }),
+		"a version over 1 KiB as sent": flags(func(f *registrationFlags) { f.version = strings.Repeat("&", 200) }),
+		"a long id":                    flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 129) }),
+		"a maxInflight of zero":        flags(func(f *registrationFlags) { f.maxInflight = "0" }),
+		"a maxInflight of words":       flags(func(f *registrationFlags) { f.maxInflight = "many" }),
 	} {
 		if _, _, err := registration(f); err == nil {
 			t.Errorf("%s was accepted", name)
@@ -45,7 +45,8 @@ func TestARegistrationAnnouncesTheVersionAndTheCapAsTheRegistryWillList(t *testi
 	if err != nil || !reflect.DeepEqual(inst, want) {
 		t.Fatalf("%+v, %v", inst, err)
 	}
-	if _, inst, _ := registration(flags(func(*registrationFlags) {})); len(inst.Meta) != 1 {
-		t.Fatalf("without -max-inflight the metadata is %v, want only the version", inst.Meta)
+	_, inst, err = registration(flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 128) }))
+	if err != nil || len(inst.Meta) != 1 {
+		t.Fatalf("a 128-byte id without -max-inflight: %v, metadata %v, want it accepted with only the version", err, inst.Meta)
 	}
 }

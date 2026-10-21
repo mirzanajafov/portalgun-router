@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -150,6 +151,10 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		}
 		hub.Broadcast("tick", tick)
 	})
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
 	if rc != nil {
 		go controller.NewDiscovery(o.registryPool, cfgs, logger).Run(ctx, rc.Watch(ctx, o.registryPool, registryWait, logger))
 	}
@@ -170,9 +175,9 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		}
 	}()
 
-	srv := &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
+	go func() { errc <- srv.Serve(ln) }()
 	_, version := cfgs.Raw()
 	logger.Info("controller up", "addr", addr, "config", version, "admin", token != "", "registry", o.registry != "")
 	select {
