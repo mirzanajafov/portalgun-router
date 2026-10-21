@@ -268,7 +268,7 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 	failing := false
 	backoff := firstBackoff
 	for ctx.Err() == nil {
-		l, err := c.Register(ctx, service, inst, ttl)
+		l, err := c.Register(context.WithoutCancel(ctx), service, inst, ttl)
 		if err != nil {
 			if !failing && ctx.Err() == nil {
 				logger.Warn("registering failed, retrying", "service", service, "instance", inst.Name, "err", err)
@@ -281,8 +281,10 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 			continue
 		}
 		failing, backoff = false, firstBackoff
-		logger.Info("registered", "service", service, "instance", inst.Name, "addr", inst.Addr, "lease", l.ID, "ttl", l.TTL)
-		err = c.renew(ctx, l, logger)
+		if ctx.Err() == nil {
+			logger.Info("registered", "service", service, "instance", inst.Name, "addr", inst.Addr, "lease", l.ID, "ttl", l.TTL)
+			err = c.renew(ctx, l, logger)
+		}
 		if ctx.Err() != nil {
 			logger.Info("deregistered", "service", service, "instance", inst.Name, "lease", l.ID, "err", c.revokeSomewhere(context.WithoutCancel(ctx), l.ID))
 			return
