@@ -12,6 +12,9 @@ say() { printf '\n== %s\n' "$1"; }
 [ -f .env ] || { echo "No .env here. Run deploy/init-env.sh first." >&2; exit 1; }
 if grep -q '^PORTAL_REGISTRY=' .env; then
   compose+=(-f docker-compose.registry.yml)
+  network=$(sed -n 's/^REGISTRY_NETWORK=//p' .env)
+  network=${network:-fivefamilies-registry}
+  docker network inspect "$network" > /dev/null 2>&1 || { echo "PORTAL_REGISTRY is set but there is no network $network. Start FiveFamilies first." >&2; exit 1; }
 fi
 
 healthy() {

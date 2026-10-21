@@ -7,21 +7,25 @@ services:
     environment:
       PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
       PORTAL_ADVERTISE: toxiproxy:18080
+      PORTAL_MAX_INFLIGHT: "256"
     networks: [default, registry]
   dim-j19:
     environment:
       PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
       PORTAL_ADVERTISE: toxiproxy:18081
+      PORTAL_MAX_INFLIGHT: "256"
     networks: [default, registry]
   dim-d99:
     environment:
       PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
       PORTAL_ADVERTISE: toxiproxy:18082
+      PORTAL_MAX_INFLIGHT: "256"
     networks: [default, registry]
   dim-cronenberg:
     environment:
       PORTAL_REGISTRY: ${PORTAL_REGISTRY:?set PORTAL_REGISTRY}
       PORTAL_ADVERTISE: toxiproxy:18083
+      PORTAL_MAX_INFLIGHT: "256"
     networks: [default, registry]
 
 networks:

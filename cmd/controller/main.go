@@ -115,7 +115,11 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		if err != nil {
 			return err
 		}
-		go controller.NewDiscovery(o.registryPool, cfgs, logger).Run(ctx, rc.Watch(ctx, o.registryPool, registryWait, logger))
+		d, err := controller.NewDiscovery(o.registryPool, cfgs, logger)
+		if err != nil {
+			return err
+		}
+		go d.Run(ctx, rc.Watch(ctx, o.registryPool, registryWait, logger))
 	}
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
