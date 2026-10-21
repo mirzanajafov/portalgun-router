@@ -1,0 +1,89 @@
+[
+  {
+    "name": "list a service",
+    "request": { "method": "GET", "path": "/v1/registry/dimensions" },
+    "response": {
+      "status": 200,
+      "body": {
+        "index": 57,
+        "instances": [
+          { "name": "c-137", "addr": "toxiproxy:18080", "meta": { "version": "v1" } },
+          { "name": "d-99", "addr": "toxiproxy:18082", "meta": { "version": "v2" } }
+        ]
+      }
+    }
+  },
+  {
+    "name": "wait for a change after an index",
+    "request": { "method": "GET", "path": "/v1/registry/dimensions?index=57&wait=30s" },
+    "response": {
+      "status": 200,
+      "body": {
+        "index": 64,
+        "instances": [
+          { "name": "c-137", "addr": "toxiproxy:18080", "meta": { "version": "v1" } },
+          { "name": "d-99", "addr": "toxiproxy:18082", "meta": { "version": "v2" } },
+          { "name": "e-7", "addr": "dim-e:8080" }
+        ]
+      }
+    }
+  },
+  {
+    "name": "a service with no instances",
+    "request": { "method": "GET", "path": "/v1/registry/billing" },
+    "response": { "status": 200, "body": { "index": 12, "instances": [] } }
+  },
+  {
+    "name": "the cluster cannot answer in time",
+    "request": { "method": "GET", "path": "/v1/registry/dimensions?index=64&wait=30s" },
+    "response": {
+      "status": 503,
+      "headers": { "Retry-After": "1" },
+      "body": { "error": "context deadline exceeded" }
+    }
+  },
+  {
+    "name": "register an instance",
+    "request": {
+      "method": "PUT",
+      "path": "/v1/registry/dimensions/e-7",
+      "body": { "addr": "dim-e:8080", "meta": { "version": "v1" }, "ttl": "10s" }
+    },
+    "response": { "status": 200, "body": { "lease": 63, "ttl": "10s" } }
+  },
+  {
+    "name": "register under a name with a slash",
+    "request": {
+      "method": "PUT",
+      "path": "/v1/registry/dimensions/e%2F7",
+      "body": { "addr": "dim-e:8080", "meta": { "version": "v1" }, "ttl": "10s" }
+    },
+    "response": {
+      "status": 400,
+      "body": { "error": "client: invalid argument: instance name \"e/7\" must be a UTF-8 path segment of at most 128 bytes" }
+    }
+  },
+  {
+    "name": "renew a lease",
+    "request": { "method": "POST", "path": "/v1/leases/63/keepalive" },
+    "response": { "status": 200, "body": { "ttl": "10s" } }
+  },
+  {
+    "name": "renew a lease that is gone",
+    "request": { "method": "POST", "path": "/v1/leases/63/keepalive" },
+    "response": {
+      "status": 404,
+      "body": { "error": "client: the lease does not exist or has expired", "reason": "LEASE_NOT_FOUND" }
+    }
+  },
+  {
+    "name": "deregister",
+    "request": { "method": "DELETE", "path": "/v1/leases/63" },
+    "response": { "status": 204 }
+  },
+  {
+    "name": "this node's view",
+    "request": { "method": "GET", "path": "/v1/status" },
+    "response": { "status": 200, "body": { "id": 3, "role": "leader", "leader": 3, "term": 7 } }
+  }
+]
