@@ -1,12 +1,10 @@
 package controller
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,33 +16,16 @@ func dimension(name, addr, version string) registry.Instance {
 	return registry.Instance{Name: name, Addr: addr, Meta: map[string]string{"version": version}}
 }
 
-type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
 type discoveryRig struct {
 	*rig
 	d    *Discovery
-	logs *lockedBuffer
+	logs *logSink
 }
 
 func discovering(t *testing.T, pool string) *discoveryRig {
 	t.Helper()
 	r := newRig(t)
-	logs := &lockedBuffer{}
+	logs := &logSink{}
 	d := NewDiscovery(pool, r.cfgs, slog.New(slog.NewTextHandler(logs, nil)))
 	d.retry = 20 * time.Millisecond
 	return &discoveryRig{rig: r, d: d, logs: logs}

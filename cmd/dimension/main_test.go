@@ -45,8 +45,13 @@ func TestARegistrationAnnouncesTheVersionAndTheCapAsTheRegistryWillList(t *testi
 	if err != nil || !reflect.DeepEqual(inst, want) {
 		t.Fatalf("%+v, %v", inst, err)
 	}
-	_, inst, err = registration(flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 128) }))
-	if err != nil || len(inst.Meta) != 1 {
-		t.Fatalf("a 128-byte id without -max-inflight: %v, metadata %v, want it accepted with only the version", err, inst.Meta)
+	if _, inst, err := registration(flags(func(*registrationFlags) {})); err != nil || len(inst.Meta) != 1 {
+		t.Fatalf("without -max-inflight: %v, metadata %v, want only the version", err, inst.Meta)
+	}
+}
+
+func TestNamesUpToTheRegistrysLimitAreAccepted(t *testing.T) {
+	if _, _, err := registration(flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 128) })); err != nil {
+		t.Fatalf("a 128-byte id: %v", err)
 	}
 }

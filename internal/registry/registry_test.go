@@ -357,3 +357,21 @@ func TestARegistrationInFlightWhenTheDimensionStopsIsRevoked(t *testing.T) {
 		t.Fatalf("a registration that landed after the stop is still there: %v on %v", list, leases)
 	}
 }
+
+func TestARegistrationIsCheckedAtTheRegistrysLimitAsItIsSent(t *testing.T) {
+	sized := func(n int) Instance {
+		inst := versioned("e-7", "dim-e:8080", "")
+		empty, err := json.Marshal(registrationOf(inst, 10*time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		inst.Meta["version"] = strings.Repeat("v", n-len(empty))
+		return inst
+	}
+	if err := CheckSize(sized(maxBody), 10*time.Second); err != nil {
+		t.Fatalf("a registration of exactly %d bytes: %v", maxBody, err)
+	}
+	if err := CheckSize(sized(maxBody+1), 10*time.Second); err == nil {
+		t.Fatalf("a registration of %d bytes was accepted", maxBody+1)
+	}
+}

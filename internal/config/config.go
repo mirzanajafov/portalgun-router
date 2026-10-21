@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -415,5 +416,9 @@ func (p Pool) validateResilience() []error {
 
 func IsHostPort(addr string) bool {
 	host, port, err := net.SplitHostPort(addr)
-	return err == nil && host != "" && port != ""
+	if err != nil || host == "" {
+		return false
+	}
+	n, err := strconv.ParseUint(port, 10, 16)
+	return err == nil && n > 0
 }

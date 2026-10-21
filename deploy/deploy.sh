@@ -53,7 +53,7 @@ fi
 
 say "Deploying $(git log --oneline -1 "$target")"
 git merge --ff-only --quiet "$target"
-"${compose[@]}" config --quiet || { git reset --hard --quiet "$previous"; exit 1; }
+"${compose[@]}" config --quiet || { git reset --hard --quiet "$previous"; say "The compose config is not valid, back at $(git log --oneline -1)"; exit 1; }
 release
 
 say "Waiting for the controller, both gateways and the web app"
