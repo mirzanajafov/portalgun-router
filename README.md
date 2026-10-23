@@ -202,6 +202,8 @@ clients ──> gateway ×2 ─────┴──> Toxiproxy ──> dimensio
 
 Gateways never need the controller, Redis or Postgres to keep routing: they keep the last config they had. Losing the controller freezes config and canaries, losing Redis switches the limiters to the static split, losing Postgres only stops config history. Each of those is a test in the Docker e2e suite.
 
+The dimensions on the live demo aren't listed in the config by hand. Each one registers itself with [FiveFamilies](https://github.com/mirzanajafov/fivefamilies), my Raft implementation in Go, which has a service registry on top. The controller follows that list with blocking queries and saves every change as a new config version, the same as a change from the dashboard. The gateways never ask the registry anything, and while it's unreachable the controller keeps the pool it has. I measured it with five FiveFamilies nodes and 500 rps through two gateways. A new dimension got its first request a median of 15 ms after it registered, and across 43 runs, with dimensions joining and leaving, the leader killed and every node stopped for 30 s, no request was lost. The weak spot is registering while the leader is dead, which took 0.65-8.1 s because a FiveFamilies node keeps trying the dead leader for 2 s at a time. That fix belongs in FiveFamilies, and it's first on its list. Without `-registry` on the controller and the dimensions everything runs on the static config, which is how the local stack and every experiment above run.
+
 The dashboard's admin token stays in an httpOnly cookie on the Next server. Visitors get bounded chaos: one action at a time, at most 30 s, reverted automatically, with a cooldown and a limit per address, so nobody can hurt the server or the other apps on it. They can also start a rollout, three an hour per address and one at a time, but only the admin token can abort one. I first kept rollouts for the admin, which left the canary, one of the four things the project is about, invisible to anyone looking at the demo. A rollout only moves the demo's own traffic between two versions that both work until someone breaks one, so it's no more dangerous than the chaos buttons. The controller talks to Toxiproxy and the dimensions' control ports, never to the Docker socket.
 
 ## Running it
@@ -252,6 +254,7 @@ Each gateway has an admin listener that is never published: `/healthz`, `/metric
 | `internal/limit` | the four limiter designs and the oracle |
 | `internal/canary` | the SPRT, the end-of-step test and the rollout rules |
 | `cmd/controller`, `internal/controller`, `internal/store`, `internal/chaos` | the control plane |
+| `internal/registry` | the client for FiveFamilies' registry |
 | `cmd/dimension`, `cmd/traffic` | the upstreams and the demo's traffic |
 | `cmd/loadgen`, `cmd/bench`, `internal/bench`, `bench/` | the load generator, the experiments and their stacks, and every result |
 | `cmd/canarysim` | the canary simulator |
