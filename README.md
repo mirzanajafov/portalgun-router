@@ -190,15 +190,18 @@ That shortcut was also my worst rule. On the public demo, three rollouts in a ro
 
 ### Dimensions that come and go
 
-On the live demo the list of dimensions comes from a registry, not from the config. Each dimension registers with [FiveFamilies](https://github.com/mirzanajafov/fivefamilies), my Raft implementation in Go, which has a service registry on top. The controller follows that list with blocking queries and saves every change as a new config version, and the gateways pick it up like any other. The gateways never ask the registry anything, and while it's unreachable the controller keeps the pool it has. The chaos controls still have their own fixed list, so a dimension that joins later can't be broken from the dashboard. Without `-registry` on the controller and the dimensions, everything runs on the static config, the way the local stack does.
+On the live demo nobody writes the list of dimensions into the config by hand. Each dimension registers with [FiveFamilies](https://github.com/mirzanajafov/fivefamilies), my Raft implementation in Go, which has a service registry on top. The controller follows that list with blocking queries and writes every change into the config as a new version, which the gateways pick up like any other. A list the config would refuse, such as an empty pool or a version left without a dimension, isn't applied, so the registry can't empty a pool. The gateways never ask the registry anything, and while it's unreachable the controller keeps the pool it has. The chaos controls still have their own fixed list, so a dimension that joins later can't be broken from the dashboard. Without `-registry` on the controller and the dimensions, everything runs on the static config, the way the local stack does.
 
-I measured it on the laptop, in a stack of its own without Toxiproxy: five FiveFamilies nodes, two gateways, four dimensions that register themselves, a fifth that joins and leaves, and 500 rps through the gateways. A new dimension got its first request a median of 15 ms after it registered (9-30 ms over 20 runs), and one that deregistered was out of both gateways' config 15 ms later. I'd predicted 30-100 ms, but the controller's blocking query wakes on FiveFamilies' watch event, so the whole path from a registration to both gateways running the new config took about 10 ms. Across 43 runs, with dimensions joining and leaving, the registry's leader killed and every node stopped for 30 s, no request was lost.
+I measured it on the laptop, in a stack of its own without Toxiproxy: five FiveFamilies nodes, two gateways, four dimensions that register themselves, a fifth that joins and leaves, and 500 rps through the gateways. Unlike the other stacks, its Redis and Postgres had no CPU limit. A new dimension got its first request a median of 15 ms after it registered (9-30 ms over 20 runs), and one that deregistered was out of both gateways' config 15 ms later. That's under the 30-100 ms I'd predicted: the whole path from a registration to both gateways running the new config took about 10 ms. Across 43 runs, with dimensions joining and leaving, the registry's leader killed and every node stopped for 30 s, no request was lost.
 
-Registrations were lost, though. In 3 of the 20 runs with a dead leader, a dimension's lease ran out by its own clock before a keepalive got through, and after the 30 s outage every dimension had to register again. Each one did that by itself, and since the list came back the same, the controller wrote no new config. The weak spot is registering while the leader is dead, which took 2.1 s at the median and up to 8.1 s, because a FiveFamilies node keeps trying the dead leader for 2 s at a time. That fix belongs in FiveFamilies, and it's first on its list.
+What the runs did lose was registrations. When the leader died, a dimension's lease sometimes ran out by its own clock before a keepalive reached the new leader (3 of 20 such runs), and the 30 s outage expired every lease. The dimensions noticed and registered again, the list the controller saw didn't change, and no config version was written, so the gateways never knew. Registering while the leader is dead is slow too: 2.1 s at the median and up to 8.1 s, since a FiveFamilies node keeps retrying the dead leader for 2 s at a time. That's FiveFamilies' bug, and the first thing on its list.
 
 ## How the pieces fit
 
 ```
+                      FiveFamilies <── dimensions register (live demo)
+                            │ blocking queries
+                            ▼
 dashboard (Next.js) ──> controller ──> Postgres (config versions, rollouts, chaos)
                             │  ▲
             config + notify │  │ per-second snapshots from every gateway
@@ -208,7 +211,7 @@ dashboard (Next.js) ──> controller ──> Postgres (config versions, rollou
 clients ──> gateway ×2 ─────┴──> Toxiproxy ──> dimensions (v1, v2)
 ```
 
-Gateways never need the controller, Redis or Postgres to keep routing: they keep the last config they had. Losing the controller freezes config and canaries, losing Redis switches the limiters to the static split, losing Postgres only stops config history. Each of those is a test in the Docker e2e suite. On the live demo, losing FiveFamilies' registry (above) only freezes the list of dimensions.
+Gateways never need the controller, Redis or Postgres to keep routing: they keep the last config they had. Losing the controller freezes config and canaries, losing Redis switches the limiters to the static split, losing Postgres only stops config history. Each of those is a test in the Docker e2e suite. Losing FiveFamilies' registry on the live demo only freezes the list of dimensions, which isn't in that suite but was measured (above).
 
 The dashboard's admin token stays in an httpOnly cookie on the Next server. Visitors get bounded chaos: one action at a time, at most 30 s, reverted automatically, with a cooldown and a limit per address, so nobody can hurt the server or the other apps on it. They can also start a rollout, three an hour per address and one at a time, but only the admin token can abort one. I first kept rollouts for the admin, which left the canary, one of the four things the project is about, invisible to anyone looking at the demo. A rollout only moves the demo's own traffic between two versions that both work until someone breaks one, so it's no more dangerous than the chaos buttons. The controller talks to Toxiproxy and the dimensions' control ports, never to the Docker socket.
 
@@ -228,15 +231,17 @@ The experiments run their own stacks, publish no ports, and write to `bench/resu
 go run ./cmd/bench e1 -workload w1     # proxy overhead against nginx, HAProxy, Envoy, Caddy
 go run ./cmd/bench e2 -reps 3          # the limiter designs
 go run ./cmd/bench e3 -reps 3          # failover
-FF_IMAGE=fivefamilies-node:<tag> FF_COMMIT=<its commit> go run ./cmd/bench e5   # the registry, with a node image built in FiveFamilies' repo
+go run ./cmd/bench e5                  # the registry, against FiveFamilies' nodes
 go run ./cmd/bench hotpath             # Go benchmarks of the hot path (run it in a Linux container)
 go run ./cmd/canarysim                 # the canary simulator
 go run ./cmd/bench report-e2 bench/results/e2/<run>   # tables from a run (report, report-e3 and report-e5 do the same for E1, E3 and E5)
 ```
 
+E5 needs FiveFamilies' node image, built in its repo with `docker build -t fivefamilies-node .`. Set `FF_COMMIT` to the commit it was built from so the run records it, and `FF_IMAGE` if you tagged the image differently.
+
 Tests: `go test -race ./...` (with `PORTAL_TEST_REDIS` and `PORTAL_TEST_POSTGRES` set it also runs the integration tests), `PORTAL_E2E=1 go test ./e2e/` for the Docker suite (its own stack on ports 3131-3133), fuzz targets in `internal/proxy`, and `npm test` in `web/`.
 
-On the server it runs with `docker-compose.prod.yml`, which publishes nothing and takes every secret from a `chmod 600` `.env` that `deploy/init-env.sh` generates. `deploy/deploy.sh` backs up Postgres, fast-forwards, rebuilds, waits for every service to report healthy and goes back to the previous commit if one doesn't. When `.env` sets `PORTAL_REGISTRY`, it adds `docker-compose.registry.yml`, which puts the controller and the dimensions on FiveFamilies' network, so FiveFamilies has to be deployed first. A backup container dumps Postgres every night and keeps two weeks, and `deploy/restore-check.sh` restores the latest dump into a throwaway Postgres to prove it can be restored. Only the dashboard is public.
+On the server it runs with `docker-compose.prod.yml`, which publishes nothing and takes every secret from a `chmod 600` `.env` that `deploy/init-env.sh` generates. `deploy/deploy.sh` backs up Postgres, fast-forwards, rebuilds, waits for every service to report healthy and goes back to the previous commit if one doesn't. When `PORTAL_REGISTRY` (the URLs of FiveFamilies' nodes) is added to `.env` by hand, it adds `docker-compose.registry.yml`, which puts the controller and the dimensions on FiveFamilies' network, so FiveFamilies has to be deployed first. A backup container dumps Postgres every night and keeps two weeks, and `deploy/restore-check.sh` restores the latest dump into a throwaway Postgres to prove it can be restored. Only the dashboard is public.
 
 ## API at a glance
 
