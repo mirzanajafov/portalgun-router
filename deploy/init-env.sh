@@ -20,4 +20,4 @@ add BACKUP_GID "$(id -g)"
 add TRAFFIC_RATE 200
 
 mkdir -p backups/db
-echo ".env has $(grep -c '=' .env) settings; secrets are not printed."
+echo ".env has $(grep -c '=' .env) settings, and no secret is printed."

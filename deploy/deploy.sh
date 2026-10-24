@@ -20,12 +20,26 @@ fi
 
 deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
 
+unready() { grep -Ev ' running( healthy)?$' <<< "$1"; }
+
+healthy() {
+  local states
+  for _ in $(seq 1 60); do
+    states=$("${compose[@]}" ps -a --format '{{.Name}} {{.State}} {{.Health}}' | sed 's/ *$//')
+    [ -n "$states" ] && ! unready "$states" > /dev/null && return 0
+    sleep 3
+  done
+  unready "$states" >&2
+  return 1
+}
+
 settled() {
-  local ids
+  local since ids
+  since=$(date +%s%N)
   sleep 15
   mapfile -t ids < <("${compose[@]}" ps -aq)
   docker inspect -f '{{.Name}} {{.State.Status}} {{.State.StartedAt}}' "${ids[@]}" | while read -r name status started; do
-    if [ "$status" != running ] || [ "$(date -d "$started" +%s)" -gt "$(date -d '15 seconds ago' +%s)" ]; then
+    if [ "$status" != running ] || [ "$(date -d "$started" +%s%N)" -gt "$since" ]; then
       echo "${name#/} did not stay up" >&2
       exit 1
     fi
@@ -33,14 +47,15 @@ settled() {
 }
 
 release() {
-  "${compose[@]}" build && "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 && settled
+  "${compose[@]}" build && "${compose[@]}" up -d --remove-orphans && healthy && settled
 }
 
-previous=$(git rev-parse HEAD)
 git fetch --quiet origin "$branch"
 target=$(git rev-parse "origin/$branch")
+last=$(cut -d ' ' -f 1 .deployed 2>/dev/null || true)
+previous=${last:-$(git rev-parse HEAD)}
 
-if [ "$previous" = "$target" ] && [ "$force" = false ] && [ "$(deployed)" = "$(cat .deployed 2>/dev/null)" ]; then
+if [ "$(git rev-parse HEAD)" = "$target" ] && [ "$force" = false ] && [ ! -e .deploying ] && [ "$(deployed)" = "$(cat .deployed 2>/dev/null)" ]; then
   echo "Already at $(git log --oneline -1) with this .env. Use --force to rebuild anyway."
   exit 0
 fi
@@ -58,24 +73,26 @@ if ! bash deploy/init-env.sh || ! "${compose[@]}" config --quiet; then
   exit 1
 fi
 stamp=$(deployed)
-rm -f .deployed
+touch .deploying
 
 say "Starting it and waiting for every container to pass its health check and stay up"
 if release; then
   echo "$stamp" > .deployed
+  rm -f .deploying
   docker image prune -f --filter "label=com.docker.compose.project=portalgun" > /dev/null
   say "Live: $(git log --oneline -1)"
   exit 0
 fi
 
 if [ "$previous" = "$target" ]; then
-  say "Not healthy, and this commit is the one already deployed, so there is nothing to roll back to. Check .env and run this again."
+  say "Not healthy, and this commit is the one already deployed, so there is nothing to roll back to. Fix what the output above names and run this again."
   exit 1
 fi
 say "Not healthy, rolling back to $(git log --oneline -1 "$previous")"
 git reset --hard --quiet "$previous"
 if release; then
   deployed > .deployed
+  rm -f .deploying
   echo "Rolled back. Schema migrations from the failed release stay applied, and the dump taken above is in backups/db if one has to be undone."
 else
   echo "Rollback is not healthy either. Check: ${compose[*]} ps" >&2

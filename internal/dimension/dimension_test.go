@@ -236,7 +236,7 @@ func TestReadyOnlyWhileListeningAndHoldingTheLeaseItNeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.RequireLease()
+	s.SetLeased(false)
 	control := serve(t, s)
 	if got := ready(control); got != http.StatusServiceUnavailable {
 		t.Fatalf("before the first registration: %d", got)

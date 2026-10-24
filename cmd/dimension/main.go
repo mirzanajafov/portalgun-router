@@ -116,7 +116,7 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 	if keep == nil {
 		close(kept)
 	} else {
-		s.RequireLease()
+		s.SetLeased(false)
 		go func() {
 			keep(kctx, s.SetLeased)
 			close(kept)

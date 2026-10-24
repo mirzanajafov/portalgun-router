@@ -64,7 +64,7 @@ func TestNamesUpToTheRegistrysLimitAreAccepted(t *testing.T) {
 	}
 }
 
-func TestAPortThatRegistersIsReadyOnlyWhileTheRegistrationHoldsALease(t *testing.T) {
+func TestADimensionThatRegistersIsReadyOnlyOnceItHoldsALease(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +72,7 @@ func TestAPortThatRegistersIsReadyOnlyWhileTheRegistrationHoldsALease(t *testing
 	control := ln.Addr().String()
 	ln.Close()
 	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	reports := make(chan func(bool), 1)
 	keep := func(ctx context.Context, held func(bool)) {
 		reports <- held
@@ -81,7 +82,12 @@ func TestAPortThatRegistersIsReadyOnlyWhileTheRegistrationHoldsALease(t *testing
 	go func() {
 		stopped <- run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), "e-7", "v1", "127.0.0.1:0", control, dimension.DefaultBehavior(), keep)
 	}()
-	held := <-reports
+	var held func(bool)
+	select {
+	case held = <-reports:
+	case err := <-stopped:
+		t.Fatalf("the dimension stopped before registering: %v", err)
+	}
 	ready := func() int {
 		for range 100 {
 			if resp, err := http.Get("http://" + control + "/ready"); err == nil {

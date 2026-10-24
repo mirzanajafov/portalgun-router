@@ -150,8 +150,7 @@ type Server struct {
 	versionHeader []string
 	initial       Behavior
 	state         atomic.Pointer[state]
-	needsLease    atomic.Bool
-	leased        atomic.Bool
+	awaitingLease atomic.Bool
 
 	mu   sync.Mutex
 	addr string
@@ -224,9 +223,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) RequireLease() { s.needsLease.Store(true) }
-
-func (s *Server) SetLeased(held bool) { s.leased.Store(held) }
+func (s *Server) SetLeased(held bool) { s.awaitingLease.Store(!held) }
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(s.serve)
@@ -298,12 +295,12 @@ func (s *Server) view() View {
 
 func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
-	listening := s.data != nil
+	listening := s.view().Listening
 	s.mu.Unlock()
 	switch {
 	case !listening:
 		http.Error(w, "not listening", http.StatusServiceUnavailable)
-	case s.needsLease.Load() && !s.leased.Load():
+	case s.awaitingLease.Load():
 		http.Error(w, "not registered", http.StatusServiceUnavailable)
 	default:
 		_, _ = io.WriteString(w, "ready\n")
