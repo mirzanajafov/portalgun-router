@@ -3,8 +3,6 @@ package balance
 import (
 	"math/rand/v2"
 	"sync/atomic"
-
-	"github.com/mirzanajafov/portalgun-router/internal/config"
 )
 
 type Target interface {
@@ -15,16 +13,6 @@ type Filter[T Target] func(item T, now int64) bool
 
 type Balancer[T Target] interface {
 	Pick(items []T, now int64, ok Filter[T]) (T, bool)
-}
-
-func New[T Target](kind config.Balancer) Balancer[T] {
-	switch kind {
-	case config.BalancerRoundRobin:
-		return &RoundRobin[T]{}
-	case config.BalancerLeastOutstanding:
-		return LeastOutstanding[T]{}
-	}
-	return P2C[T]{}
 }
 
 func usable[T Target](it T, now int64, ok Filter[T]) bool {

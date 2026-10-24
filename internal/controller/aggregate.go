@@ -104,8 +104,10 @@ func (a *Aggregator) complete(sec int64, bin map[string]proxy.Snapshot) bool {
 func severity(s health.State) int {
 	switch s {
 	case health.Ejected:
-		return 2
+		return 3
 	case health.HalfOpen:
+		return 2
+	case health.Closed:
 		return 1
 	}
 	return 0

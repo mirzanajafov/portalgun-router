@@ -16,6 +16,7 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
+	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
 type fakeInjector struct {
@@ -129,7 +130,7 @@ func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.Actor != "visitor" || run.Until.Sub(run.Started) != 50*time.Millisecond {
+	if run.Actor != store.ActorVisitor || run.Until.Sub(run.Started) != 50*time.Millisecond {
 		t.Fatalf("run %+v", run)
 	}
 	if _, wait, err := svc.Start(ctx, ChaosRequest{Mode: "slow", Target: "dim-b", LatencyMs: 100}, false, "5.6.7.8"); !errors.Is(err, ErrChaosBusy) || wait <= 0 {

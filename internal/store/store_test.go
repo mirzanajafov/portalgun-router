@@ -43,11 +43,11 @@ func TestConfigVersions(t *testing.T) {
 	if c, err := s.LatestConfig(ctx); err != nil || c != nil {
 		t.Fatalf("empty store: %+v %v", c, err)
 	}
-	first, err := s.SaveConfig(ctx, "bootstrap", "first", json.RawMessage(`{"a":1}`))
+	first, err := s.SaveConfig(ctx, ActorBootstrap, "first", json.RawMessage(`{"a":1}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := s.SaveConfig(ctx, "admin", "second", json.RawMessage(`{"a":2}`))
+	second, err := s.SaveConfig(ctx, ActorAdmin, "second", json.RawMessage(`{"a":2}`))
 	if err != nil || second.Version != first.Version+1 {
 		t.Fatalf("versions %d then %d (%v)", first.Version, second.Version, err)
 	}
@@ -73,14 +73,14 @@ func TestRolloutLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	ended := start.Add(time.Minute)
-	step.EndedAt, step.Decision, step.Reason, step.CanaryRequests = &ended, "promote", "accepted", 600
+	step.EndedAt, step.Decision, step.Reason, step.CanaryRequests = &ended, DecisionPromote, "accepted", 600
 	if err := s.SaveStep(ctx, "ro-1", step); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.FinishRollout(ctx, "ro-1", "promoted", "all steps passed", ended); err != nil {
+	if err := s.FinishRollout(ctx, "ro-1", OutcomePromoted, "all steps passed", ended); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.FinishRollout(ctx, "ro-1", "promoted", "twice", ended); err == nil {
+	if err := s.FinishRollout(ctx, "ro-1", OutcomePromoted, "twice", ended); err == nil {
 		t.Fatal("a finished rollout finished again")
 	}
 	ros, err := s.Rollouts(ctx, 5)
@@ -88,7 +88,7 @@ func TestRolloutLifecycle(t *testing.T) {
 		t.Fatalf("rollouts %+v %v", ros, err)
 	}
 	r := ros[0]
-	if r.Outcome != "promoted" || r.FinishedAt == nil || len(r.Steps) != 1 || r.Steps[0].Decision != "promote" || r.Steps[0].CanaryRequests != 600 {
+	if r.Outcome != OutcomePromoted || r.FinishedAt == nil || len(r.Steps) != 1 || r.Steps[0].Decision != DecisionPromote || r.Steps[0].CanaryRequests != 600 {
 		t.Fatalf("rollout %+v", r)
 	}
 }
@@ -98,7 +98,7 @@ func TestAbandonActiveRollouts(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	_ = s.StartRollout(ctx, Rollout{ID: "done", Route: "api", Stable: "v1", Canary: "v2", StartedAt: now})
-	_ = s.FinishRollout(ctx, "done", "promoted", "", now)
+	_ = s.FinishRollout(ctx, "done", OutcomePromoted, "", now)
 	_ = s.StartRollout(ctx, Rollout{ID: "live", Route: "api", Stable: "v1", Canary: "v3", StartedAt: now})
 	ids, err := s.AbandonActive(ctx, "restart", now)
 	if err != nil || len(ids) != 1 || ids[0] != "live" {
@@ -109,7 +109,7 @@ func TestAbandonActiveRollouts(t *testing.T) {
 func TestChaosEvents(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
-	if err := s.LogChaos(ctx, ChaosEvent{At: time.Now().UTC(), Actor: "visitor", Mode: "crash", Target: "dim-a", Action: "inject"}); err != nil {
+	if err := s.LogChaos(ctx, ChaosEvent{At: time.Now().UTC(), Actor: ActorVisitor, Mode: "crash", Target: "dim-a", Action: "inject"}); err != nil {
 		t.Fatal(err)
 	}
 	evs, err := s.ChaosEvents(ctx, 10)

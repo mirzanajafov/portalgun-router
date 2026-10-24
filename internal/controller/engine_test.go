@@ -147,7 +147,7 @@ func (r *rig) versions(t *testing.T) config.Versions {
 
 func TestABadCanaryIsRolledBack(t *testing.T) {
 	r := newRig(t)
-	ro, err := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,14 +163,14 @@ func TestABadCanaryIsRolledBack(t *testing.T) {
 	if v := r.versions(t); v.Canary != "" || v.Weight != 0 || v.Stable != "v1" {
 		t.Fatalf("versions after rollback %+v", v)
 	}
-	if r.store.outcomes[ro.ID] != "rolled_back" || r.store.steps[ro.ID][0].Decision != "rollback" {
+	if r.store.outcomes[ro.ID] != store.OutcomeRolledBack || r.store.steps[ro.ID][0].Decision != store.DecisionRollback {
 		t.Fatalf("outcome %q, step %+v", r.store.outcomes[ro.ID], r.store.steps[ro.ID][0])
 	}
 }
 
 func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 	r := newRig(t)
-	ro, err := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 	if r.engine.Status().Active {
 		t.Fatalf("still running: %+v", r.engine.Status())
 	}
-	if r.store.outcomes[ro.ID] != "promoted" || len(r.store.steps[ro.ID]) != 2 {
+	if r.store.outcomes[ro.ID] != store.OutcomePromoted || len(r.store.steps[ro.ID]) != 2 {
 		t.Fatalf("outcome %q with %d steps", r.store.outcomes[ro.ID], len(r.store.steps[ro.ID]))
 	}
 	if v := r.versions(t); v.Stable != "v2" || v.Canary != "" || v.Weight != 0 {
@@ -192,7 +192,7 @@ func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 
 func TestSecondsFromAnOlderConfigDoNotCount(t *testing.T) {
 	r := newRig(t)
-	if _, err := r.engine.Start(context.Background(), "api", "v2", "admin"); err != nil {
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
 	}
 	stale := func(m *Merged) { m.ConfigVersions["gw-2"] = 1 }
@@ -206,9 +206,9 @@ func TestSecondsFromAnOlderConfigDoNotCount(t *testing.T) {
 
 func TestTheBrakeRollsBackAtOnce(t *testing.T) {
 	r := newRig(t)
-	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	r.feed(bin{stable: 900, canary: 100}, func(m *Merged) { rs := m.Routes["api"]; rs.Brake = true; m.Routes["api"] = rs })
-	if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
 		t.Fatalf("outcome %q", r.store.outcomes[ro.ID])
 	}
 }
@@ -221,7 +221,7 @@ func withStable(healthy bool) func(*Merged) {
 
 func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 	r := newRig(t)
-	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	dead := func(m *Merged) { m.Dimensions[0].Outlier = health.Ejected }
 	for range 9 {
 		r.feed(bin{}, dead, withStable(true))
@@ -234,7 +234,7 @@ func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 		t.Fatalf("rolled back after two 9 s spells of a dead canary with a healthy second between them: %q", r.store.outcomes[ro.ID])
 	}
 	r.feed(bin{}, dead, withStable(true))
-	if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
 		t.Fatalf("still %q after 10 s of a dead canary", r.store.outcomes[ro.ID])
 	}
 	if reason := r.store.steps[ro.ID][0].Reason; !strings.Contains(reason, "for 10 s") {
@@ -244,7 +244,7 @@ func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 
 func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
 	r := newRig(t)
-	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	down := func(m *Merged) { m.Dimensions[0].Healthy = false }
 	for range 60 {
 		r.feed(bin{}, down, withStable(false))
@@ -257,19 +257,19 @@ func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
 func TestStartChecksItsInputs(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	if _, err := r.engine.Start(ctx, "nope", "v2", "admin"); err == nil {
+	if _, err := r.engine.Start(ctx, "nope", "v2", store.ActorAdmin); err == nil {
 		t.Fatal("unknown route accepted")
 	}
-	if _, err := r.engine.Start(ctx, "api", "v1", "admin"); err == nil {
+	if _, err := r.engine.Start(ctx, "api", "v1", store.ActorAdmin); err == nil {
 		t.Fatal("the stable version accepted as a canary")
 	}
-	if _, err := r.engine.Start(ctx, "api", "v9", "admin"); err == nil {
+	if _, err := r.engine.Start(ctx, "api", "v9", store.ActorAdmin); err == nil {
 		t.Fatal("a version no dimension runs accepted")
 	}
-	if _, err := r.engine.Start(ctx, "api", "v2", "admin"); err != nil {
+	if _, err := r.engine.Start(ctx, "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.engine.Start(ctx, "api", "v2", "admin"); !errors.Is(err, ErrBusy) {
+	if _, err := r.engine.Start(ctx, "api", "v2", store.ActorAdmin); !errors.Is(err, ErrBusy) {
 		t.Fatalf("second start: %v", err)
 	}
 	if err := r.engine.Abort(ctx, "changed my mind"); err != nil {

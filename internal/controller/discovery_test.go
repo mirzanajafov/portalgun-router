@@ -95,7 +95,7 @@ func TestTheRegistryListBecomesThePoolAndTheReasonSaysWhoJoinedAndLeft(t *testin
 	r := discovering(t, "p")
 	r.send(t, []registry.Instance{dimension("s1", "s1:8080", "v1"), dimension("s2", "s2:8080", "v1")})
 	n, author, reason, dims := r.latest(t)
-	if n != 2 || author != "registry" || reason != "s2 joined, c1 left" {
+	if n != 2 || author != store.ActorRegistry || reason != "s2 joined, c1 left" {
 		t.Fatalf("version %d by %s: %q", n, author, reason)
 	}
 	want := []config.Dimension{
@@ -125,7 +125,7 @@ func TestAMovedAddressIsAChange(t *testing.T) {
 
 func TestMaxInflightComesFromTheRegistrationOrStaysWithTheDimension(t *testing.T) {
 	r := discovering(t, "p")
-	if _, err := r.cfgs.Update(context.Background(), "admin", "caps", func(c *config.Config) error {
+	if _, err := r.cfgs.Update(context.Background(), store.ActorAdmin, "caps", func(c *config.Config) error {
 		c.Pools[0].Dimensions[0].MaxInflight = 64
 		return nil
 	}); err != nil {
@@ -177,7 +177,7 @@ func TestAnInstanceThePoolCannotTakeIsLeftOutAndTheRestApplied(t *testing.T) {
 func TestAListWithoutTheCanaryIsAppliedOnARetryOnceTheRolloutIsOver(t *testing.T) {
 	r := discovering(t, "p")
 	ctx := context.Background()
-	if _, err := r.cfgs.Update(ctx, "admin", "rollout", func(c *config.Config) error {
+	if _, err := r.cfgs.Update(ctx, store.ActorAdmin, "rollout", func(c *config.Config) error {
 		c.Routes[0].Versions = config.Versions{Stable: "v1", Canary: "v2", Weight: 0.1, Rollout: "ro-1"}
 		return nil
 	}); err != nil {
@@ -188,7 +188,7 @@ func TestAListWithoutTheCanaryIsAppliedOnARetryOnceTheRolloutIsOver(t *testing.T
 	if n, _, _, dims := r.latest(t); n != 2 || len(dims) != 2 {
 		t.Fatalf("applied during the rollout: version %d with %+v", n, dims)
 	}
-	if _, err := r.cfgs.Update(ctx, "controller", "rolled back", func(c *config.Config) error {
+	if _, err := r.cfgs.Update(ctx, store.ActorController, "rolled back", func(c *config.Config) error {
 		c.Routes[0].Versions = config.Versions{Stable: "v1"}
 		return nil
 	}); err != nil {
@@ -196,7 +196,7 @@ func TestAListWithoutTheCanaryIsAppliedOnARetryOnceTheRolloutIsOver(t *testing.T
 	}
 	eventually(t, "the list applied on a retry after the rollback", func() bool {
 		n, author, reason, dims := r.latest(t)
-		return n == 4 && author == "registry" && reason == "c1 left" && len(dims) == 1
+		return n == 4 && author == store.ActorRegistry && reason == "c1 left" && len(dims) == 1
 	})
 }
 
@@ -208,14 +208,14 @@ func TestAnAppliedListIsNotPutBackOverAnAdminChange(t *testing.T) {
 		n, _, reason, _ := r.latest(t)
 		return n == 2 && reason == "s2 joined"
 	})
-	if _, err := r.cfgs.Update(ctx, "admin", "drain s2", func(c *config.Config) error {
+	if _, err := r.cfgs.Update(ctx, store.ActorAdmin, "drain s2", func(c *config.Config) error {
 		c.Pools[0].Dimensions = slices.DeleteFunc(c.Pools[0].Dimensions, func(d config.Dimension) bool { return d.ID == "s2" })
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(10 * r.d.retry)
-	if n, author, _, _ := r.latest(t); n != 3 || author != "admin" {
+	if n, author, _, _ := r.latest(t); n != 3 || author != store.ActorAdmin {
 		t.Fatalf("version %d by %s, want the admin's change to stand until the registry says something new", n, author)
 	}
 }

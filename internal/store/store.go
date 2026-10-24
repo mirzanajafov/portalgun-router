@@ -105,6 +105,7 @@ func (s *Store) migrate(ctx context.Context) error {
 type Actor string
 
 const (
+	ActorBootstrap  Actor = "bootstrap"
 	ActorAdmin      Actor = "admin"
 	ActorVisitor    Actor = "visitor"
 	ActorController Actor = "controller"

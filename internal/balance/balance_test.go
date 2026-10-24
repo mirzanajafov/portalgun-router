@@ -4,11 +4,13 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/mirzanajafov/portalgun-router/internal/config"
 )
 
 const decay = 10 * time.Second
+
+func balancers() map[string]Balancer[*item] {
+	return map[string]Balancer[*item]{"p2c-ewma": P2C[*item]{}, "round-robin": &RoundRobin[*item]{}, "least-outstanding": LeastOutstanding[*item]{}}
+}
 
 type item struct {
 	name string
@@ -130,11 +132,10 @@ func TestP2CSpreadsOverEqualTargets(t *testing.T) {
 }
 
 func TestBalancersSkipCappedTargets(t *testing.T) {
-	for _, name := range []config.Balancer{config.BalancerP2C, config.BalancerRoundRobin, config.BalancerLeastOutstanding} {
+	for name, b := range balancers() {
 		its := items("a", "b")
 		its[0].load = NewLoad(1, decay)
 		its[0].load.Acquire()
-		b := New[*item](name)
 		for range 50 {
 			got, ok := b.Pick(its, 0, nil)
 			if !ok || got.name != "b" {
@@ -176,8 +177,7 @@ func TestLeastOutstandingPicksTheIdlest(t *testing.T) {
 
 func TestFilterExcludesTargets(t *testing.T) {
 	notA := func(it *item, _ int64) bool { return it.name != "a" }
-	for _, name := range []config.Balancer{config.BalancerP2C, config.BalancerRoundRobin, config.BalancerLeastOutstanding} {
-		b := New[*item](name)
+	for name, b := range balancers() {
 		its := items("a", "b", "c")
 		for range 60 {
 			got, ok := b.Pick(its, 0, notA)

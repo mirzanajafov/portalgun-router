@@ -298,6 +298,7 @@ func TestAnIdleDimensionIsNotReportedEjectedAfterItsEjectionEnds(t *testing.T) {
 				return d.Outlier
 			}
 		}
+		t.Fatal("b is not in the snapshot")
 		return health.Disabled
 	}
 	if got := outlier(g.Tick(1)); got != health.Ejected {

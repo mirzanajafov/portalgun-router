@@ -45,7 +45,7 @@ func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 		if bootstrap == nil {
 			return errors.New("no config stored and no bootstrap config given")
 		}
-		return m.saveLocked(ctx, "bootstrap", "first config", bootstrap)
+		return m.saveLocked(ctx, store.ActorBootstrap, "first config", bootstrap)
 	}
 	cfg, err := config.Parse(latest.Body)
 	if err != nil {

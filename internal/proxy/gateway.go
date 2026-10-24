@@ -452,6 +452,16 @@ func (g *Gateway) Close() {
 	}
 }
 
+func newBalancer(kind config.Balancer) balance.Balancer[*upstream] {
+	switch kind {
+	case config.BalancerRoundRobin:
+		return &balance.RoundRobin[*upstream]{}
+	case config.BalancerLeastOutstanding:
+		return balance.LeastOutstanding[*upstream]{}
+	}
+	return balance.P2C[*upstream]{}
+}
+
 func (g *Gateway) newLimiter(route string, c config.RateLimit) (limit.Limiter, error) {
 	rule := limit.Rule{Rate: c.Rate, Burst: c.Burst}
 	prefix := "pf:" + route + ":"
@@ -525,7 +535,7 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	}
 	pools := map[string]*poolSpec{}
 	newSubset := func(ps *poolSpec, version string) *subset {
-		s := &subset{balancer: balance.New[*upstream](ps.balancer), panic: ps.panic}
+		s := &subset{balancer: newBalancer(ps.balancer), panic: ps.panic}
 		for _, u := range ps.upstreams {
 			if version == "" || u.version == version {
 				s.upstreams = append(s.upstreams, u)

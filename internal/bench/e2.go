@@ -17,7 +17,7 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/limitbench"
 )
 
-const NoLimiter config.LimitDesign = "none"
+const NoLimiter = "none"
 
 type Design struct {
 	Kind  config.LimitDesign `json:"kind"`
