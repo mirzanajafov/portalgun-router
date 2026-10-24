@@ -20,8 +20,20 @@ fi
 
 deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
 
+settled() {
+  local ids
+  sleep 15
+  mapfile -t ids < <("${compose[@]}" ps -aq)
+  docker inspect -f '{{.Name}} {{.State.Status}} {{.State.StartedAt}}' "${ids[@]}" | while read -r name status started; do
+    if [ "$status" != running ] || [ "$(date -d "$started" +%s)" -gt "$(date -d '15 seconds ago' +%s)" ]; then
+      echo "${name#/} did not stay up" >&2
+      exit 1
+    fi
+  done
+}
+
 release() {
-  "${compose[@]}" build && "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180
+  "${compose[@]}" build && "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 && settled
 }
 
 previous=$(git rev-parse HEAD)
@@ -47,7 +59,7 @@ if ! bash deploy/init-env.sh || ! "${compose[@]}" config --quiet; then
 fi
 stamp=$(deployed)
 
-say "Starting it and waiting for every container to run and pass its health check"
+say "Starting it and waiting for every container to pass its health check and stay up"
 if release; then
   echo "$stamp" > .deployed
   docker image prune -f --filter "label=com.docker.compose.project=portalgun" > /dev/null
