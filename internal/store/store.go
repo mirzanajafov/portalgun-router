@@ -69,7 +69,7 @@ func Open(ctx context.Context, url string) (*Store, error) {
 	s := &Store{pool: pool}
 	if err := s.migrate(ctx); err != nil {
 		pool.Close()
-		return nil, err
+		return nil, fmt.Errorf("migrating: %w", err)
 	}
 	return s, nil
 }
@@ -318,11 +318,15 @@ func (s *Store) LogChaos(ctx context.Context, e ChaosEvent) error {
 func (s *Store) ChaosEvents(ctx context.Context, limit int) ([]ChaosEvent, error) {
 	rows, err := s.pool.Query(ctx, `select at, actor, mode, target, action, detail from chaos_events order by id desc limit $1`, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading chaos events: %w", err)
 	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (ChaosEvent, error) {
+	events, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (ChaosEvent, error) {
 		var e ChaosEvent
 		err := r.Scan(&e.At, &e.Actor, &e.Mode, &e.Target, &e.Action, &e.Detail)
 		return e, err
 	})
+	if err != nil {
+		return nil, fmt.Errorf("reading chaos events: %w", err)
+	}
+	return events, nil
 }

@@ -147,6 +147,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
+	go engine.Run(ctx)
 	api := controller.NewAPI(cfgs, engine, st, hub, token, logger)
 	if o.visitorRollouts {
 		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.proxyToken, logger)

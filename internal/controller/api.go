@@ -7,8 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
@@ -99,6 +101,8 @@ func (a *API) Handler() http.Handler {
 
 const adminOnly = "this needs the admin token"
 
+const maxReason = 200
+
 func (a *API) admin(next http.HandlerFunc) http.HandlerFunc {
 	return httpx.RequireBearer(a.token, adminOnly, next)
 }
@@ -181,15 +185,19 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 	if err := decode(w, r, &req); err != nil {
 		return
 	}
+	if len(req.Reason) > maxReason || strings.ContainsFunc(req.Reason, unicode.IsControl) {
+		httpx.WriteError(w, http.StatusBadRequest, fmt.Sprintf("a reason is at most %d bytes with no control characters", maxReason))
+		return
+	}
 	if req.Reason == "" {
 		req.Reason = "aborted by an admin"
 	}
 	err := a.engine.Abort(r.Context(), req.Reason)
 	switch {
-	case errors.Is(err, ErrNoRollout):
+	case errors.Is(err, ErrNoRollout), errors.Is(err, ErrPromoted):
 		httpx.WriteError(w, http.StatusConflict, err.Error())
 	case err != nil:
-		unavailable(w, a.logger, true, ErrConfigNotSaved, err)
+		unavailable(w, a.logger, true, ErrEndNotSaved, err)
 	default:
 		httpx.WriteJSON(w, http.StatusOK, a.engine.Status())
 	}

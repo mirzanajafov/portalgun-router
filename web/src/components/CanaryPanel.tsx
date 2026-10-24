@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { dimensionName, pct } from '@/lib/format'
 import type { LlrPoint } from '@/lib/live'
-import type { Merged, PortalEvent, RolloutStatus } from '@/lib/types'
+import type { Merged, Outcome, PortalEvent, RolloutStatus } from '@/lib/types'
 import { LlrChart } from './LlrChart'
 
 export const ROUTE = 'portal'
+
+const outcomeLabel: Record<Outcome, string> = { promoted: 'promoted', rolled_back: 'rolled back', aborted: 'aborted' }
 
 export function candidate(latest: Merged | null): { stable?: string; canary?: string; target?: string; hosts: string[] } {
   const route = latest?.routes[ROUTE]
@@ -88,7 +90,7 @@ export function CanaryPanel({
           </div>
           {active.pending ? (
             <p className="text-xs text-[var(--color-warn)]">
-              Decided: {active.pending.replace('_', ' ')}. It takes effect as soon as the database can save it.
+              Decided: {outcomeLabel[active.pending]}. The database has not saved it yet, and the controller keeps trying.
             </p>
           ) : null}
         </>
