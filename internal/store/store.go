@@ -57,6 +57,8 @@ var migrations = []string{
 	`create index rollouts_started on rollouts (started_at desc)`,
 }
 
+const callTimeout = 2 * time.Second
+
 type Store struct {
 	pool *pgxpool.Pool
 }
@@ -140,6 +142,8 @@ var ErrNoConfig = errors.New("no config is stored")
 var ErrRolloutNotActive = errors.New("the rollout is not active")
 
 func (s *Store) LatestConfig(ctx context.Context) (ConfigVersion, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	var c ConfigVersion
 	err := s.pool.QueryRow(ctx, `select version, created_at, author, reason, body from config_versions order by version desc limit 1`).
 		Scan(&c.Version, &c.CreatedAt, &c.Author, &c.Reason, &c.Body)
@@ -153,6 +157,8 @@ func (s *Store) LatestConfig(ctx context.Context) (ConfigVersion, error) {
 }
 
 func (s *Store) SaveConfig(ctx context.Context, author Actor, reason string, body json.RawMessage) (ConfigVersion, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	c := ConfigVersion{Author: author, Reason: reason, Body: body}
 	err := s.pool.QueryRow(ctx, `insert into config_versions (author, reason, body) values ($1, $2, $3) returning version, created_at`,
 		author, reason, body).Scan(&c.Version, &c.CreatedAt)
@@ -163,6 +169,8 @@ func (s *Store) SaveConfig(ctx context.Context, author Actor, reason string, bod
 }
 
 func (s *Store) ConfigHistory(ctx context.Context, limit int) ([]ConfigVersion, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	rows, err := s.pool.Query(ctx, `select version, created_at, author, reason from config_versions order by version desc limit $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("reading the config history: %w", err)
@@ -206,6 +214,8 @@ type Step struct {
 }
 
 func (s *Store) StartRollout(ctx context.Context, r Rollout) error {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	_, err := s.pool.Exec(ctx, `insert into rollouts (id, route, stable, canary, started_at) values ($1, $2, $3, $4, $5)`,
 		r.ID, r.Route, r.Stable, r.Canary, r.StartedAt)
 	if err != nil {
@@ -215,6 +225,8 @@ func (s *Store) StartRollout(ctx context.Context, r Rollout) error {
 }
 
 func (s *Store) SaveStep(ctx context.Context, rollout string, st Step) error {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	_, err := s.pool.Exec(ctx, `insert into rollout_steps
 		(rollout_id, step, weight, started_at, ended_at, decision, reason, llr_errors, llr_slow, stable_requests, canary_requests, stable_errors, canary_errors)
 		values ($1, $2, $3, $4, $5, nullif($6, ''), nullif($7, ''), $8, $9, $10, $11, $12, $13)
@@ -232,6 +244,8 @@ func (s *Store) SaveStep(ctx context.Context, rollout string, st Step) error {
 }
 
 func (s *Store) FinishRollout(ctx context.Context, id string, outcome Outcome, reason string, at time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	tag, err := s.pool.Exec(ctx, `update rollouts set finished_at = $2, outcome = $3, reason = $4 where id = $1 and finished_at is null`, id, at, outcome, reason)
 	if err != nil {
 		return fmt.Errorf("finishing rollout %s: %w", id, err)
@@ -243,6 +257,8 @@ func (s *Store) FinishRollout(ctx context.Context, id string, outcome Outcome, r
 }
 
 func (s *Store) Rollouts(ctx context.Context, limit int) ([]Rollout, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	rows, err := s.pool.Query(ctx, `select id, route, stable, canary, started_at, finished_at, coalesce(outcome, ''), coalesce(reason, '')
 		from rollouts order by started_at desc limit $1`, limit)
 	if err != nil {
@@ -282,6 +298,8 @@ func (s *Store) Rollouts(ctx context.Context, limit int) ([]Rollout, error) {
 }
 
 func (s *Store) AbandonActive(ctx context.Context, reason string, at time.Time) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	rows, err := s.pool.Query(ctx, `update rollouts set finished_at = $1, outcome = $2, reason = $3 where finished_at is null returning id`, at, OutcomeAborted, reason)
 	if err != nil {
 		return nil, fmt.Errorf("abandoning the active rollouts: %w", err)
@@ -303,6 +321,8 @@ type ChaosEvent struct {
 }
 
 func (s *Store) LogChaos(ctx context.Context, e ChaosEvent) error {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	detail := e.Detail
 	if len(detail) == 0 {
 		detail = json.RawMessage(`{}`)
@@ -316,6 +336,8 @@ func (s *Store) LogChaos(ctx context.Context, e ChaosEvent) error {
 }
 
 func (s *Store) ChaosEvents(ctx context.Context, limit int) ([]ChaosEvent, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	rows, err := s.pool.Query(ctx, `select at, actor, mode, target, action, detail from chaos_events order by id desc limit $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("reading chaos events: %w", err)

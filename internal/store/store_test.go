@@ -157,3 +157,24 @@ func TestEveryListedRolloutGetsItsOwnSteps(t *testing.T) {
 		t.Fatalf("rollouts %v in order %s, %s, %s", got, ros[0].ID, ros[1].ID, ros[2].ID)
 	}
 }
+
+func TestACallThatWaitsOnTheDatabaseGivesUpInTime(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	if err := s.StartRollout(ctx, Rollout{ID: "ro-held", Route: "api", Stable: "v1", Canary: "v2", StartedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
+	if _, err := tx.Exec(ctx, `select 1 from rollouts where id = 'ro-held' for update`); err != nil {
+		t.Fatal(err)
+	}
+	began := time.Now()
+	err = s.FinishRollout(ctx, "ro-held", OutcomeAborted, "the row is locked", time.Now().UTC())
+	if took := time.Since(began); err == nil || took > callTimeout+time.Second {
+		t.Fatalf("a call behind a lock took %v and came back as %v", took, err)
+	}
+}
