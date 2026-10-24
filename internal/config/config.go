@@ -127,7 +127,7 @@ func (l *RateLimit) applyDefaults() {
 
 func (l *RateLimit) UsesRedis() bool { return l.Design != LimitStaticSplit }
 
-func (l RateLimit) KeyHeader() string {
+func (l *RateLimit) KeyHeader() string {
 	if name, ok := strings.CutPrefix(l.Key, "header:"); ok {
 		return name
 	}

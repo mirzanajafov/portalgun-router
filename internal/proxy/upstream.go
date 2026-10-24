@@ -84,13 +84,12 @@ var (
 )
 
 type pool struct {
+	config    config.Pool
 	upstreams []*upstream
-	balancer  config.Balancer
-	panic     float64
 }
 
 func (p *pool) subset(version string) *subset {
-	s := &subset{balancer: newBalancer(p.balancer), panic: p.panic}
+	s := &subset{balancer: newBalancer(p.config.Balancer), panic: *p.config.PanicThreshold}
 	for _, u := range p.upstreams {
 		if version == "" || u.spec.version == version {
 			s.upstreams = append(s.upstreams, u)
@@ -115,14 +114,14 @@ type subset struct {
 	panic     float64
 }
 
-func (p *subset) panicking(now int64) bool {
+func (s *subset) panicking(now int64) bool {
 	healthy := 0
-	for _, u := range p.upstreams {
+	for _, u := range s.upstreams {
 		if u.healthy(now) {
 			healthy++
 		}
 	}
-	return float64(healthy) < p.panic*float64(len(p.upstreams))
+	return float64(healthy) < s.panic*float64(len(s.upstreams))
 }
 
 type tried struct {
@@ -136,8 +135,8 @@ func excluding(f balance.Filter[*upstream], t tried) balance.Filter[*upstream] {
 	return func(u *upstream, now int64) bool { return !slices.Contains(t.at[:t.n], u) && f(u, now) }
 }
 
-func (p *subset) acquire(now int64, t tried) (u *upstream, panicking bool) {
-	panicking = p.panicking(now)
+func (s *subset) acquire(now int64, t tried) (u *upstream, panicking bool) {
+	panicking = s.panicking(now)
 	filters := normalFilters
 	if panicking {
 		filters = panicFilters
@@ -148,12 +147,12 @@ func (p *subset) acquire(now int64, t tried) (u *upstream, panicking bool) {
 			ok = excluding(f, t)
 		}
 		for range 3 {
-			u, found := p.balancer.Pick(p.upstreams, now, ok)
+			picked, found := s.balancer.Pick(s.upstreams, now, ok)
 			if !found {
 				break
 			}
-			if u.load.Acquire() {
-				return u, panicking
+			if picked.load.Acquire() {
+				return picked, panicking
 			}
 		}
 	}
@@ -164,7 +163,7 @@ func (g *Gateway) buildPools(cfg *config.Config) (map[string]*pool, map[string]*
 	pools := map[string]*pool{}
 	upstreams := map[string]*upstream{}
 	for _, pc := range cfg.Pools {
-		p := &pool{balancer: pc.Balancer, panic: *pc.PanicThreshold}
+		p := &pool{config: pc}
 		for _, d := range pc.Dimensions {
 			spec := upstreamSpec{
 				address:     d.Address,

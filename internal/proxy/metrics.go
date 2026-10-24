@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/limit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -152,8 +153,8 @@ func (m *Metrics) forget(dimension string) {
 	m.changes.DeletePartialMatch(prometheus.Labels{"dimension": dimension})
 }
 
-func (m *Metrics) transition(dimension, state string) {
-	m.changes.WithLabelValues(dimension, state).Inc()
+func (m *Metrics) transition(dimension string, state gatewayapi.EventState) {
+	m.changes.WithLabelValues(dimension, string(state)).Inc()
 }
 
 type routeMetrics struct {

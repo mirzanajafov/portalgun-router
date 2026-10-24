@@ -166,8 +166,9 @@ func (g *Gateway) onOutlier(u *upstream, t health.Transition) {
 	if t.To == health.Closed {
 		u.readyAt.Store(t.At)
 	}
-	g.metrics.transition(u.id, t.To.String())
-	g.logEvent(u.id, t.At, gatewayapi.OutlierEvent(t.To), t.Reason)
+	state := gatewayapi.OutlierEvent(t.To)
+	g.metrics.transition(u.id, state)
+	g.logEvent(u.id, t.At, state, t.Reason)
 	attrs := []any{"dimension", u.id, "from", t.From.String(), "to", t.To.String(), "reason", t.Reason}
 	if t.To == health.Ejected {
 		attrs = append(attrs, "ejected_for", time.Duration(t.Until-t.At).String())
@@ -182,9 +183,9 @@ func (g *Gateway) onHealth(u *upstream, healthy bool) {
 		state = gatewayapi.EventHealthy
 		u.readyAt.Store(now)
 	}
-	g.metrics.transition(u.id, string(state))
+	g.metrics.transition(u.id, state)
 	g.logEvent(u.id, now, state, "probes")
-	g.logger.Info("dimension health", "dimension", u.id, "state", string(state))
+	g.logger.Info("dimension health", "dimension", u.id, "state", state)
 }
 
 func (g *Gateway) logEvent(id string, at int64, state gatewayapi.EventState, reason string) {

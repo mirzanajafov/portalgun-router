@@ -100,7 +100,7 @@ const (
 	failOther
 )
 
-func classify(client context.Context, err error, status int, timedOut bool) failure {
+func classify(ctx context.Context, err error, status int, timedOut bool) failure {
 	if err == nil {
 		switch status {
 		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
@@ -110,7 +110,7 @@ func classify(client context.Context, err error, status int, timedOut bool) fail
 	}
 	var op *net.OpError
 	switch {
-	case client.Err() != nil:
+	case ctx.Err() != nil:
 		return failCanceled
 	case timedOut:
 		return failTimeout
