@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -61,14 +62,26 @@ func TestGetJSONDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
 	}
 }
 
-func TestDoAcceptsEveryStatusItIsGiven(t *testing.T) {
+func TestDoAcceptsTheStatusesItIsGivenAndNoOthers(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusCreated) }))
 	t.Cleanup(srv.Close)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	target, err := url.Parse(srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Do(srv.Client(), req, nil, http.StatusOK, http.StatusCreated); err != nil {
-		t.Fatalf("an accepted 201 came back as %v", err)
+	for _, c := range []struct {
+		name     string
+		accepted []int
+		wantErr  bool
+	}{
+		{"a 201 among the accepted statuses", []int{http.StatusOK, http.StatusCreated}, false},
+		{"a 201 when only 200 and 204 are accepted", []int{http.StatusOK, http.StatusNoContent}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			req := &http.Request{URL: target, Header: http.Header{}}
+			if err := Do(srv.Client(), req, nil, c.accepted[0], c.accepted[1:]...); (err != nil) != c.wantErr {
+				t.Fatalf("got %v, want an error: %v", err, c.wantErr)
+			}
+		})
 	}
 }

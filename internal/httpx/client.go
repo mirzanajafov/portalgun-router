@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -50,7 +51,8 @@ func CheckStatus(req *http.Request, resp *http.Response, want int, alsoWant ...i
 }
 
 func requestError(req *http.Request, err error) error {
-	return &url.Error{Op: req.Method[:1] + strings.ToLower(req.Method[1:]), URL: req.URL.Redacted(), Err: err}
+	method := cmp.Or(req.Method, http.MethodGet)
+	return &url.Error{Op: method[:1] + strings.ToLower(method[1:]), URL: req.URL.Redacted(), Err: err}
 }
 
 func reason(body io.Reader) string {

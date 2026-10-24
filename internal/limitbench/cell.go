@@ -234,7 +234,7 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 	}
 	ss, err := Samples(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", req.URL, err)
 	}
 	return Counters(ss), nil
 }
