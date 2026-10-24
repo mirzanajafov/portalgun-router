@@ -178,15 +178,7 @@ export function failoverMatrix(sums: FailoverSummary[]): FailoverRow[] {
   }))
 }
 
-export type RegistrySummary = {
-  cell: string
-  runs: number
-  failed: number
-  invalid: number
-  requests: number
-  lost: number
-  registryVersions: number
-  lostRegistrations: number
+type RegistryTimes = {
   registerMs?: Stat
   joinMs?: Stat
   gatewaysMs?: Stat
@@ -194,14 +186,26 @@ export type RegistrySummary = {
   killToFirstMs?: Stat
 }
 
-export const REGISTRY_CELLS: { cell: string; label: string }[] = [
-  { cell: 'join', label: 'A fifth dimension joins, then leaves' },
-  { cell: 'leader', label: "The registry's leader killed, back after 10 s" },
-  { cell: 'failover', label: 'A dimension joins while the leader is dead' },
-  { cell: 'down', label: 'Every registry node down for 30 s' },
+export type RegistrySummary = RegistryTimes & {
+  cell: string
+  runs: number
+  failed: number
+  invalid: number
+  requests: number
+  dropped: number
+  lost: number
+  registryVersions: number
+  lostRegistrations: number
+}
+
+const REGISTRY_CASES: { key: string; label: string }[] = [
+  { key: 'join', label: 'A fifth dimension joins, then leaves' },
+  { key: 'leader', label: "The registry's leader killed, back after 10 s" },
+  { key: 'failover', label: 'A dimension joins while the leader is dead' },
+  { key: 'down', label: 'Every registry node down for 30 s' },
 ]
 
-const REGISTRY_TIMES: { cell: string; key: 'registerMs' | 'joinMs' | 'gatewaysMs' | 'leaveGatewaysMs' | 'killToFirstMs'; label: string }[] = [
+const REGISTRY_TIMES: { cell: string; key: keyof RegistryTimes; label: string }[] = [
   { cell: 'join', key: 'registerMs', label: 'Registering' },
   { cell: 'join', key: 'joinMs', label: 'Registered to its first request' },
   { cell: 'join', key: 'gatewaysMs', label: 'Registered to both gateways on the new config' },
@@ -210,19 +214,29 @@ const REGISTRY_TIMES: { cell: string; key: 'registerMs' | 'joinMs' | 'gatewaysMs
   { cell: 'failover', key: 'killToFirstMs', label: 'Leader killed to the new dimension serving' },
 ]
 
-export type RegistryTimeRow = { label: string; runs: number; time: Stat }
+export type RegistryCase = { key: string; label: string; sum: RegistrySummary }
 
-export function registryTimes(sums: RegistrySummary[]): RegistryTimeRow[] {
+export function registryCases(sums: RegistrySummary[]): RegistryCase[] {
   const by = new Map(sums.map((s) => [s.cell, s]))
-  return REGISTRY_TIMES.flatMap(({ cell, key, label }) => {
-    const s = by.get(cell)
-    const time = s?.[key]
-    return s && time ? [{ label, runs: s.runs - s.failed - s.invalid, time }] : []
+  return REGISTRY_CASES.flatMap((c) => {
+    const sum = by.get(c.key)
+    return sum ? [{ ...c, sum }] : []
   })
 }
 
-export function registryTotals(sums: RegistrySummary[]): { runs: number; requests: number; lost: number } {
-  return sums.reduce((t, s) => ({ runs: t.runs + s.runs, requests: t.requests + s.requests, lost: t.lost + s.lost }), { runs: 0, requests: 0, lost: 0 })
+export function registryTimes(sums: RegistrySummary[]): { label: string; time: Stat }[] {
+  const by = new Map(sums.map((s) => [s.cell, s]))
+  return REGISTRY_TIMES.flatMap(({ cell, key, label }) => {
+    const time = by.get(cell)?.[key]
+    return time ? [{ label, time }] : []
+  })
+}
+
+export function registryTotals(cases: RegistryCase[]): { runs: number; failed: number; sent: number; lost: number } {
+  return cases.reduce(
+    (t, { sum: s }) => ({ runs: t.runs + s.runs, failed: t.failed + s.failed + s.invalid, sent: t.sent + s.requests - s.dropped, lost: t.lost + s.lost }),
+    { runs: 0, failed: 0, sent: 0, lost: 0 },
+  )
 }
 
 export function us(v: number): string {

@@ -1,4 +1,4 @@
-import { pct } from '@/lib/format'
+import { count, pct } from '@/lib/format'
 import { beforeAfter, limiterRows, signed, us, valid, type LimiterSummary } from '@/lib/measured'
 import type { Run } from '@/lib/results'
 
@@ -17,7 +17,7 @@ function admitted(s: LimiterSummary | undefined) {
 
 function alone(key: string, s: LimiterSummary | undefined) {
   if (key === 'static-split' || !valid(s) || !s) return <span className="muted">-</span>
-  return Math.round(s.degraded.median).toLocaleString('en-US')
+  return count(s.degraded.median)
 }
 
 const BREAKER: { load: string; label: string }[] = [
@@ -162,7 +162,7 @@ export function LimiterResults({ run, sums, breaker }: { run: string; sums: Limi
                     <td className="py-1.5 pr-3 font-sans">{r.label}</td>
                     <td className="text-right">{valid(slow) && slow ? us(slow.p50Us.median) : '-'}</td>
                     <td className="text-right">{admitted(down)}</td>
-                    <td className="text-right">{valid(down) && down ? Math.round(down.degraded.median).toLocaleString('en-US') : '-'}</td>
+                    <td className="text-right">{valid(down) && down ? count(down.degraded.median) : '-'}</td>
                   </tr>
                 )
               })}

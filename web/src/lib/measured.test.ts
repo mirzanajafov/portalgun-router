@@ -7,6 +7,7 @@ import {
   overloadLabel,
   overloadSystems,
   proxyRows,
+  registryCases,
   registryTimes,
   registryTotals,
   rps,
@@ -158,27 +159,26 @@ describe('registry results', () => {
     failed: 0,
     invalid: 0,
     requests: 1000,
+    dropped: 0,
     lost: 0,
     registryVersions: 0,
     lostRegistrations: 0,
     ...extra,
   })
 
-  it('lists the measured steps in their order, counting only the runs that measured them', () => {
-    const rows = registryTimes([
-      sum('failover', { failed: 1, registerMs: stat(2100) }),
-      sum('join', { invalid: 2, joinMs: stat(15), gatewaysMs: stat(10) }),
-      sum('down'),
-    ])
-    expect(rows.map((r) => [r.label, r.runs, r.time.median])).toEqual([
-      ['Registered to its first request', 8, 15],
-      ['Registered to both gateways on the new config', 8, 10],
-      ['Registering while the leader is dead', 9, 2100],
+  it('lists the measured steps in their order', () => {
+    const rows = registryTimes([sum('failover', { registerMs: stat(2100) }), sum('join', { joinMs: stat(15), gatewaysMs: stat(10) }), sum('down')])
+    expect(rows.map((r) => [r.label, r.time.median])).toEqual([
+      ['Registered to its first request', 15],
+      ['Registered to both gateways on the new config', 10],
+      ['Registering while the leader is dead', 2100],
     ])
   })
 
-  it('adds up runs, requests and lost requests over every cell', () => {
-    expect(registryTotals([sum('join', { lost: 2 }), sum('down', { runs: 3, requests: 500 })])).toEqual({ runs: 13, requests: 1500, lost: 2 })
+  it('shows the known cases in order and adds up only those', () => {
+    const cases = registryCases([sum('down', { runs: 3, requests: 500 }), sum('partition', { lost: 9 }), sum('join', { lost: 2, failed: 1, dropped: 100 })])
+    expect(cases.map((c) => c.key)).toEqual(['join', 'down'])
+    expect(registryTotals(cases)).toEqual({ runs: 13, failed: 1, sent: 1400, lost: 2 })
   })
 })
 

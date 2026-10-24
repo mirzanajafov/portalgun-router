@@ -32,6 +32,10 @@ export function pct(v: number, digits = 1): string {
   return `${(v * 100).toFixed(digits).replace(/\.0+$/, '')}%`
 }
 
+export function count(v: number): string {
+  return Math.round(v).toLocaleString('en-US')
+}
+
 export function ms(v: number): string {
   if (!v) return '-'
   return v < 10 ? `${v.toFixed(1)} ms` : `${Math.round(v)} ms`
