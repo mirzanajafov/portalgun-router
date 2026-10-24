@@ -42,16 +42,16 @@ func DefaultRolloutLimits() RolloutLimits {
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
 type visitorRollouts struct {
-	limit   *visitorLimit
-	trusted TrustedProxy
+	limit      *visitorLimit
+	proxyToken ProxyToken
 }
 
 func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string) *API {
 	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token}
 }
 
-func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, trusted TrustedProxy, logger *slog.Logger) {
-	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), trusted: trusted}
+func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, proxyToken ProxyToken, logger *slog.Logger) {
+	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), proxyToken: proxyToken}
 }
 
 func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
@@ -122,10 +122,11 @@ func uncounted(w http.ResponseWriter) {
 }
 
 func Authorized(r *http.Request, token string) bool {
-	if token == "" {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) == 1
+	return token != "" && carries(r, "Authorization", "Bearer "+token)
+}
+
+func carries(r *http.Request, header, secret string) bool {
+	return subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(secret)) == 1
 }
 
 func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +168,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
 			return
 		}
-		exceeded, err := a.visitors.limit.exceeded(r.Context(), a.visitors.trusted.ClientIP(r))
+		exceeded, err := a.visitors.limit.exceeded(r.Context(), a.visitors.proxyToken.ClientIP(r))
 		if err != nil {
 			uncounted(w)
 			return

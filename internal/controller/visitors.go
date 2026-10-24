@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -33,16 +32,13 @@ func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration)
 	return incr.Val(), nil
 }
 
-const ProxyTokenHeader = "X-Portal-Proxy-Token"
+const proxyTokenHeader = "X-Portal-Proxy-Token"
 
-type TrustedProxy struct {
-	Token string
-	Hops  int
-}
+type ProxyToken string
 
-func (p TrustedProxy) ClientIP(r *http.Request) string {
-	if p.Token != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(ProxyTokenHeader)), []byte(p.Token)) == 1 {
-		return proxy.ClientIP(r, p.Hops)
+func (t ProxyToken) ClientIP(r *http.Request) string {
+	if t != "" && carries(r, proxyTokenHeader, string(t)) {
+		return proxy.ClientIP(r, 1)
 	}
 	return proxy.ClientIP(r, 0)
 }

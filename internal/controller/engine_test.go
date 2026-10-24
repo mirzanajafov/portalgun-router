@@ -338,36 +338,36 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, behindDashboard(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
-	visitor, admin := viaDashboard("9.9.9.9"), http.Header{"Authorization": {"Bearer s3cret"}}
+	visitor, admin := viaDashboard("9.9.9.9"), asAdmin("9.9.9.9")
 	start := `{"route":"api","canary":"v2"}`
 	abort := func() {
 		t.Helper()
-		if got := postAs(t, srv.URL+"/api/rollouts/abort", `{}`, visitor); got != 401 {
+		if got := send(t, http.MethodPost, srv.URL+"/api/rollouts/abort", `{}`, visitor).StatusCode; got != 401 {
 			t.Fatalf("visitor abort: %d", got)
 		}
-		if got := postAs(t, srv.URL+"/api/rollouts/abort", `{}`, admin); got != 200 {
+		if got := send(t, http.MethodPost, srv.URL+"/api/rollouts/abort", `{}`, admin).StatusCode; got != 200 {
 			t.Fatalf("admin abort: %d", got)
 		}
 		r.now = r.now.Add(time.Minute)
 	}
-	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 201 {
+	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor).StatusCode; got != 201 {
 		t.Fatalf("visitor start: %d", got)
 	}
-	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 409 {
+	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor).StatusCode; got != 409 {
 		t.Fatalf("visitor start while one runs: %d", got)
 	}
 	abort()
-	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 201 {
+	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor).StatusCode; got != 201 {
 		t.Fatalf("second visitor start: %d", got)
 	}
 	abort()
-	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 429 {
+	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor).StatusCode; got != 429 {
 		t.Fatalf("third visitor start in the hour: %d", got)
 	}
-	if got := postAs(t, srv.URL+"/api/rollouts", start, admin); got != 201 {
+	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, admin).StatusCode; got != 201 {
 		t.Fatalf("admin start after the visitor limit: %d", got)
 	}
 	if n := counter.hits["rollout:ip:9.9.9.9"]; n != 3 {
@@ -388,23 +388,11 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), behindDashboard(), slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
-	post := func(auth string) *http.Response {
-		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rollouts", strings.NewReader(`{"route":"api","canary":"v2"}`))
-		req.Header = viaDashboard("9.9.9.9")
-		if auth != "" {
-			req.Header.Set("Authorization", auth)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		return resp
-	}
-	if resp := post(""); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
+	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
+	if resp := send(t, http.MethodPost, url, start, viaDashboard("9.9.9.9")); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
 		t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if r.engine.Status().Active {
@@ -413,7 +401,7 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	if !strings.Contains(logs.String(), "connection refused") || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
 		t.Fatalf("the log should carry the counter's error and the limit, and not the visitor: %q", logs.String())
 	}
-	if resp := post("Bearer s3cret"); resp.StatusCode != http.StatusCreated {
+	if resp := send(t, http.MethodPost, url, start, asAdmin("9.9.9.9")); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("admin with the counter down: %d", resp.StatusCode)
 	}
 }
@@ -432,7 +420,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
-	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), behindDashboard(), slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup
