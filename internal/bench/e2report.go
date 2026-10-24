@@ -2,13 +2,13 @@ package bench
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 )
 
 type LimiterSummary struct {
@@ -37,13 +37,12 @@ type LimiterSummary struct {
 }
 
 func LoadLimiterRuns(dir string) ([]LimiterRun, error) {
-	f, err := os.Open(filepath.Join(dir, "runs.jsonl"))
+	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var runs []LimiterRun
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 1<<20), 1<<26)
 	for sc.Scan() {
 		var r LimiterRun
@@ -145,8 +144,8 @@ func pctOf(s Stat) string {
 }
 
 func WriteLimiterText(w io.Writer, sums []LimiterSummary) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "cell\truns\tp50 us\tp99 us\tadded p50\tadded p99\tover-admission\tmost ahead\tmost behind\tworst 1 s\tfalse admits\tfalse rejects\tredis trips/req\tredis cmds/req\tredis cpu us/req\tdegraded\tcalls over 2 ms\ttimeouts\tdials")
+	var b strings.Builder
+	fmt.Fprintln(&b, "cell\truns\tp50 us\tp99 us\tadded p50\tadded p99\tover-admission\tmost ahead\tmost behind\tworst 1 s\tfalse admits\tfalse rejects\tredis trips/req\tredis cmds/req\tredis cpu us/req\tdegraded\tcalls over 2 ms\ttimeouts\tdials")
 	for _, s := range sums {
 		valid := s.Runs - s.InvalidRuns
 		runs := fmt.Sprint(s.Runs)
@@ -167,10 +166,10 @@ func WriteLimiterText(w io.Writer, sums []LimiterSummary) error {
 		if s.RedisSlow.Max > 0 || s.RedisDials.Max > 0 {
 			late, out, dials = pctOf(s.RedisSlow), pctOf(s.RedisTimeouts), rangeOf(s.RedisDials, valid, valid, 0)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
+		fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
 			rangeOf(s.P50Us, valid, valid, 0), rangeOf(s.P99Us, valid, valid, 0), added50, added99,
 			over, ahead, behind, worst, fa, fr, rangeOf(s.RedisTrips, valid, valid, 2), rangeOf(s.RedisCommands, valid, valid, 2),
 			rangeOf(s.RedisCPUUs, valid, valid, 1), rangeOf(s.Degraded, valid, valid, 0), late, out, dials)
 	}
-	return tw.Flush()
+	return writeTable(w, b.String(), 0)
 }

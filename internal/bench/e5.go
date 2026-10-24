@@ -79,7 +79,7 @@ type registryStatus struct {
 	Leader uint64 `json:"leader"`
 }
 
-func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
+func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err error) {
 	counts := []int{plan.Join, plan.Leader, plan.Failover, plan.Down}
 	if math.IsNaN(plan.Rate) || math.IsInf(plan.Rate, 0) || plan.Rate <= 0 || slices.Min(counts) < 0 || slices.Max(counts) == 0 {
 		return "", errors.New("the plan needs a finite positive rate, no negative run counts and at least one run")
@@ -109,7 +109,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 	if err := compose.Up(ctx); err != nil {
 		return "", err
 	}
-	dir, err := filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")+"-"+plan.Label))
+	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")+"-"+plan.Label))
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +124,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 	if err != nil {
 		return dir, err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	enc := json.NewEncoder(f)
 	cells := []struct {
 		name string
@@ -327,13 +327,11 @@ func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*l
 	if _, err := compose.run(ctx, "cp", "loadgen:"+l.file, local); err != nil {
 		return nil, err
 	}
-	defer os.Remove(local)
-	f, err := os.Open(local)
-	if err != nil {
+	data, readErr := os.ReadFile(local)
+	if err := errors.Join(readErr, os.Remove(local)); err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	lg, err := loadgen.ReadLog(f)
+	lg, err := loadgen.ReadLog(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}

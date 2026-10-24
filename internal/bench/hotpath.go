@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +26,7 @@ type HotpathPlan struct {
 	Reps      int
 	BenchTime string
 	Out       string
-	Log       io.Writer
+	Log       *log.Logger
 }
 
 type HotpathRow struct {
@@ -93,12 +95,12 @@ func parseBenchLine(line string) (HotpathRow, bool) {
 	return row, row.NsPerOp > 0
 }
 
-func RunHotpath(ctx context.Context, plan HotpathPlan) (string, error) {
-	log := plan.Log
-	if log == nil {
-		log = io.Discard
+func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
+	logger := plan.Log
+	if logger == nil {
+		logger = log.New(io.Discard, "", 0)
 	}
-	dir, err := filepath.Abs(filepath.Join(plan.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = filepath.Abs(filepath.Join(plan.Out, time.Now().UTC().Format("20060102-150405")))
 	if err != nil {
 		return "", err
 	}
@@ -109,13 +111,13 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { err = errors.Join(err, os.RemoveAll(tmp)) }()
 	bin := filepath.Join(tmp, "proxy.test")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
 	build := exec.CommandContext(ctx, "go", "test", "-c", "-o", bin, plan.Package)
-	build.Stdout, build.Stderr = log, log
+	build.Stdout, build.Stderr = logger.Writer(), logger.Writer()
 	if err := build.Run(); err != nil {
 		return "", fmt.Errorf("building the benchmarks: %w", err)
 	}
@@ -123,12 +125,12 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer raw.Close()
+	defer func() { err = errors.Join(err, raw.Close()) }()
 	runs, err := os.Create(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return "", err
 	}
-	defer runs.Close()
+	defer func() { err = errors.Join(err, runs.Close()) }()
 	enc := json.NewEncoder(runs)
 	for rep := range plan.Reps {
 		for _, g := range hotpathGroups {
@@ -148,7 +150,9 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (string, error) {
 					if line == "PASS" || strings.HasPrefix(line, "ok ") {
 						continue
 					}
-					fmt.Fprintln(raw, line)
+					if _, err := fmt.Fprintln(raw, line); err != nil {
+						return dir, err
+					}
 					row, ok := parseBenchLine(line)
 					if !ok {
 						continue
@@ -158,7 +162,7 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (string, error) {
 					if err := enc.Encode(row); err != nil {
 						return dir, err
 					}
-					fmt.Fprintf(log, "rep %d  %-10s %-15s %8.0f ns/op %8.0f cpu-ns/op %4.0f allocs/op\n",
+					logger.Printf("rep %d  %-10s %-15s %8.0f ns/op %8.0f cpu-ns/op %4.0f allocs/op",
 						rep+1, row.Group, row.System, row.NsPerOp, row.CPUNsPerOp, row.AllocsPerOp)
 				}
 				if !found {
@@ -171,13 +175,12 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (string, error) {
 }
 
 func LoadHotpathRows(dir string) ([]HotpathRow, error) {
-	f, err := os.Open(filepath.Join(dir, "runs.jsonl"))
+	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var rows []HotpathRow
-	dec := json.NewDecoder(f)
+	dec := json.NewDecoder(bytes.NewReader(data))
 	for dec.More() {
 		var r HotpathRow
 		if err := dec.Decode(&r); err != nil {
@@ -292,29 +295,26 @@ func WriteHotpathText(w io.Writer, s HotpathSummary) error {
 	if !s.CPUMeasured {
 		unit = "wall ns/op (no CPU clock here)"
 	}
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(tw, "benchmark\tsystem\truns\t%s (min-max)\tB/op\tallocs/op\t\n", unit)
+	var b strings.Builder
+	fmt.Fprintf(&b, "benchmark\tsystem\truns\t%s (min-max)\tB/op\tallocs/op\t\n", unit)
 	for _, c := range s.Cells {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%.0f (%.0f-%.0f)\t%.0f\t%.0f\t\n", c.Group, c.System, c.Runs,
+		fmt.Fprintf(&b, "%s\t%s\t%d\t%.0f (%.0f-%.0f)\t%.0f\t%.0f\t\n", c.Group, c.System, c.Runs,
 			c.CPUNs.Median, c.CPUNs.Min, c.CPUNs.Max, c.BytesPerOp, c.AllocsPerOp)
 	}
-	if err := tw.Flush(); err != nil {
-		return err
-	}
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "against the bare ReverseProxy, per repetition (median, min-max):")
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "against the bare ReverseProxy, per repetition (median, min-max):")
 	for _, r := range s.Ratios {
-		fmt.Fprintf(w, "  %-15s handler only %.2f (%.2f-%.2f)   whole proxy over loopback, direct path subtracted %.2f (%.2f-%.2f)\n",
+		fmt.Fprintf(&b, "  %-15s handler only %.2f (%.2f-%.2f)   whole proxy over loopback, direct path subtracted %.2f (%.2f-%.2f)\n",
 			r.System, r.Handler.Median, r.Handler.Min, r.Handler.Max, r.Loopback.Median, r.Loopback.Min, r.Loopback.Max)
 	}
-	fmt.Fprintln(w, "whole proxy, estimated as 1 + handler difference / bare proxy's whole cost (medians):")
+	fmt.Fprintln(&b, "whole proxy, estimated as 1 + handler difference / bare proxy's whole cost (medians):")
 	for _, r := range s.Ratios {
-		fmt.Fprintf(w, "  %-15s %.2f\n", r.System, r.Estimate)
+		fmt.Fprintf(&b, "  %-15s %.2f\n", r.System, r.Estimate)
 	}
 	verdict := "passed"
 	if !s.Passed {
 		verdict = "FAILED"
 	}
-	_, err := fmt.Fprintf(w, "gate: whole-proxy estimate at most %.1fx the bare proxy: %s\n", s.Gate, verdict)
-	return err
+	fmt.Fprintf(&b, "gate: whole-proxy estimate at most %.1fx the bare proxy: %s\n", s.Gate, verdict)
+	return writeTable(w, b.String(), tabwriter.AlignRight)
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -103,7 +104,7 @@ func e1(ctx context.Context, args []string) error {
 		}
 		rs = append(rs, r)
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: log.New(os.Stdout, "", 0)}
 	dir, err := runner.RunE1(ctx, bench.Plan{
 		Workload: w,
 		Systems:  sys,
@@ -170,7 +171,7 @@ func e5(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: log.New(os.Stdout, "", 0)}
 	dir, err := runner.RunE5(ctx, plan)
 	if dir != "" {
 		fmt.Println("results in", dir)
@@ -236,7 +237,7 @@ func e3(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: log.New(os.Stdout, "", 0)}
 	dir, err := runner.RunE3(ctx, bench.FailoverPlan{Cells: cells, Reps: *reps, Rate: *rate, Gateways: *gateways, Bins: *bins, Records: *records})
 	if dir != "" {
 		if rerr := reportE3([]string{dir}); rerr != nil {
@@ -262,14 +263,11 @@ func reportE3(args []string) error {
 }
 
 func writeSummary(path string, v any) error {
-	f, err := os.Create(path)
+	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	return os.WriteFile(path, append(b, '\n'), 0o644)
 }
 
 func e2(ctx context.Context, args []string) error {
@@ -308,7 +306,7 @@ func e2(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: log.New(os.Stdout, "", 0)}
 	dir, err := runner.RunE2(ctx, bench.LimiterPlan{Cells: cells, Reps: *reps})
 	if dir != "" {
 		if rerr := reportE2([]string{dir}); rerr != nil {
@@ -342,7 +340,7 @@ func hotpath(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	dir, err := bench.RunHotpath(ctx, bench.HotpathPlan{Package: *pkg, Reps: *reps, BenchTime: *benchtime, Out: *out, Log: os.Stdout})
+	dir, err := bench.RunHotpath(ctx, bench.HotpathPlan{Package: *pkg, Reps: *reps, BenchTime: *benchtime, Out: *out, Log: log.New(os.Stdout, "", 0)})
 	if dir != "" && err == nil {
 		err = reportHotpath([]string{dir})
 	}

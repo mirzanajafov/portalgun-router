@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,13 +43,15 @@ func main() {
 	if err := os.WriteFile(filepath.Join(dir, "results.json"), append(b, '\n'), 0o644); err != nil {
 		fail(err)
 	}
-	print(results)
+	if err := print(results); err != nil {
+		fail(err)
+	}
 	fmt.Printf("\n%d cells in %v, written to %s\n", len(results), elapsed.Round(time.Millisecond), dir)
 }
 
-func print(results []sim.CellResult) {
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "group\tbase\tshare\trps\tcanary\tblip\tsprt (undecided)\tfixed-absolute\tfixed-relative\tpeeking-z\tfixed-horizon\tsprt+terminal\t")
+func print(results []sim.CellResult) error {
+	var b strings.Builder
+	fmt.Fprintln(&b, "group\tbase\tshare\trps\tcanary\tblip\tsprt (undecided)\tfixed-absolute\tfixed-relative\tpeeking-z\tfixed-horizon\tsprt+terminal\t")
 	for _, r := range results {
 		c := r.Cell
 		canaryDesc := fmt.Sprintf("%.1fx", c.Rho)
@@ -73,9 +76,13 @@ func print(results []sim.CellResult) {
 			}
 			cols = append(cols, cell)
 		}
-		fmt.Fprintln(tw, strings.Join(cols, "\t")+"\t")
+		fmt.Fprintln(&b, strings.Join(cols, "\t")+"\t")
 	}
-	tw.Flush()
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := io.WriteString(tw, b.String()); err != nil {
+		return err
+	}
+	return tw.Flush()
 }
 
 func pct(v float64) string {
