@@ -221,7 +221,7 @@ On the demo the controller and the dimensions also share a network with FiveFami
 
 ## Running it
 
-You need Docker. Go 1.26 (with a C compiler for `-race`), Node 24 and pnpm 11 only for working on the code.
+You need Docker. Go 1.26, Node 24 and pnpm 11 only for working on the code.
 
 ```bash
 docker compose up -d --build
@@ -243,7 +243,7 @@ go run ./cmd/bench report-e2 bench/results/e2/<run>   # tables from a run (repor
 
 The registry run needs FiveFamilies' node image. The numbers above came from FiveFamilies at 056ae86, so to reproduce them, check that commit out in its repo, build it with `docker build -t fivefamilies-node:056ae86 .` and run E5 with `FF_IMAGE=fivefamilies-node:056ae86 FF_COMMIT=056ae86`, which the results then record.
 
-Tests: `go test -race ./...` (with `PORTAL_TEST_REDIS` and `PORTAL_TEST_POSTGRES` set it also runs the integration tests), `PORTAL_E2E=1 go test ./e2e/` for the Docker suite (its own stack on ports 3131-3133), fuzz targets in `internal/proxy`, and `pnpm install` then `pnpm test` in `web/`.
+Tests: `go test -race ./...` (the race detector needs a C compiler outside macOS, and with `PORTAL_TEST_REDIS` and `PORTAL_TEST_POSTGRES` set it also runs the integration tests), `PORTAL_E2E=1 go test ./e2e/` for the Docker suite (its own stack on ports 3131-3133), fuzz targets in `internal/proxy`, and `pnpm install --frozen-lockfile` then `pnpm test` in `web/`.
 
 On the server it runs with `docker-compose.prod.yml`, which publishes nothing and takes every secret from a `chmod 600` `.env` that `deploy/init-env.sh` generates. `deploy/deploy.sh` backs up Postgres, fast-forwards, rebuilds, waits for every service to report healthy and goes back to the previous commit if one doesn't. When `PORTAL_REGISTRY` (the URLs of FiveFamilies' nodes) is added to `.env` by hand, the script also adds `docker-compose.registry.yml`, which puts the controller and the dimensions on FiveFamilies' network, so FiveFamilies has to be deployed first. Without a new commit, that takes `deploy.sh --force`. A backup container dumps Postgres every night and keeps two weeks, and `deploy/restore-check.sh` restores the latest dump into a throwaway Postgres to prove it can be restored. Only the dashboard is public.
 
