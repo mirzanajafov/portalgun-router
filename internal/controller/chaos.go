@@ -151,22 +151,36 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 			return Running{}, time.Hour, ErrChaosLimit
 		}
 	}
+	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
 	if err := c.inj.Inject(ctx, f); err != nil {
-		if cerr := c.inj.Clear(context.WithoutCancel(ctx), f); cerr != nil {
-			c.logger.Error("clearing what a failed fault left", "mode", f.Mode, "target", f.Target, "err", cerr)
-		}
+		c.abandonLocked(ctx, run, err)
 		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
-	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
+	c.beginLocked(ctx, run)
+	return run, 0, nil
+}
+
+func (c *ChaosService) beginLocked(ctx context.Context, run Running) {
+	d := run.Until.Sub(run.Started)
 	c.current = &run
 	c.timer = time.AfterFunc(d, func() { c.expire(run) })
-	c.incidents = append(c.incidents, &Incident{Fault: f, Actor: actor, InjectedAt: now})
+	c.incidents = append(c.incidents, &Incident{Fault: run.Fault, Actor: run.Actor, InjectedAt: run.Started})
 	if len(c.incidents) > 20 {
 		c.incidents = c.incidents[len(c.incidents)-20:]
 	}
-	c.record(ctx, actor, f, "inject")
-	c.hub.Event(Event{Type: "chaos", Message: fmt.Sprintf("%s: %s on %s for %v", actor, f.Mode, f.Target, d)})
-	return run, 0, nil
+	c.record(ctx, run.Actor, run.Fault, "inject")
+	c.hub.Event(Event{Type: "chaos", Message: fmt.Sprintf("%s: %s on %s for %v", run.Actor, run.Fault.Mode, run.Fault.Target, d)})
+}
+
+func (c *ChaosService) abandonLocked(ctx context.Context, run Running, cause error) {
+	if errors.Is(cause, chaos.ErrControlToken) {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	if err := c.inj.Clear(ctx, run.Fault); err != nil {
+		c.logger.Error("a fault that failed to start could not be cleared, so it is kept until its time is up", "mode", run.Fault.Mode, "target", run.Fault.Target, "err", err)
+		c.beginLocked(ctx, run)
+	}
 }
 
 func (c *ChaosService) expire(run Running) {

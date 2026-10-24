@@ -274,7 +274,10 @@ func TestClearAllClearsTheDimensionsThatTakeTheTokenAndReportsOneThatRefuses(t *
 		if err != nil {
 			t.Fatal(err)
 		}
-		listen(t, s)
+		if err := s.Listen("127.0.0.1:0"); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
 		control := httptest.NewServer(s.ControlHandler("token-" + name))
 		t.Cleanup(control.Close)
 		servers[name] = s
@@ -292,12 +295,4 @@ func TestClearAllClearsTheDimensionsThatTakeTheTokenAndReportsOneThatRefuses(t *
 	if w.Code != http.StatusOK {
 		t.Fatalf("the dimension that took the token still fails: %d", w.Code)
 	}
-}
-
-func listen(t *testing.T, s *dimension.Server) {
-	t.Helper()
-	if err := s.Listen("127.0.0.1:0"); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
 }
