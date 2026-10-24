@@ -176,9 +176,13 @@ describe('registry results', () => {
   })
 
   it('shows the known cases in order and adds up only those', () => {
-    const cases = registryCases([sum('down', { runs: 3, requests: 500 }), sum('partition', { lost: 9 }), sum('join', { lost: 2, failed: 1, dropped: 100 })])
+    const cases = registryCases([
+      sum('down', { runs: 3, requests: 500 }),
+      sum('partition', { lost: 9 }),
+      sum('join', { lost: 2, failed: 1, invalid: 1, dropped: 100 }),
+    ])
     expect(cases.map((c) => c.key)).toEqual(['join', 'down'])
-    expect(registryTotals(cases)).toEqual({ runs: 13, failed: 1, sent: 1400, lost: 2 })
+    expect(registryTotals(cases)).toEqual({ runs: 13, failed: 2, sent: 1400, lost: 2 })
   })
 })
 

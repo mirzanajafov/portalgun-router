@@ -5,13 +5,15 @@ export function RegistryResults({ run, sums }: { run: string; sums: RegistrySumm
   const cases = registryCases(sums)
   const times = registryTimes(sums)
   const total = registryTotals(cases)
+  if (cases.length === 0) return null
   return (
     <section className="panel overflow-x-auto p-4">
       <h2 className="mb-1 font-semibold">Dimensions that come and go</h2>
       <p className="muted mb-3 text-sm">
         Dimensions register themselves with FiveFamilies, a registry on Raft, and the controller turns its list into a config version. This run has a stack of
-        its own without fault injection and 500 rps across both gateways: {count(total.lost)} of {count(total.sent)} requests were lost in {total.runs} runs
-        {total.failed > 0 && `, ${count(total.failed)} of them failed or invalid`}. Run <span className="mono">{run}</span>.
+        its own without fault injection, 500 rps across both gateways and two retries on the route: {count(total.lost)} of {count(total.sent)} requests were
+        lost in {count(total.runs)} runs{total.failed > 0 && `, ${count(total.failed)} of those runs failed or invalid`}. Run{' '}
+        <span className="mono">{run}</span>.
       </p>
       {times.length > 0 && (
         <table className="mono mb-5 w-full min-w-[560px] text-sm">
@@ -49,7 +51,10 @@ export function RegistryResults({ run, sums }: { run: string; sums: RegistrySumm
           {cases.map(({ key, label, sum }) => (
             <tr key={key} className="border-t border-[var(--line)]">
               <td className="py-1.5 pr-3 font-sans">{label}</td>
-              <td className="text-right">{sum.runs}</td>
+              <td className="text-right">
+                {sum.runs}
+                {sum.failed + sum.invalid > 0 && <span className="muted text-xs"> {sum.failed + sum.invalid} failed</span>}
+              </td>
               <td className="text-right">{count(sum.lost)}</td>
               <td className="text-right">{count(sum.registryVersions)}</td>
               <td className="text-right">{count(sum.lostRegistrations)}</td>
