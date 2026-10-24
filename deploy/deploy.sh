@@ -58,6 +58,7 @@ if ! bash deploy/init-env.sh || ! "${compose[@]}" config --quiet; then
   exit 1
 fi
 stamp=$(deployed)
+rm -f .deployed
 
 say "Starting it and waiting for every container to pass its health check and stay up"
 if release; then
@@ -74,6 +75,7 @@ fi
 say "Not healthy, rolling back to $(git log --oneline -1 "$previous")"
 git reset --hard --quiet "$previous"
 if release; then
+  deployed > .deployed
   echo "Rolled back. Schema migrations from the failed release stay applied, and the dump taken above is in backups/db if one has to be undone."
 else
   echo "Rollback is not healthy either. Check: ${compose[*]} ps" >&2
