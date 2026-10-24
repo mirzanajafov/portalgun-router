@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -163,15 +163,15 @@ func rotate[T any](s []T, k int) []T {
 type Runner struct {
 	Compose Compose
 	Out     string
-	Log     io.Writer
+	Log     *log.Logger
 	ids     map[string]string
 }
 
-func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
+func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Rates) == 0 || len(plan.Systems) == 0 {
 		return "", errors.New("the plan needs systems, rates and at least one repetition")
 	}
-	dir := filepath.Join(r.Out, plan.Workload.Name, time.Now().UTC().Format("20060102-150405"))
+	dir = filepath.Join(r.Out, plan.Workload.Name, time.Now().UTC().Format("20060102-150405"))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -217,7 +217,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	enc := json.NewEncoder(f)
 
 	total := plan.Reps * len(plan.Rates) * len(plan.Systems)
@@ -432,7 +432,7 @@ func (r *Runner) waitReady(ctx context.Context, compose Compose, plan Plan) erro
 			}
 		}
 		if !ready {
-			return fmt.Errorf("%s never became ready: %v", sys.Name, last)
+			return fmt.Errorf("%s never became ready: %w", sys.Name, last)
 		}
 	}
 	return nil
@@ -508,6 +508,6 @@ func writeJSON(path string, v any) error {
 
 func (r *Runner) logf(format string, args ...any) {
 	if r.Log != nil {
-		fmt.Fprintf(r.Log, format+"\n", args...)
+		r.Log.Printf(format, args...)
 	}
 }

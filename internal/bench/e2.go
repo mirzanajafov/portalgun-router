@@ -240,11 +240,11 @@ func gatewayNames(n int) []string {
 	return out
 }
 
-func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (string, error) {
+func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Cells) == 0 {
 		return "", errors.New("the plan needs cells and at least one repetition")
 	}
-	dir, err := filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
 	if err != nil {
 		return "", err
 	}
@@ -281,7 +281,7 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (string, error) {
 	if err != nil {
 		return dir, err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	enc := json.NewEncoder(f)
 	total := plan.Reps * len(plan.Cells)
 	done := 0

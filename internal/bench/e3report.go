@@ -2,12 +2,13 @@ package bench
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"text/tabwriter"
+	"strings"
 )
 
 type FailoverSummary struct {
@@ -30,13 +31,12 @@ type FailoverSummary struct {
 }
 
 func LoadFailoverRuns(dir string) ([]FailoverRun, error) {
-	f, err := os.Open(filepath.Join(dir, "runs.jsonl"))
+	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var runs []FailoverRun
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 1<<20), 1<<26)
 	for sc.Scan() {
 		var r FailoverRun
@@ -117,8 +117,8 @@ func rangeOf(s Stat, n, of int, digits int) string {
 }
 
 func WriteFailoverText(w io.Writer, sums []FailoverSummary) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "cell\truns\tdetect ms\tmove ms\tlost\tlost after\tp99 before\tp99 fault\tattempts\trecover ms\tfalse ejections")
+	var b strings.Builder
+	fmt.Fprintln(&b, "cell\truns\tdetect ms\tmove ms\tlost\tlost after\tp99 before\tp99 fault\tattempts\trecover ms\tfalse ejections")
 	for _, s := range sums {
 		valid := s.Runs - s.InvalidRuns
 		runs := fmt.Sprint(s.Runs)
@@ -128,12 +128,12 @@ func WriteFailoverText(w io.Writer, sums []FailoverSummary) error {
 		if s.Failed > 0 {
 			runs += fmt.Sprintf(" (%d failed)", s.Failed)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
+		fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Cell, runs,
 			rangeOf(s.DetectMs, s.Detected, valid, 0), rangeOf(s.MoveMs, s.Moved, valid, 0),
 			rangeOf(s.Lost, valid, valid, 0), rangeOf(s.LostAfter, valid, valid, 0),
 			rangeOf(s.P99BeforeMs, valid, valid, 1), rangeOf(s.P99FaultMs, valid, valid, 1),
 			rangeOf(s.AttemptsFault, valid, valid, 3), rangeOf(s.RecoverMs, s.Recovered, valid, 0),
 			rangeOf(s.FalseEjections, valid, valid, 0))
 	}
-	return tw.Flush()
+	return writeTable(w, b.String(), 0)
 }

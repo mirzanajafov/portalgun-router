@@ -220,7 +220,9 @@ func TestLoadPoints(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	got, err := LoadPoints(dir)
 	if err != nil {
 		t.Fatal(err)

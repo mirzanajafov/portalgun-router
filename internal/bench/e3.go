@@ -276,11 +276,11 @@ func (p FailoverPlan) gatewayServices() []string {
 	return gs
 }
 
-func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
+func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Cells) == 0 || plan.Rate <= 0 || plan.Gateways < 1 || plan.Gateways > 2 {
 		return "", errors.New("the plan needs cells, a rate, one or two gateways and at least one repetition")
 	}
-	dir, err := filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
 	if err != nil {
 		return "", err
 	}
@@ -315,7 +315,7 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 	if err != nil {
 		return dir, err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	enc := json.NewEncoder(f)
 
 	total := plan.Reps * len(plan.Cells)
