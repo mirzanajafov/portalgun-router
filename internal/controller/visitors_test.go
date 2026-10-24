@@ -53,6 +53,7 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 		{"the proxy token without an address", "", proxyToken, proxyToken, "192.0.2.1"},
 		{"the proxy token with something that isn't an address", "6.6.6.6, rotate-me", proxyToken, proxyToken, "192.0.2.1"},
 		{"the proxy token with an IPv6 address spelled long", "2001:DB8:0:0::1", proxyToken, proxyToken, "2001:db8::1"},
+		{"the proxy token with an IPv4 address mapped into IPv6", "::ffff:9.9.9.9", proxyToken, proxyToken, "9.9.9.9"},
 		{"a wrong token", "6.6.6.6, 9.9.9.9", proxyToken, "proxy-tokem", "192.0.2.1"},
 		{"no token sent", "6.6.6.6, 9.9.9.9", proxyToken, "", "192.0.2.1"},
 	}

@@ -94,14 +94,14 @@ func (l *logSink) String() string {
 	return l.b.String()
 }
 
-func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector) {
-	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, &fakeCounter{hits: map[string]int64{}}, NewHub(), limits, []string{"dim-a", "dim-b"}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	return svc, inj
+func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector, *fakeCounter) {
+	inj, counter := &fakeInjector{}, &fakeCounter{hits: map[string]int64{}}
+	svc := NewChaosService(inj, nil, counter, NewHub(), limits, []string{"dim-a", "dim-b"}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return svc, inj, counter
 }
 
 func TestVisitorsGetBoundedChaos(t *testing.T) {
-	svc, _ := newChaos(DefaultChaosLimits())
+	svc, _, _ := newChaos(DefaultChaosLimits())
 	ctx := context.Background()
 	for _, req := range []ChaosRequest{
 		{Mode: "crash", Target: "dim-a", DurationSec: 120},
@@ -122,7 +122,7 @@ func TestVisitorsGetBoundedChaos(t *testing.T) {
 func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 	limits := DefaultChaosLimits()
 	limits.Cooldown = time.Hour
-	svc, inj := newChaos(limits)
+	svc, inj, _ := newChaos(limits)
 	ctx := context.Background()
 	run, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 0.05}, false, "1.2.3.4")
 	if err != nil {
@@ -155,7 +155,7 @@ func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 func TestVisitorsHaveAnHourlyLimit(t *testing.T) {
 	limits := DefaultChaosLimits()
 	limits.Cooldown = 0
-	svc, _ := newChaos(limits)
+	svc, _, _ := newChaos(limits)
 	ctx := context.Background()
 	for i := range 4 {
 		_, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 1}, false, "1.2.3.4")
@@ -234,7 +234,7 @@ func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 }
 
 func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
-	svc, _ := newChaos(DefaultChaosLimits())
+	svc, _, _ := newChaos(DefaultChaosLimits())
 	base := time.Unix(2_000_000, 0)
 	svc.now = func() time.Time { return base.Add(300 * time.Millisecond) }
 	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 1}, true, ""); err != nil {
@@ -263,7 +263,7 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 }
 
 func TestChaosEndpoints(t *testing.T) {
-	svc, _ := newChaos(DefaultChaosLimits())
+	svc, _, counter := newChaos(DefaultChaosLimits())
 	mux := http.NewServeMux()
 	api := &API{token: adminToken}
 	svc.Routes(mux, api.admin, adminToken)
@@ -272,6 +272,9 @@ func TestChaosEndpoints(t *testing.T) {
 	url, visitor := srv.URL+"/api/chaos", viaProxy("9.9.9.9")
 	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 201 {
 		t.Fatalf("visitor fault: %d", got)
+	}
+	if n := counter.hits["chaos:ip:9.9.9.9"]; n != 1 || len(counter.hits) != 1 {
+		t.Fatalf("counts %v, want the fault on the address the dashboard forwarded", counter.hits)
 	}
 	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-b"}`, visitor).StatusCode; got != 409 {
 		t.Fatalf("second fault: %d", got)

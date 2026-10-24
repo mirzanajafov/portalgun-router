@@ -278,11 +278,11 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 		if err := decode(w, r, &req); err != nil {
 			return
 		}
-		admin, client := Authorized(r, token), ""
-		if !admin {
+		authorized, client := Authorized(r, token), ""
+		if !authorized {
 			client = c.visitors.client(r)
 		}
-		run, wait, err := c.Start(r.Context(), req, admin, client)
+		run, wait, err := c.Start(r.Context(), req, authorized, client)
 		switch {
 		case errors.Is(err, ErrChaosBusy), errors.Is(err, ErrChaosCooldown), errors.Is(err, ErrChaosLimit):
 			w.Header().Set("Retry-After", fmt.Sprint(max(1, int(wait.Seconds()+0.5))))
