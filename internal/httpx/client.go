@@ -15,32 +15,32 @@ type StatusError struct {
 	URL    string
 	Code   int
 	Status string
-	Body   string
+	Reason string
 }
 
 func (e *StatusError) Error() string {
 	msg := fmt.Sprintf("%s %s: %s", e.Method, e.URL, e.Status)
-	if e.Body != "" {
-		msg += ": " + e.Body
+	if e.Reason != "" {
+		msg += ": " + e.Reason
 	}
 	return msg
 }
 
-func Do(client *http.Client, req *http.Request, out any, ok ...int) error {
+func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...int) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if !slices.Contains(ok, resp.StatusCode) {
-		return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Body: reason(resp.Body)}
+	if resp.StatusCode != want && !slices.Contains(alsoWant, resp.StatusCode) {
+		return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)}
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 			return fmt.Errorf("%s %s: %w", req.Method, req.URL.Redacted(), err)
 		}
 	}
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	return nil
 }
 

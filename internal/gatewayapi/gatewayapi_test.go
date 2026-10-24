@@ -18,6 +18,12 @@ func TestTheWireNamesStayWhatTheDashboardAndTheResultsRead(t *testing.T) {
 		"event":     DimensionEvent{UnixNano: 1, Dimension: "a", State: "ejected", Reason: "5 failures in a row"},
 		"decisions": Decisions{Recording: true, Dropped: 1, Decisions: []Decision{{UnixNano: 2, Key: "ip:1.2.3.4", Allowed: true}}},
 		"headers":   []string{DimensionHeader, AttemptsHeader},
+		"zero": []any{
+			Snapshot{Routes: map[string]RouteSnapshot{"api": {}}, Dimensions: []DimensionSnapshot{{}}},
+			State{Upstreams: []Upstream{{}}},
+			DimensionEvent{},
+			Decisions{},
+		},
 	}
 	got, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {

@@ -82,5 +82,74 @@
         "ejectedForMs": 7
       }
     ]
-  }
+  },
+  "zero": [
+    {
+      "instance": "",
+      "second": 0,
+      "configVersion": 0,
+      "clusterConfig": 0,
+      "routes": {
+        "api": {
+          "requests": 0,
+          "limited": 0,
+          "failed": 0,
+          "weight": 0,
+          "versions": [
+            {
+              "attempts": 0,
+              "errors": 0,
+              "slow": 0
+            },
+            {
+              "attempts": 0,
+              "errors": 0,
+              "slow": 0
+            }
+          ],
+          "slowThresholdMs": 0
+        }
+      },
+      "dimensions": [
+        {
+          "id": "",
+          "version": "",
+          "attempts": 0,
+          "errors": 0,
+          "p50Ms": 0,
+          "p99Ms": 0,
+          "inflight": 0,
+          "healthy": false,
+          "outlier": "closed"
+        }
+      ]
+    },
+    {
+      "version": 0,
+      "inflight": 0,
+      "maxInflight": 0,
+      "upstreams": [
+        {
+          "id": "",
+          "version": "",
+          "address": "",
+          "inflight": 0,
+          "maxInflight": 0,
+          "latencyMs": 0,
+          "healthy": false,
+          "outlier": "closed"
+        }
+      ]
+    },
+    {
+      "unixNano": 0,
+      "dimension": "",
+      "state": ""
+    },
+    {
+      "recording": false,
+      "dropped": 0,
+      "decisions": null
+    }
+  ]
 }

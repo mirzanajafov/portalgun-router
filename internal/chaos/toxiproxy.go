@@ -37,7 +37,7 @@ func NewToxiproxy(baseURL string) *Toxiproxy {
 	return &Toxiproxy{BaseURL: baseURL, Client: &http.Client{Timeout: 5 * time.Second}}
 }
 
-func (t *Toxiproxy) do(ctx context.Context, method, path string, body any, want ...int) error {
+func (t *Toxiproxy) do(ctx context.Context, method, path string, body any, want int, alsoWant ...int) error {
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -51,7 +51,7 @@ func (t *Toxiproxy) do(ctx context.Context, method, path string, body any, want 
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if err := httpx.Do(t.Client, req, nil, want...); err != nil {
+	if err := httpx.Do(t.Client, req, nil, want, alsoWant...); err != nil {
 		return fmt.Errorf("toxiproxy: %w", err)
 	}
 	return nil
