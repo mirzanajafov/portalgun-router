@@ -178,6 +178,53 @@ export function failoverMatrix(sums: FailoverSummary[]): FailoverRow[] {
   }))
 }
 
+export type RegistrySummary = {
+  cell: string
+  runs: number
+  failed: number
+  invalid: number
+  requests: number
+  lost: number
+  registryVersions: number
+  lostRegistrations: number
+  registerMs?: Stat
+  joinMs?: Stat
+  gatewaysMs?: Stat
+  leaveGatewaysMs?: Stat
+  killToFirstMs?: Stat
+}
+
+export const REGISTRY_CELLS: { cell: string; label: string }[] = [
+  { cell: 'join', label: 'A fifth dimension joins, then leaves' },
+  { cell: 'leader', label: "The registry's leader killed, back after 10 s" },
+  { cell: 'failover', label: 'A dimension joins while the leader is dead' },
+  { cell: 'down', label: 'Every registry node down for 30 s' },
+]
+
+const REGISTRY_TIMES: { cell: string; key: 'registerMs' | 'joinMs' | 'gatewaysMs' | 'leaveGatewaysMs' | 'killToFirstMs'; label: string }[] = [
+  { cell: 'join', key: 'registerMs', label: 'Registering' },
+  { cell: 'join', key: 'joinMs', label: 'Registered to its first request' },
+  { cell: 'join', key: 'gatewaysMs', label: 'Registered to both gateways on the new config' },
+  { cell: 'join', key: 'leaveGatewaysMs', label: 'Deregistering to both gateways without it' },
+  { cell: 'failover', key: 'registerMs', label: 'Registering while the leader is dead' },
+  { cell: 'failover', key: 'killToFirstMs', label: 'Leader killed to the new dimension serving' },
+]
+
+export type RegistryTimeRow = { label: string; runs: number; time: Stat }
+
+export function registryTimes(sums: RegistrySummary[]): RegistryTimeRow[] {
+  const by = new Map(sums.map((s) => [s.cell, s]))
+  return REGISTRY_TIMES.flatMap(({ cell, key, label }) => {
+    const s = by.get(cell)
+    const time = s?.[key]
+    return s && time ? [{ label, runs: s.runs - s.failed - s.invalid, time }] : []
+  })
+}
+
+export function registryTotals(sums: RegistrySummary[]): { runs: number; requests: number; lost: number } {
+  return sums.reduce((t, s) => ({ runs: t.runs + s.runs, requests: t.requests + s.requests, lost: t.lost + s.lost }), { runs: 0, requests: 0, lost: 0 })
+}
+
 export function us(v: number): string {
   if (!Number.isFinite(v)) return '-'
   const a = Math.abs(v)

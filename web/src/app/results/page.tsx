@@ -2,7 +2,8 @@ import { CanarySim } from '@/components/CanarySim'
 import { FailoverResults } from '@/components/FailoverResults'
 import { LimiterResults } from '@/components/LimiterResults'
 import { ProxyResults } from '@/components/ProxyResults'
-import type { FailoverSummary, LimiterSummary, ProxyReport } from '@/lib/measured'
+import { RegistryResults } from '@/components/RegistryResults'
+import type { FailoverSummary, LimiterSummary, ProxyReport, RegistrySummary } from '@/lib/measured'
 import { latestRun, latestSim } from '@/lib/results'
 
 export default function Results() {
@@ -13,8 +14,9 @@ export default function Results() {
   const before = latestRun<LimiterSummary[]>('e2-breaker/before')
   const after = latestRun<LimiterSummary[]>('e2-breaker/after')
   const failover = latestRun<FailoverSummary[]>('e3')
+  const registry = latestRun<RegistrySummary[]>('e5')
   const sim = latestSim()
-  if (!proxy && !limiter && !failover && !sim) {
+  if (!proxy && !limiter && !failover && !registry && !sim) {
     return <p className="muted mt-8">No results in this build.</p>
   }
   return (
@@ -30,6 +32,7 @@ export default function Results() {
       {proxy && <ProxyResults run={proxy.name} report={proxy.summary} step={step} overload={overload} />}
       {limiter && <LimiterResults run={limiter.name} sums={limiter.summary} breaker={before && after ? { before, after } : undefined} />}
       {failover && <FailoverResults run={failover.name} sums={failover.summary} />}
+      {registry && <RegistryResults run={registry.name} sums={registry.summary} />}
       {sim && <CanarySim sim={sim} />}
     </div>
   )

@@ -7,6 +7,8 @@ import {
   overloadLabel,
   overloadSystems,
   proxyRows,
+  registryTimes,
+  registryTotals,
   rps,
   signed,
   us,
@@ -15,6 +17,7 @@ import {
   type LimiterSummary,
   type ProxyCell,
   type ProxyReport,
+  type RegistrySummary,
 } from './measured'
 
 const stat = (median: number) => ({ median, min: median, max: median })
@@ -145,6 +148,37 @@ describe('failover results', () => {
     const rows = failoverMatrix([f('crash/both'), f('crash/both-retries'), f('slow/probes'), f('crash/both-retries-refused')])
     expect(rows.map((r) => r.key)).toEqual(['crash', 'slow'])
     expect(rows[0].cells.map((c) => c?.cell)).toEqual([undefined, undefined, 'crash/both', 'crash/both-retries'])
+  })
+})
+
+describe('registry results', () => {
+  const sum = (cell: string, extra: Partial<RegistrySummary> = {}): RegistrySummary => ({
+    cell,
+    runs: 10,
+    failed: 0,
+    invalid: 0,
+    requests: 1000,
+    lost: 0,
+    registryVersions: 0,
+    lostRegistrations: 0,
+    ...extra,
+  })
+
+  it('lists the measured steps in their order, counting only the runs that measured them', () => {
+    const rows = registryTimes([
+      sum('failover', { failed: 1, registerMs: stat(2100) }),
+      sum('join', { invalid: 2, joinMs: stat(15), gatewaysMs: stat(10) }),
+      sum('down'),
+    ])
+    expect(rows.map((r) => [r.label, r.runs, r.time.median])).toEqual([
+      ['Registered to its first request', 8, 15],
+      ['Registered to both gateways on the new config', 8, 10],
+      ['Registering while the leader is dead', 9, 2100],
+    ])
+  })
+
+  it('adds up runs, requests and lost requests over every cell', () => {
+    expect(registryTotals([sum('join', { lost: 2 }), sum('down', { runs: 3, requests: 500 })])).toEqual({ runs: 13, requests: 1500, lost: 2 })
   })
 })
 
