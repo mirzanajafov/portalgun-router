@@ -114,6 +114,20 @@ func (m *memStore) SaveStep(ctx context.Context, id string, st store.Step) error
 	return err
 }
 
+func (m *memStore) AbandonActive(ctx context.Context, _ string, at time.Time) ([]string, error) {
+	var ids []string
+	_, err := m.write(ctx, func() store.ConfigVersion {
+		for _, r := range m.rollouts {
+			if _, done := m.outcomes[r.ID]; !done {
+				m.outcomes[r.ID], m.finished[r.ID] = store.OutcomeAborted, at
+				ids = append(ids, r.ID)
+			}
+		}
+		return store.ConfigVersion{}
+	})
+	return ids, err
+}
+
 func (m *memStore) EndRollout(ctx context.Context, end store.RolloutEnd, c *store.ConfigChange) (store.ConfigVersion, error) {
 	saved, err := m.write(ctx, func() store.ConfigVersion {
 		m.outcomes[end.ID], m.finished[end.ID] = end.Outcome, end.At
@@ -659,7 +673,7 @@ func TestAnEndThatCannotBeSavedIsLoggedOnceAMinute(t *testing.T) {
 	}
 }
 
-func TestAnAbortReasonIsCheckedAtTheDoor(t *testing.T) {
+func TestReasonsAreCheckedAtTheDoor(t *testing.T) {
 	r := newRig(t)
 	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
@@ -672,11 +686,31 @@ func TestAnAbortReasonIsCheckedAtTheDoor(t *testing.T) {
 			t.Fatal(err)
 		}
 		if got := send(t, http.MethodPost, srv.URL+"/api/rollouts/abort", string(body), asAdmin("9.9.9.9")).StatusCode; got != http.StatusBadRequest {
-			t.Errorf("reason %.20q: %d", reason, got)
+			t.Errorf("abort reason %.20q: %d", reason, got)
 		}
 	}
 	if !r.engine.Status().Active {
 		t.Fatal("a refused reason aborted the rollout")
+	}
+	_, before := r.cfgs.Raw()
+	for _, reason := range []string{"edited \xff\xfe", strings.Repeat("x", maxReason+1)} {
+		header := asAdmin("9.9.9.9")
+		header.Set("X-Reason", reason)
+		if got := send(t, http.MethodPut, srv.URL+"/api/config", baseConfig, header).StatusCode; got != http.StatusBadRequest {
+			t.Errorf("config reason %.20q: %d", reason, got)
+		}
+	}
+	if _, after := r.cfgs.Raw(); after != before {
+		t.Fatalf("a refused reason saved config %d", after)
+	}
+}
+
+func TestAConfigIsSavedEvenIfItsCallerLeaves(t *testing.T) {
+	r := newRig(t)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	if v, err := r.cfgs.Replace(gone, store.ActorAdmin, "the caller left", []byte(baseConfig)); err != nil || v != 2 {
+		t.Fatalf("version %d, %v", v, err)
 	}
 }
 
@@ -795,9 +829,14 @@ func TestAStartWhoseAnswerWasLostIsNotRun(t *testing.T) {
 	if r.engine.Status().Active || r.versions(t).Canary != "" {
 		t.Fatalf("a start the store never confirmed: active %v, versions %+v", r.engine.Status().Active, r.versions(t))
 	}
+	unconfirmed := r.store.rollouts[0].ID
 	r.now = r.now.Add(time.Second)
-	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
 		t.Fatalf("the next start: %v", err)
+	}
+	if r.store.outcomes[unconfirmed] != store.OutcomeAborted || r.store.outcomes[ro.ID] != "" {
+		t.Fatalf("the next start should close the unconfirmed one and run: outcomes %v", r.store.outcomes)
 	}
 }
 

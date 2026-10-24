@@ -101,6 +101,8 @@ func chaosInjector(ctx context.Context, o options, logger *slog.Logger) (*chaos.
 }
 
 func run(ctx context.Context, logger *slog.Logger, o options) error {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 	addr, postgres, redisAddr, bootstrapPath, token := o.addr, o.postgres, o.redis, o.bootstrap, o.token
 	if postgres == "" || redisAddr == "" {
 		return errors.New("-postgres and -redis are required")
@@ -205,12 +207,12 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	logger.Info("controller up", "addr", ln.Addr().String(), "config", version, "admin", token != "", "registry", o.registry != "")
 	select {
 	case <-ctx.Done():
-	case err := <-errc:
-		return err
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err = srv.Shutdown(shutdownCtx)
+	case err = <-errc:
+		stop()
 	}
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = srv.Shutdown(shutdownCtx)
 	<-settled
 	return err
 }

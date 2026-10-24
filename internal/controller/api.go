@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
@@ -105,6 +106,12 @@ const adminOnly = "this needs the admin token"
 
 const maxReason = 200
 
+var badReason = fmt.Sprintf("a reason is at most %d bytes of UTF-8 text with no control characters", maxReason)
+
+func validReason(reason string) bool {
+	return len(reason) <= maxReason && utf8.ValidString(reason) && !strings.ContainsFunc(reason, unicode.IsControl)
+}
+
 func (a *API) admin(next http.HandlerFunc) http.HandlerFunc {
 	return httpx.RequireBearer(a.token, adminOnly, next)
 }
@@ -121,6 +128,10 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reason := r.Header.Get("X-Reason")
+	if !validReason(reason) {
+		httpx.WriteError(w, http.StatusBadRequest, badReason)
+		return
+	}
 	if reason == "" {
 		reason = "edited by an admin"
 	}
@@ -187,8 +198,8 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 	if err := decode(w, r, &req); err != nil {
 		return
 	}
-	if len(req.Reason) > maxReason || strings.ContainsFunc(req.Reason, unicode.IsControl) {
-		httpx.WriteError(w, http.StatusBadRequest, fmt.Sprintf("a reason is at most %d bytes with no control characters", maxReason))
+	if !validReason(req.Reason) {
+		httpx.WriteError(w, http.StatusBadRequest, badReason)
 		return
 	}
 	if req.Reason == "" {

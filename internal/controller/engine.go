@@ -20,6 +20,7 @@ type RolloutStore interface {
 	StartRollout(ctx context.Context, r store.Rollout, c store.ConfigChange) (store.ConfigVersion, error)
 	SaveStep(ctx context.Context, rollout string, st store.Step) error
 	EndRollout(ctx context.Context, end store.RolloutEnd, c *store.ConfigChange) (store.ConfigVersion, error)
+	AbandonActive(ctx context.Context, reason string, at time.Time) ([]string, error)
 }
 
 type EngineOptions struct {
@@ -138,6 +139,9 @@ func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author 
 	}
 	ro := store.Rollout{ID: id, Route: route, Stable: stable, Canary: canaryVersion, StartedAt: now}
 	ctx = context.WithoutCancel(ctx)
+	if _, err := e.store.AbandonActive(ctx, "its start was never confirmed, so it never ran", now); err != nil {
+		return store.Rollout{}, fmt.Errorf("%w: %w", ErrRolloutFailed, err)
+	}
 	version, err := e.cfgs.commit(ctx, author, fmt.Sprintf("rollout %s starts: %s at %s on %s", id, canaryVersion, pct(weight), route), begin,
 		func(ctx context.Context, c store.ConfigChange) (store.ConfigVersion, error) {
 			return e.store.StartRollout(ctx, ro, c)

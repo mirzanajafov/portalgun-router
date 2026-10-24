@@ -72,7 +72,7 @@ func (m *ConfigManager) saveLocked(ctx context.Context, c store.ConfigChange, sa
 	if c.Body, err = json.Marshal(cfg); err != nil {
 		return err
 	}
-	saved, err := save(ctx, c)
+	saved, err := save(context.WithoutCancel(ctx), c)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrConfigNotSaved, err)
 	}
