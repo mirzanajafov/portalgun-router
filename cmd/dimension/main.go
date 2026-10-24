@@ -58,7 +58,7 @@ func main() {
 	}
 	controlToken := os.Getenv("PORTAL_CONTROL_TOKEN")
 	if controlToken == "" {
-		logger.Info("no control token, so the control port answers only /ready")
+		logger.Warn("no control token, so the control port answers only /ready")
 	}
 	if err := run(ctx, logger, *id, *version, *addr, control, controlToken, b, keep); err != nil {
 		logger.Error("dimension stopped", "err", err)

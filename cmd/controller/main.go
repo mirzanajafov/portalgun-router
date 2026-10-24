@@ -31,7 +31,7 @@ func main() {
 	redisAddr := flag.String("redis", os.Getenv("PORTAL_REDIS"), "Redis address")
 	bootstrap := flag.String("bootstrap", "", "config used when Postgres has none yet")
 	toxiproxy := flag.String("toxiproxy", "", "Toxiproxy API URL for the chaos controls")
-	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch")
+	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch, with PORTAL_CONTROL_TOKEN set")
 	visitorRollouts := flag.Bool("visitor-rollouts", false, "let anyone start a rollout, a few an hour per address, while aborting still needs the admin token")
 	registryURLs := flag.String("registry", os.Getenv("PORTAL_REGISTRY"), "comma-separated FiveFamilies HTTP endpoints to take a pool's dimensions from (off by default, when the config is the whole truth)")
 	registryPool := flag.String("registry-pool", "dimensions", "the pool fed from the registry service of the same name")

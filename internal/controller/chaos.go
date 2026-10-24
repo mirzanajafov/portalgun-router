@@ -77,6 +77,7 @@ var (
 	ErrChaosBusy     = errors.New("another fault is running")
 	ErrChaosCooldown = errors.New("the portal gun is cooling down")
 	ErrChaosLimit    = errors.New("that is enough chaos from this address for an hour")
+	ErrChaosFailed   = errors.New("the fault could not be started")
 )
 
 type ChaosService struct {
@@ -151,7 +152,7 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		}
 	}
 	if err := c.inj.Inject(ctx, f); err != nil {
-		return Running{}, 0, err
+		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
 	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
 	c.current = &run
@@ -290,9 +291,9 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			writeJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
 		case errors.Is(err, ErrLimitUnchecked):
 			uncounted(w)
-		case errors.Is(err, chaos.ErrControlToken):
-			c.logger.Error("starting a fault", "err", err)
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "a dimension refused the controller, so the fault was not started"})
+		case errors.Is(err, ErrChaosFailed):
+			c.logger.Error("starting a fault", "mode", req.Mode, "target", req.Target, "err", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": ErrChaosFailed.Error()})
 		case err != nil:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		default:

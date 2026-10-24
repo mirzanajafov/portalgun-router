@@ -33,6 +33,10 @@ func TestTheControllerStopsAtStartOnlyWhenADimensionRefusesItsToken(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := s.Listen("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
 	control := httptest.NewServer(s.ControlHandler("control-token"))
 	t.Cleanup(control.Close)
 	gone := httptest.NewServer(http.NotFoundHandler())

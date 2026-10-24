@@ -264,7 +264,7 @@ func TestClearAllResetsEverything(t *testing.T) {
 	}
 }
 
-func TestClearAllClearsEveryDimensionAndReportsOneThatRefusesTheToken(t *testing.T) {
+func TestClearAllClearsTheDimensionsThatTakeTheTokenAndReportsOneThatRefuses(t *testing.T) {
 	_, toxi := newFakeToxiproxy(t)
 	ctx := context.Background()
 	servers := map[string]*dimension.Server{}
@@ -274,6 +274,7 @@ func TestClearAllClearsEveryDimensionAndReportsOneThatRefusesTheToken(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
+		listen(t, s)
 		control := httptest.NewServer(s.ControlHandler("token-" + name))
 		t.Cleanup(control.Close)
 		servers[name] = s
@@ -291,4 +292,12 @@ func TestClearAllClearsEveryDimensionAndReportsOneThatRefusesTheToken(t *testing
 	if w.Code != http.StatusOK {
 		t.Fatalf("the dimension that took the token still fails: %d", w.Code)
 	}
+}
+
+func listen(t *testing.T, s *dimension.Server) {
+	t.Helper()
+	if err := s.Listen("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
 }

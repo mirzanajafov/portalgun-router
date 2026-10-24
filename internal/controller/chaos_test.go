@@ -295,16 +295,21 @@ func TestChaosEndpoints(t *testing.T) {
 	}
 }
 
-func TestAFaultADimensionRefusesIsTheControllersFailure(t *testing.T) {
-	svc, inj, _ := newChaos(DefaultChaosLimits())
-	inj.err = fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken)
-	mux := http.NewServeMux()
-	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
-	req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.5}`))
-	req.Header = asAdmin("9.9.9.9")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "dim-a:8081") {
-		t.Fatalf("got %d %s, want 503 without the dimension's address", w.Code, w.Body)
+func TestAFaultTheInjectorCannotStartIsTheControllersFailure(t *testing.T) {
+	for _, failure := range []error{
+		fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken),
+		errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`),
+	} {
+		svc, inj, _ := newChaos(DefaultChaosLimits())
+		inj.err = failure
+		mux := http.NewServeMux()
+		svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
+		req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.5}`))
+		req.Header = asAdmin("9.9.9.9")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "dim-a") {
+			t.Fatalf("%v came back as %d %s, want 503 without the dimension's address", failure, w.Code, w.Body)
+		}
 	}
 }
