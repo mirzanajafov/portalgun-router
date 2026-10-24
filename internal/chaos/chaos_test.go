@@ -264,8 +264,10 @@ func TestClearAllResetsEverything(t *testing.T) {
 	}
 }
 
-func TestClearAllReportsADimensionThatRefusesTheToken(t *testing.T) {
+func TestClearAllClearsEveryDimensionAndReportsOneThatRefusesTheToken(t *testing.T) {
 	_, toxi := newFakeToxiproxy(t)
+	ctx := context.Background()
+	servers := map[string]*dimension.Server{}
 	dims := map[string]*DimensionControl{}
 	for _, name := range []string{"dim-a", "dim-b"} {
 		s, err := dimension.New(name, "v1", dimension.DefaultBehavior())
@@ -274,9 +276,19 @@ func TestClearAllReportsADimensionThatRefusesTheToken(t *testing.T) {
 		}
 		control := httptest.NewServer(s.ControlHandler("token-" + name))
 		t.Cleanup(control.Close)
+		servers[name] = s
 		dims[name] = &DimensionControl{BaseURL: control.URL, Token: "token-dim-a"}
 	}
-	if err := NewInjector(toxi, dims).ClearAll(context.Background()); !errors.Is(err, ErrControlToken) {
+	in := NewInjector(toxi, dims)
+	if err := in.Inject(ctx, Fault{Mode: Partial, Target: "dim-a", ErrorRate: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := in.ClearAll(ctx); !errors.Is(err, ErrControlToken) {
 		t.Fatalf("one refusing dimension among two came back as %v", err)
+	}
+	w := httptest.NewRecorder()
+	servers["dim-a"].Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("the dimension that took the token still fails: %d", w.Code)
 	}
 }

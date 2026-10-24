@@ -1,7 +1,5 @@
 x-proxy-token: &proxy-token ${PORTAL_PROXY_TOKEN:?set PORTAL_PROXY_TOKEN}
 
-x-control-token: &control-token ${PORTAL_CONTROL_TOKEN:?set PORTAL_CONTROL_TOKEN}
-
 services:
   postgres:
     environment:
@@ -16,20 +14,7 @@ services:
       PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/portal?sslmode=disable
       PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:?set PORTAL_ADMIN_TOKEN}
       PORTAL_PROXY_TOKEN: *proxy-token
-      PORTAL_CONTROL_TOKEN: *control-token
-
-  dim-c137:
-    environment:
-      PORTAL_CONTROL_TOKEN: *control-token
-  dim-j19:
-    environment:
-      PORTAL_CONTROL_TOKEN: *control-token
-  dim-d99:
-    environment:
-      PORTAL_CONTROL_TOKEN: *control-token
-  dim-cronenberg:
-    environment:
-      PORTAL_CONTROL_TOKEN: *control-token
+      PORTAL_CONTROL_TOKEN: ${PORTAL_CONTROL_TOKEN:?set PORTAL_CONTROL_TOKEN}
 
   web:
     container_name: portalgun-web
