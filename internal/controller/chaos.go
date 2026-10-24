@@ -21,7 +21,6 @@ import (
 type Injector interface {
 	Inject(ctx context.Context, f chaos.Fault) error
 	Clear(ctx context.Context, f chaos.Fault) error
-	ClearAll(ctx context.Context) error
 }
 
 type ChaosLog interface {
@@ -203,10 +202,6 @@ func (c *ChaosService) Stop(ctx context.Context) error {
 	c.timer.Stop()
 	c.clearLocked(ctx, "stopped by an admin")
 	return nil
-}
-
-func (c *ChaosService) Reset(ctx context.Context) error {
-	return c.inj.ClearAll(ctx)
 }
 
 func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fault, action string) {

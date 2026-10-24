@@ -273,10 +273,13 @@ func TestReadyOnlyWhileListeningAndHoldingTheLeaseItNeeds(t *testing.T) {
 
 func TestTheControlPortWantsItsTokenExceptForReadiness(t *testing.T) {
 	s, control := start(t, DefaultBehavior())
+	if status, _ := patch(t, control, `{"errorRate": 0.5}`); status != http.StatusOK {
+		t.Fatalf("patch with the token: %d", status)
+	}
 	for _, auth := range []string{"", "Bearer guess", controlToken} {
 		for _, c := range []struct{ method, path, body string }{
 			{http.MethodGet, "/state", ""},
-			{http.MethodPatch, "/state", `{"errorRate": 1}`},
+			{http.MethodPatch, "/state", `{"errorRate": 1, "listening": false}`},
 			{http.MethodPost, "/reset", ""},
 		} {
 			resp := callControl(t, c.method, control.URL+c.path, auth, c.body)
@@ -289,8 +292,8 @@ func TestTheControlPortWantsItsTokenExceptForReadiness(t *testing.T) {
 	if status, _, _ := get(t, control.URL+"/ready"); status != http.StatusOK {
 		t.Fatalf("readiness without a token: %d", status)
 	}
-	if status, v := patch(t, control, `{}`); status != http.StatusOK || v.ErrorRate != 0 {
-		t.Fatalf("a refused patch changed the behaviour: %d %+v", status, v)
+	if status, v := patch(t, control, `{}`); status != http.StatusOK || v.ErrorRate != 0.5 || !v.Listening {
+		t.Fatalf("a refused patch or reset changed the dimension: %d %+v", status, v)
 	}
 	unconfigured := httptest.NewServer(s.ControlHandler(""))
 	t.Cleanup(unconfigured.Close)

@@ -39,8 +39,6 @@ func (f *fakeInjector) Clear(_ context.Context, fault chaos.Fault) error {
 	return nil
 }
 
-func (f *fakeInjector) ClearAll(context.Context) error { return nil }
-
 func (f *fakeInjector) injections() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

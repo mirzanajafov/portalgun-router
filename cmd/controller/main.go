@@ -86,6 +86,21 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	if postgres == "" || redisAddr == "" {
 		return errors.New("-postgres and -redis are required")
 	}
+	names, controls, err := chaosTargets(o.targets, o.controlToken)
+	if err != nil {
+		return err
+	}
+	var inj *chaos.Injector
+	if o.toxiproxy != "" {
+		inj = chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
+		err = inj.ClearAll(ctx)
+		if errors.Is(err, chaos.ErrControlToken) {
+			return err
+		}
+		if err != nil {
+			logger.Warn("clearing faults left from before", "err", err)
+		}
+	}
 	st, err := store.Open(ctx, postgres)
 	if err != nil {
 		return fmt.Errorf("postgres: %w", err)
@@ -129,16 +144,8 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.proxyToken, logger)
 	}
 	var chaosSvc *controller.ChaosService
-	if o.toxiproxy != "" {
-		names, controls, err := chaosTargets(o.targets, o.controlToken)
-		if err != nil {
-			return err
-		}
-		inj := chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
+	if inj != nil {
 		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, o.proxyToken, logger)
-		if err := chaosSvc.Reset(ctx); err != nil {
-			logger.Warn("clearing faults left from before", "err", err)
-		}
 		api.Extend(func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc) {
 			chaosSvc.Routes(mux, admin, token)
 		})

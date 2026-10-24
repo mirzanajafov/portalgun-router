@@ -6,10 +6,12 @@ x-go: &go
     context: ../..
     dockerfile: Dockerfile
 
+x-control-token: &control-token e3-control-token
+
 x-dimension: &dimension
   <<: *go
   environment:
-    PORTAL_CONTROL_TOKEN: e3-control-token
+    PORTAL_CONTROL_TOKEN: *control-token
   cpus: 0.5
   mem_limit: 64m
 
@@ -53,6 +55,6 @@ services:
     <<: *go
     entrypoint: ["sleep", "infinity"]
     environment:
-      PORTAL_CONTROL_TOKEN: e3-control-token
+      PORTAL_CONTROL_TOKEN: *control-token
     cpus: 3
     mem_limit: 512m

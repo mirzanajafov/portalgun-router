@@ -3,6 +3,7 @@ package chaos
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -202,6 +203,10 @@ func TestPartialPatchesTheDimension(t *testing.T) {
 	}
 	if err := in.Inject(context.Background(), Fault{Mode: Partial, Target: "dim-z", ErrorRate: 1}); err == nil {
 		t.Fatal("unknown dimension accepted")
+	}
+	stale := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control.URL, Token: "old-token"}})
+	if err := stale.Inject(context.Background(), f); !errors.Is(err, ErrControlToken) {
+		t.Fatalf("a refused token came back as %v", err)
 	}
 }
 
