@@ -19,6 +19,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 )
 
 func dim(t *testing.T, id string, mutate func(*dimension.Behavior)) string {
@@ -118,8 +119,8 @@ func TestRoutesByHostThenLongestPrefix(t *testing.T) {
 		{"/api/users", "portal.test:8080", "c"},
 	} {
 		status, h := get(t, srv.Client(), srv.URL+tc.path, tc.host)
-		if status != http.StatusOK || h.Get(dimension.IDHeader) != tc.want || h.Get(DimensionHeader) != tc.want {
-			t.Errorf("%s %s: status %d dimension %q/%q, want %s", tc.host, tc.path, status, h.Get(dimension.IDHeader), h.Get(DimensionHeader), tc.want)
+		if status != http.StatusOK || h.Get(dimension.IDHeader) != tc.want || h.Get(gatewayapi.DimensionHeader) != tc.want {
+			t.Errorf("%s %s: status %d dimension %q/%q, want %s", tc.host, tc.path, status, h.Get(dimension.IDHeader), h.Get(gatewayapi.DimensionHeader), tc.want)
 		}
 	}
 }
@@ -142,7 +143,7 @@ func TestP2CMovesTrafficOffASlowDimension(t *testing.T) {
 	counts := map[string]int{}
 	for range 200 {
 		_, h := get(t, srv.Client(), srv.URL+"/", "")
-		counts[h.Get(DimensionHeader)]++
+		counts[h.Get(gatewayapi.DimensionHeader)]++
 	}
 	if counts["fast"] < 180 {
 		t.Fatalf("counts %v, want almost everything on the fast dimension", counts)
@@ -157,7 +158,7 @@ func TestRoundRobinSpreadsEvenly(t *testing.T) {
 	counts := map[string]int{}
 	for range 100 {
 		_, h := get(t, srv.Client(), srv.URL+"/", "")
-		counts[h.Get(DimensionHeader)]++
+		counts[h.Get(gatewayapi.DimensionHeader)]++
 	}
 	if counts["a"] != 50 || counts["b"] != 50 {
 		t.Fatalf("counts %v", counts)

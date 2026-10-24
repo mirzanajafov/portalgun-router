@@ -6,16 +6,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
-
-type GatewayEvent struct {
-	UnixNano  int64  `json:"unixNano"`
-	Dimension string `json:"dimension"`
-	State     string `json:"state"`
-	Reason    string `json:"reason,omitempty"`
-}
 
 type Window struct {
 	Mode      string `json:"mode"`
@@ -192,7 +186,7 @@ func ms(d int64) *float64 {
 	return &v
 }
 
-func Analyze(lg *loadgen.Log, w Window, events []GatewayEvent, opt Options) Result {
+func Analyze(lg *loadgen.Log, w Window, events []gatewayapi.DimensionEvent, opt Options) Result {
 	rs := requests(lg, w.Target)
 	end := lg.StartUnixNano
 	if len(rs) > 0 {

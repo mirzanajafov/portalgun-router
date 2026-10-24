@@ -22,13 +22,10 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/balance"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/limit"
-)
-
-const (
-	DimensionHeader = "X-Portal-Dimension"
-	AttemptsHeader  = "X-Portal-Attempts"
 )
 
 type upstreamSpec struct {
@@ -168,7 +165,7 @@ func keyFor(req *http.Request, header string, hops int) string {
 			return "key:" + v
 		}
 	}
-	return "ip:" + ClientIP(req, hops)
+	return "ip:" + httpx.ClientIP(req, hops)
 }
 
 func (r *route) splitting() bool {
@@ -180,35 +177,6 @@ func (r *route) pick(key string, split bool) *httputil.ReverseProxy {
 		return r.canaryProxy
 	}
 	return r.proxy
-}
-
-func ClientIP(req *http.Request, hops int) string {
-	host, _, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
-		host = req.RemoteAddr
-	}
-	if hops <= 0 {
-		return host
-	}
-	values := req.Header["X-Forwarded-For"]
-	seen := 0
-	for i := len(values) - 1; i >= 0; i-- {
-		rest := values[i]
-		for rest != "" {
-			part := rest
-			if j := strings.LastIndexByte(rest, ','); j >= 0 {
-				part, rest = rest[j+1:], rest[:j]
-			} else {
-				rest = ""
-			}
-			if p := strings.TrimSpace(part); p != "" {
-				if seen++; seen == hops {
-					return p
-				}
-			}
-		}
-	}
-	return host
 }
 
 type routeLimiter struct {
@@ -262,7 +230,7 @@ type Gateway struct {
 	inflight  atomic.Int64
 
 	cluster  atomic.Int64
-	latest   atomic.Pointer[Snapshot]
+	latest   atomic.Pointer[gatewayapi.Snapshot]
 	stopTick chan struct{}
 	tickDone chan struct{}
 
@@ -271,24 +239,17 @@ type Gateway struct {
 	upstreams   map[string]*upstream
 	limiters    map[string]*routeLimiter
 	routeStats  map[string]*routeStats
-	subscribers []func(Snapshot)
+	subscribers []func(gatewayapi.Snapshot)
 	closed      bool
 
 	eventsMu sync.Mutex
-	events   []DimensionEvent
+	events   []gatewayapi.DimensionEvent
 }
 
 const eventLog = 4096
 
-type DimensionEvent struct {
-	UnixNano  int64  `json:"unixNano"`
-	Dimension string `json:"dimension"`
-	State     string `json:"state"`
-	Reason    string `json:"reason,omitempty"`
-}
-
 func (g *Gateway) logEvent(id string, at int64, state, reason string) {
-	e := DimensionEvent{UnixNano: g.epoch.UnixNano() + at, Dimension: id, State: state, Reason: reason}
+	e := gatewayapi.DimensionEvent{UnixNano: g.epoch.UnixNano() + at, Dimension: id, State: state, Reason: reason}
 	g.eventsMu.Lock()
 	defer g.eventsMu.Unlock()
 	if len(g.events) >= eventLog {
@@ -297,16 +258,16 @@ func (g *Gateway) logEvent(id string, at int64, state, reason string) {
 	g.events = append(g.events, e)
 }
 
-func (g *Gateway) Events(since int64) []DimensionEvent {
+func (g *Gateway) Events(since int64) []gatewayapi.DimensionEvent {
 	g.eventsMu.Lock()
 	defer g.eventsMu.Unlock()
-	out := []DimensionEvent{}
+	out := []gatewayapi.DimensionEvent{}
 	for _, e := range g.events {
 		if e.UnixNano >= since {
 			out = append(out, e)
 		}
 	}
-	slices.SortStableFunc(out, func(a, b DimensionEvent) int { return cmp.Compare(a.UnixNano, b.UnixNano) })
+	slices.SortStableFunc(out, func(a, b gatewayapi.DimensionEvent) int { return cmp.Compare(a.UnixNano, b.UnixNano) })
 	return out
 }
 
@@ -354,9 +315,9 @@ func (g *Gateway) SetClusterVersion(v int64) { g.cluster.Store(v) }
 
 func (g *Gateway) ClusterVersion() int64 { return g.cluster.Load() }
 
-func (g *Gateway) Latest() *Snapshot { return g.latest.Load() }
+func (g *Gateway) Latest() *gatewayapi.Snapshot { return g.latest.Load() }
 
-func (g *Gateway) Subscribe(fn func(Snapshot)) {
+func (g *Gateway) Subscribe(fn func(gatewayapi.Snapshot)) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.subscribers = append(g.subscribers, fn)
@@ -377,15 +338,15 @@ func (g *Gateway) tickLoop() {
 	}
 }
 
-func (g *Gateway) Tick(second int64) Snapshot {
+func (g *Gateway) Tick(second int64) gatewayapi.Snapshot {
 	now := g.now()
 	s := g.snap.Load()
-	snap := Snapshot{
+	snap := gatewayapi.Snapshot{
 		Instance:      g.instance,
 		Second:        second,
 		ConfigVersion: s.version,
 		ClusterConfig: g.cluster.Load(),
-		Routes:        map[string]RouteSnapshot{},
+		Routes:        map[string]gatewayapi.RouteSnapshot{},
 	}
 	g.mu.Lock()
 	for _, r := range s.routes {
@@ -395,7 +356,7 @@ func (g *Gateway) Tick(second int64) Snapshot {
 	}
 	for _, u := range g.upstreams {
 		lat := u.counters.latency.Drain()
-		d := DimensionSnapshot{
+		d := gatewayapi.DimensionSnapshot{
 			ID:       u.id,
 			Version:  u.version,
 			Attempts: u.counters.attempts.Swap(0),
@@ -416,7 +377,7 @@ func (g *Gateway) Tick(second int64) Snapshot {
 	}
 	subs := slices.Clone(g.subscribers)
 	g.mu.Unlock()
-	slices.SortFunc(snap.Dimensions, func(a, b DimensionSnapshot) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(snap.Dimensions, func(a, b gatewayapi.DimensionSnapshot) int { return strings.Compare(a.ID, b.ID) })
 	g.latest.Store(&snap)
 	for _, fn := range subs {
 		fn(snap)
@@ -756,32 +717,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt.metrics.duration.Observe(time.Since(began).Seconds())
 }
 
-type Upstream struct {
-	ID          string       `json:"id"`
-	Version     string       `json:"version"`
-	Address     string       `json:"address"`
-	Inflight    int64        `json:"inflight"`
-	MaxInflight int64        `json:"maxInflight"`
-	LatencyMs   float64      `json:"latencyMs"`
-	Healthy     bool         `json:"healthy"`
-	Outlier     health.State `json:"outlier"`
-	EjectedMs   float64      `json:"ejectedForMs,omitempty"`
-}
-
-type State struct {
-	Version     int64      `json:"version"`
-	Inflight    int64      `json:"inflight"`
-	MaxInflight int64      `json:"maxInflight"`
-	Upstreams   []Upstream `json:"upstreams"`
-}
-
-func (g *Gateway) State() State {
+func (g *Gateway) State() gatewayapi.State {
 	now := g.now()
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	st := State{Version: g.version, Inflight: g.inflight.Load(), MaxInflight: g.snap.Load().maxInflight}
+	st := gatewayapi.State{Version: g.version, Inflight: g.inflight.Load(), MaxInflight: g.snap.Load().maxInflight}
 	for _, u := range g.upstreams {
-		v := Upstream{
+		v := gatewayapi.Upstream{
 			ID:          u.id,
 			Version:     u.version,
 			Address:     u.address,
@@ -799,6 +741,6 @@ func (g *Gateway) State() State {
 		}
 		st.Upstreams = append(st.Upstreams, v)
 	}
-	slices.SortFunc(st.Upstreams, func(a, b Upstream) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(st.Upstreams, func(a, b gatewayapi.Upstream) int { return strings.Compare(a.ID, b.ID) })
 	return st
 }

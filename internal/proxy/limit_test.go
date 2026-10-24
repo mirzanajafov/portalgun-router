@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -77,7 +78,7 @@ func TestDecisionsAreRecordedAndDrained(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got Decisions
+	var got gatewayapi.Decisions
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
@@ -115,18 +116,6 @@ func TestLimitKeyFromAHeader(t *testing.T) {
 			if want := map[bool]int{true: 200, false: 429}[i < 2]; code != want {
 				t.Fatalf("%s request %d: %d, want %d", key, i+1, code, want)
 			}
-		}
-	}
-}
-
-func TestClientIPTrustsOnlyTheConfiguredHops(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "10.0.0.2:4000"
-	req.Header.Add("X-Forwarded-For", "6.6.6.6, 1.2.3.4")
-	req.Header.Add("X-Forwarded-For", "10.0.0.1")
-	for hops, want := range map[int]string{0: "10.0.0.2", 1: "10.0.0.1", 2: "1.2.3.4", 3: "6.6.6.6", 4: "10.0.0.2"} {
-		if got := ClientIP(req, hops); got != want {
-			t.Errorf("hops %d: %s, want %s", hops, got, want)
 		}
 	}
 }

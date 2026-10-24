@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
@@ -38,12 +39,12 @@ type Cell struct {
 }
 
 type Report struct {
-	Label     string          `json:"label"`
-	Window    Window          `json:"window"`
-	Config    json.RawMessage `json:"config,omitempty"`
-	Generator loadgen.Summary `json:"generator"`
-	Events    []GatewayEvent  `json:"events"`
-	Result    Result          `json:"result"`
+	Label     string                      `json:"label"`
+	Window    Window                      `json:"window"`
+	Config    json.RawMessage             `json:"config,omitempty"`
+	Generator loadgen.Summary             `json:"generator"`
+	Events    []gatewayapi.DimensionEvent `json:"events"`
+	Result    Result                      `json:"result"`
 }
 
 func (c Cell) validate() error {
@@ -147,13 +148,13 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 
 	rep := &Report{Label: c.Label, Window: w, Generator: out.res.Summary}
 	for _, admin := range c.Admins {
-		var evs []GatewayEvent
-		if err := getJSON(ctx, client, fmt.Sprintf("%s/events?since=%d", admin, start.UnixNano()), &evs); err != nil {
+		var evs []gatewayapi.DimensionEvent
+		if err := httpx.GetJSON(ctx, client, fmt.Sprintf("%s/events?since=%d", admin, start.UnixNano()), &evs); err != nil {
 			return nil, fmt.Errorf("gateway events: %w", err)
 		}
 		rep.Events = append(rep.Events, evs...)
 	}
-	if err := getJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
+	if err := httpx.GetJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
 		return nil, fmt.Errorf("gateway config: %w", err)
 	}
 	rep.Result = Analyze(out.res.Log, w, rep.Events, c.Options)
@@ -206,22 +207,14 @@ func sleepUntil(ctx context.Context, at time.Time) bool {
 	}
 }
 
-type upstreamState struct {
-	Upstreams []struct {
-		ID      string       `json:"id"`
-		Healthy bool         `json:"healthy"`
-		Outlier health.State `json:"outlier"`
-	} `json:"upstreams"`
-}
-
 func waitReady(ctx context.Context, client *http.Client, admins []string, limit time.Duration) error {
 	deadline := time.Now().Add(limit)
 	for {
 		ready := true
 		var why string
 		for _, admin := range admins {
-			var st upstreamState
-			if err := getJSON(ctx, client, admin+"/state", &st); err != nil {
+			var st gatewayapi.State
+			if err := httpx.GetJSON(ctx, client, admin+"/state", &st); err != nil {
 				ready, why = false, err.Error()
 				break
 			}
@@ -241,23 +234,6 @@ func waitReady(ctx context.Context, client *http.Client, admins []string, limit 
 			return ctx.Err()
 		}
 	}
-}
-
-func getJSON(ctx context.Context, client *http.Client, url string, v any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return fmt.Errorf("%s: %s: %s", url, resp.Status, msg)
-	}
-	return json.NewDecoder(resp.Body).Decode(v)
 }
 
 func writeRecords(path string, l *loadgen.Log) error {

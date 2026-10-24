@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mirzanajafov/portalgun-router/internal/health"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/stats"
 )
 
@@ -96,8 +96,8 @@ func (rs *routeStats) resetBrake(rollout string) {
 	rs.brakeOn.Store(false)
 }
 
-func (rs *routeStats) tick() RouteSnapshot {
-	snap := RouteSnapshot{
+func (rs *routeStats) tick() gatewayapi.RouteSnapshot {
+	snap := gatewayapi.RouteSnapshot{
 		Requests: rs.requests.Swap(0),
 		Limited:  rs.limited.Swap(0),
 		Failed:   rs.failed.Swap(0),
@@ -105,7 +105,7 @@ func (rs *routeStats) tick() RouteSnapshot {
 	}
 	for i := range rs.versions {
 		v := &rs.versions[i]
-		snap.Versions[i] = VersionSnapshot{Attempts: v.attempts.Swap(0), Errors: v.errors.Swap(0), Slow: v.slow.Swap(0)}
+		snap.Versions[i] = gatewayapi.VersionSnapshot{Attempts: v.attempts.Swap(0), Errors: v.errors.Swap(0), Slow: v.slow.Swap(0)}
 	}
 	rs.rolling.Push(rs.stable.Drain())
 	sum := rs.rolling.Sum()
@@ -130,47 +130,6 @@ type upstreamCounters struct {
 	attempts atomic.Int64
 	errors   atomic.Int64
 	latency  stats.Histogram
-}
-
-type VersionSnapshot struct {
-	Attempts int64 `json:"attempts"`
-	Errors   int64 `json:"errors"`
-	Slow     int64 `json:"slow"`
-}
-
-type RouteSnapshot struct {
-	Requests        int64              `json:"requests"`
-	Limited         int64              `json:"limited"`
-	Failed          int64              `json:"failed"`
-	Stable          string             `json:"stable,omitempty"`
-	Canary          string             `json:"canary,omitempty"`
-	Weight          float64            `json:"weight"`
-	Rollout         string             `json:"rollout,omitempty"`
-	Versions        [2]VersionSnapshot `json:"versions"`
-	SlowThresholdMs float64            `json:"slowThresholdMs"`
-	Brake           bool               `json:"brake,omitempty"`
-}
-
-type DimensionSnapshot struct {
-	ID        string       `json:"id"`
-	Version   string       `json:"version"`
-	Attempts  int64        `json:"attempts"`
-	Errors    int64        `json:"errors"`
-	P50Ms     float64      `json:"p50Ms"`
-	P99Ms     float64      `json:"p99Ms"`
-	Inflight  int64        `json:"inflight"`
-	Healthy   bool         `json:"healthy"`
-	Outlier   health.State `json:"outlier"`
-	EjectedMs float64      `json:"ejectedForMs,omitempty"`
-}
-
-type Snapshot struct {
-	Instance      string                   `json:"instance"`
-	Second        int64                    `json:"second"`
-	ConfigVersion int64                    `json:"configVersion"`
-	ClusterConfig int64                    `json:"clusterConfig"`
-	Routes        map[string]RouteSnapshot `json:"routes"`
-	Dimensions    []DimensionSnapshot      `json:"dimensions"`
 }
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }

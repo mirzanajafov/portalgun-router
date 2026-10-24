@@ -9,6 +9,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 )
 
 func canaryConfig(t *testing.T, stable, canary string, weight float64, rollout string) *config.Config {
@@ -45,7 +46,7 @@ func from(t *testing.T, url, client string) (int, string) {
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
-	return resp.StatusCode, resp.Header.Get(DimensionHeader)
+	return resp.StatusCode, resp.Header.Get(gatewayapi.DimensionHeader)
 }
 
 func TestCanarySplitIsWeightedAndSticky(t *testing.T) {
@@ -101,7 +102,7 @@ func TestRetriesFromACanaryLandOnStable(t *testing.T) {
 	if snap.Routes["all"].Requests != 5 || snap.Routes["all"].Failed != 0 {
 		t.Fatalf("requests %d, failed %d", snap.Routes["all"].Requests, snap.Routes["all"].Failed)
 	}
-	dims := map[string]DimensionSnapshot{}
+	dims := map[string]gatewayapi.DimensionSnapshot{}
 	for _, d := range snap.Dimensions {
 		dims[d.ID] = d
 	}

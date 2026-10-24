@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -71,11 +70,11 @@ func (a *API) State() State {
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok\n") })
-	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, a.State()) })
+	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, _ *http.Request) { httpx.WriteJSON(w, http.StatusOK, a.State()) })
 	mux.HandleFunc("GET /api/events", a.events)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		raw, v := a.cfgs.Raw()
-		writeJSON(w, http.StatusOK, map[string]any{"version": v, "config": raw})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"version": v, "config": raw})
 	})
 	mux.HandleFunc("PUT /api/config", a.admin(a.putConfig))
 	mux.HandleFunc("GET /api/config/history", func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +86,7 @@ func (a *API) Handler() http.Handler {
 		respond(w, h, err)
 	})
 	mux.HandleFunc("GET /api/admin", a.admin(func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]bool{"admin": true})
+		httpx.WriteJSON(w, http.StatusOK, map[string]bool{"admin": true})
 	}))
 	mux.HandleFunc("POST /api/rollouts", a.startRollout)
 	mux.HandleFunc("POST /api/rollouts/abort", a.admin(a.abortRollout))
@@ -97,29 +96,25 @@ func (a *API) Handler() http.Handler {
 	return mux
 }
 
+const adminOnly = "this needs the admin token"
+
 func (a *API) admin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !httpx.Authorized(r, a.token) {
-			unauthorized(w)
-			return
-		}
-		next(w, r)
-	}
+	return httpx.RequireBearer(a.token, adminOnly, next)
 }
 
 func unauthorized(w http.ResponseWriter) {
-	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this needs the admin token"})
+	httpx.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": adminOnly})
 }
 
 func uncounted(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
-	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
+	httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
 }
 
 func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	reason := r.Header.Get("X-Reason")
@@ -128,10 +123,10 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := a.cfgs.Replace(r.Context(), store.ActorAdmin, reason, body)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int64{"version": v})
+	httpx.WriteJSON(w, http.StatusOK, map[string]int64{"version": v})
 }
 
 func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +147,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	}
 	if author == store.ActorVisitor {
 		if a.engine.Status().Active {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
+			httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
 			return
 		}
 		exceeded, err := a.visitors.exceeded(r.Context(), a.visitors.client(r))
@@ -162,18 +157,18 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 		}
 		if exceeded {
 			w.Header().Set("Retry-After", fmt.Sprint(int(time.Hour.Seconds())))
-			writeJSON(w, http.StatusTooManyRequests, map[string]any{"error": ErrRolloutLimit.Error(), "retryAfterSec": time.Hour.Seconds()})
+			httpx.WriteJSON(w, http.StatusTooManyRequests, map[string]any{"error": ErrRolloutLimit.Error(), "retryAfterSec": time.Hour.Seconds()})
 			return
 		}
 	}
 	ro, err := a.engine.Start(r.Context(), req.Route, req.Canary, author)
 	switch {
 	case errors.Is(err, ErrBusy):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case err != nil:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
-		writeJSON(w, http.StatusCreated, ro)
+		httpx.WriteJSON(w, http.StatusCreated, ro)
 	}
 }
 
@@ -188,10 +183,10 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 		req.Reason = "aborted by an admin"
 	}
 	if err := a.engine.Abort(r.Context(), req.Reason); err != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, a.engine.Status())
+	httpx.WriteJSON(w, http.StatusOK, a.engine.Status())
 }
 
 func (a *API) events(w http.ResponseWriter, r *http.Request) {
@@ -230,10 +225,8 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) error {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil && !errors.Is(err, io.EOF) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	if err := httpx.ReadJSON(w, r, v); err != nil && !errors.Is(err, io.EOF) {
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return err
 	}
 	return nil
@@ -241,14 +234,8 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 
 func respond(w http.ResponseWriter, v any, err error) {
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, v)
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	httpx.WriteJSON(w, http.StatusOK, v)
 }

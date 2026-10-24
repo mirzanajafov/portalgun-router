@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 )
 
 type fakeRegistry struct {
@@ -68,12 +70,6 @@ func (f *fakeRegistry) snapshot() ([]Instance, uint64, int, []uint64) {
 	return list, f.index, f.keepalives, slices.Sorted(maps.Keys(f.leases))
 }
 
-func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
 func (f *fakeRegistry) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/registry/{service}", func(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +86,7 @@ func (f *fakeRegistry) handler() http.Handler {
 			}
 		}
 		list, at, _, _ := f.snapshot()
-		writeJSON(w, http.StatusOK, map[string]any{"index": at, "instances": list})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"index": at, "instances": list})
 	})
 	mux.HandleFunc("PUT /v1/registry/{service}/{instance}", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
@@ -100,7 +96,7 @@ func (f *fakeRegistry) handler() http.Handler {
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &in)
 		lease := f.add(Instance{Name: r.PathValue("instance"), Addr: in.Addr, Meta: in.Meta})
-		writeJSON(w, http.StatusOK, map[string]any{"lease": lease, "ttl": f.ttl.String()})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"lease": lease, "ttl": f.ttl.String()})
 	})
 	mux.HandleFunc("POST /v1/leases/{id}/keepalive", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.ParseUint(r.PathValue("id"), 10, 64)
@@ -112,12 +108,12 @@ func (f *fakeRegistry) handler() http.Handler {
 			ok = false
 		}
 		if !ok {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "gone", "reason": "LEASE_NOT_FOUND"})
+			httpx.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "gone", "reason": "LEASE_NOT_FOUND"})
 			return
 		}
 		f.renewed[id] = time.Now()
 		f.keepalives++
-		writeJSON(w, http.StatusOK, map[string]string{"ttl": f.ttl.String()})
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"ttl": f.ttl.String()})
 	})
 	mux.HandleFunc("DELETE /v1/leases/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.ParseUint(r.PathValue("id"), 10, 64)
@@ -148,7 +144,7 @@ func (n *node) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch mode(n.mode.Load()) {
 	case failing:
 		w.Header().Set("Retry-After", "1")
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "no leader"})
+		httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "no leader"})
 	case hanging:
 		<-r.Context().Done()
 	default:
@@ -343,7 +339,7 @@ func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
 func TestAnAnswerWithoutALeaseOrATTLIsNotARegistration(t *testing.T) {
 	for _, half := range []map[string]any{{"lease": 63}, {"ttl": "10s"}} {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, half)
+			httpx.WriteJSON(w, http.StatusOK, half)
 		}))
 		c, err := New([]string{srv.URL})
 		if err != nil {

@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -248,8 +248,8 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	tick := func(sec int64, attemptsA int64, healthy bool, outlier health.State, failed int64) {
 		svc.Observe(Merged{
 			Second: sec,
-			Routes: map[string]proxy.RouteSnapshot{"api": {Failed: failed}},
-			Dimensions: []proxy.DimensionSnapshot{
+			Routes: map[string]gatewayapi.RouteSnapshot{"api": {Failed: failed}},
+			Dimensions: []gatewayapi.DimensionSnapshot{
 				{ID: "dim-a", Attempts: attemptsA, Healthy: healthy, Outlier: outlier},
 				{ID: "dim-b", Attempts: 900 - attemptsA, Healthy: true, Outlier: health.Closed},
 			},

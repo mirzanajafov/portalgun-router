@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/httpx"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -223,7 +223,7 @@ func (c *ChaosService) Observe(m Merged) {
 	for _, r := range m.Routes {
 		failed += r.Failed
 	}
-	byID := map[string]proxy.DimensionSnapshot{}
+	byID := map[string]gatewayapi.DimensionSnapshot{}
 	for _, d := range m.Dimensions {
 		total += d.Attempts
 		byID[d.ID] = d
@@ -270,7 +270,7 @@ func (c *ChaosService) View() ChaosView {
 }
 
 func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc, token string) {
-	mux.HandleFunc("GET /api/chaos", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, c.View()) })
+	mux.HandleFunc("GET /api/chaos", func(w http.ResponseWriter, _ *http.Request) { httpx.WriteJSON(w, http.StatusOK, c.View()) })
 	mux.HandleFunc("POST /api/chaos", func(w http.ResponseWriter, r *http.Request) {
 		var req ChaosRequest
 		if err := decode(w, r, &req); err != nil {
@@ -288,7 +288,7 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			if errors.Is(err, ErrChaosBusy) {
 				status = http.StatusConflict
 			}
-			writeJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
+			httpx.WriteJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
 		case errors.Is(err, ErrLimitUnchecked):
 			uncounted(w)
 		case errors.Is(err, ErrChaosFailed):
@@ -297,18 +297,18 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			if authorized {
 				msg = err.Error()
 			}
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": msg})
+			httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": msg})
 		case err != nil:
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		default:
-			writeJSON(w, http.StatusCreated, run)
+			httpx.WriteJSON(w, http.StatusCreated, run)
 		}
 	})
 	mux.HandleFunc("DELETE /api/chaos", admin(func(w http.ResponseWriter, r *http.Request) {
 		if err := c.Stop(r.Context()); err != nil {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, c.View())
+		httpx.WriteJSON(w, http.StatusOK, c.View())
 	}))
 }

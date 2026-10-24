@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -112,14 +112,14 @@ func (w *Watcher) Run(ctx context.Context) {
 type Publisher struct {
 	rdb    *redis.Client
 	logger *slog.Logger
-	queue  chan proxy.Snapshot
+	queue  chan gatewayapi.Snapshot
 }
 
 func NewPublisher(rdb *redis.Client, logger *slog.Logger) *Publisher {
-	return &Publisher{rdb: rdb, logger: logger, queue: make(chan proxy.Snapshot, 8)}
+	return &Publisher{rdb: rdb, logger: logger, queue: make(chan gatewayapi.Snapshot, 8)}
 }
 
-func (p *Publisher) Offer(s proxy.Snapshot) {
+func (p *Publisher) Offer(s gatewayapi.Snapshot) {
 	select {
 	case p.queue <- s:
 	default:
@@ -146,8 +146,8 @@ func (p *Publisher) Run(ctx context.Context) {
 	}
 }
 
-func DecodeSnapshot(msg redis.XMessage) (proxy.Snapshot, error) {
-	var s proxy.Snapshot
+func DecodeSnapshot(msg redis.XMessage) (gatewayapi.Snapshot, error) {
+	var s gatewayapi.Snapshot
 	raw, ok := msg.Values["s"].(string)
 	if !ok {
 		return s, errors.New("snapshot entry without a payload")

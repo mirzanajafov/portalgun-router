@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/limit"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 	"github.com/redis/go-redis/v9"
@@ -166,7 +168,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	}
 
 	rep := &Report{Label: c.Label, Generator: res.Summary}
-	var all []limit.Logged
+	var all []gatewayapi.Decision
 	for i, a := range c.Admins {
 		d, err := drain(ctx, client, a)
 		if err != nil {
@@ -196,33 +198,19 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 		v := limit.Replay(all, c.Rule)
 		rep.Verdict = &v
 	}
-	if err := getJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
+	if err := httpx.GetJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
 		return nil, err
 	}
 	return rep, nil
 }
 
-type decisions struct {
-	Recording bool           `json:"recording"`
-	Dropped   int64          `json:"dropped"`
-	Decisions []limit.Logged `json:"decisions"`
-}
-
-func drain(ctx context.Context, client *http.Client, admin string) (decisions, error) {
-	var d decisions
+func drain(ctx context.Context, client *http.Client, admin string) (gatewayapi.Decisions, error) {
+	var d gatewayapi.Decisions
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, admin+"/decisions/drain", nil)
 	if err != nil {
 		return d, err
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return d, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return d, fmt.Errorf("%s: %s", admin, resp.Status)
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&d); err != nil {
+	if err := httpx.Do(client, req, &d, http.StatusOK); err != nil {
 		return d, err
 	}
 	if !d.Recording {
@@ -366,13 +354,9 @@ func waitUp(ctx context.Context, client *http.Client, admin string, patience tim
 		if err != nil {
 			return err
 		}
-		resp, err := client.Do(req)
+		err = httpx.Do(client, req, nil, http.StatusOK)
 		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
-			err = errors.New(resp.Status)
+			return nil
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("%s not up after %v: %w", admin, patience, err)
@@ -383,20 +367,4 @@ func waitUp(ctx context.Context, client *http.Client, admin string, patience tim
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
-}
-
-func getJSON(ctx context.Context, client *http.Client, url string, v any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: %s", url, resp.Status)
-	}
-	return json.NewDecoder(resp.Body).Decode(v)
 }

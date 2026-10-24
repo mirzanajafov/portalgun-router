@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -111,7 +111,7 @@ func TestPublisherWritesSnapshots(t *testing.T) {
 	ctx := t.Context()
 	p := NewPublisher(rdb, quiet())
 	go p.Run(ctx)
-	p.Offer(proxy.Snapshot{Instance: "gw-1", Second: 42, Routes: map[string]proxy.RouteSnapshot{"all": {Requests: 7}}})
+	p.Offer(gatewayapi.Snapshot{Instance: "gw-1", Second: 42, Routes: map[string]gatewayapi.RouteSnapshot{"all": {Requests: 7}}})
 	var msgs []redis.XMessage
 	deadline := time.Now().Add(2 * time.Second)
 	for len(msgs) == 0 && time.Now().Before(deadline) {

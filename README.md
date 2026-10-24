@@ -271,6 +271,7 @@ Each gateway has an admin listener that is never published: `/healthz`, `/metric
 | `internal/canary` | the SPRT, the end-of-step test and the rollout rules |
 | `cmd/controller`, `internal/controller`, `internal/store`, `internal/chaos` | the control plane |
 | `internal/registry` | the client for FiveFamilies' registry |
+| `internal/gatewayapi`, `internal/httpx` | what a gateway tells the rest (its headers, the snapshot it publishes every second, its admin answers), and the HTTP pieces every service shares |
 | `cmd/dimension`, `cmd/traffic` | the upstreams and the demo's traffic |
 | `cmd/loadgen`, `cmd/bench`, `internal/bench`, `bench/` | the load generator, the experiments and their stacks, and every result |
 | `cmd/canarysim` | the canary simulator |

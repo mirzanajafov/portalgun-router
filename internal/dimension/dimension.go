@@ -2,7 +2,6 @@ package dimension
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -278,22 +277,15 @@ func sleep(ctx context.Context, d time.Duration) bool {
 }
 
 func (s *Server) ControlHandler(token string) http.Handler {
+	control := func(next http.HandlerFunc) http.HandlerFunc {
+		return httpx.RequireBearer(token, "this needs the control token", next)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ready", s.ready)
-	mux.HandleFunc("GET /state", withToken(token, s.getState))
-	mux.HandleFunc("PATCH /state", withToken(token, s.patchState))
-	mux.HandleFunc("POST /reset", withToken(token, s.reset))
+	mux.HandleFunc("GET /state", control(s.getState))
+	mux.HandleFunc("PATCH /state", control(s.patchState))
+	mux.HandleFunc("POST /reset", control(s.reset))
 	return mux
-}
-
-func withToken(token string, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !httpx.Authorized(r, token) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this needs the control token"})
-			return
-		}
-		next(w, r)
-	}
 }
 
 func (s *Server) view() View {
@@ -323,32 +315,30 @@ func (s *Server) getState(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	v := s.view()
 	s.mu.Unlock()
-	writeJSON(w, http.StatusOK, v)
+	httpx.WriteJSON(w, http.StatusOK, v)
 }
 
 func (s *Server) patchState(w http.ResponseWriter, r *http.Request) {
 	var p Patch
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&p); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	if err := httpx.ReadJSON(w, r, &p); err != nil {
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	b := p.apply(s.state.Load().b)
 	if err := b.Validate(); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	if p.Listening != nil {
 		if err := s.setListeningLocked(*p.Listening); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 	}
 	s.state.Store(newState(b))
-	writeJSON(w, http.StatusOK, s.view())
+	httpx.WriteJSON(w, http.StatusOK, s.view())
 }
 
 func (s *Server) reset(w http.ResponseWriter, _ *http.Request) {
@@ -356,10 +346,10 @@ func (s *Server) reset(w http.ResponseWriter, _ *http.Request) {
 	defer s.mu.Unlock()
 	s.state.Store(newState(s.initial))
 	if err := s.setListeningLocked(true); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, s.view())
+	httpx.WriteJSON(w, http.StatusOK, s.view())
 }
 
 func (s *Server) setListeningLocked(on bool) error {
@@ -372,10 +362,4 @@ func (s *Server) setListeningLocked(on bool) error {
 	err := s.data.Close()
 	s.data = nil
 	return err
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
 }

@@ -4,13 +4,9 @@ import (
 	"cmp"
 	"slices"
 	"time"
-)
 
-type Logged struct {
-	UnixNano int64  `json:"t"`
-	Key      string `json:"k"`
-	Allowed  bool   `json:"a"`
-}
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
+)
 
 type Window struct {
 	Key      string  `json:"key"`
@@ -32,9 +28,9 @@ type Verdict struct {
 	WorstRatio     float64 `json:"worstRatio"`
 }
 
-func Replay(ds []Logged, rule Rule) Verdict {
+func Replay(ds []gatewayapi.Decision, rule Rule) Verdict {
 	sorted := slices.Clone(ds)
-	slices.SortStableFunc(sorted, func(a, b Logged) int { return cmp.Compare(a.UnixNano, b.UnixNano) })
+	slices.SortStableFunc(sorted, func(a, b gatewayapi.Decision) int { return cmp.Compare(a.UnixNano, b.UnixNano) })
 	perfect := NewBuckets(rule)
 	admits := map[string][]int64{}
 	var v Verdict

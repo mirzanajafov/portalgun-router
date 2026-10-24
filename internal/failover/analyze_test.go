@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
@@ -36,7 +37,7 @@ func TestAnalyzeACrash(t *testing.T) {
 		return d, 200
 	})
 	w := Window{Mode: "crash", Target: "a", InjectAt: sec(20), InjectAck: sec(20.001), ClearAt: sec(30), ClearAck: sec(30.001)}
-	events := []GatewayEvent{
+	events := []gatewayapi.DimensionEvent{
 		{UnixNano: sec(1), Dimension: "a", State: "ejected", Reason: "before the settle window"},
 		{UnixNano: sec(12), Dimension: "b", State: "ejected", Reason: "noise"},
 		{UnixNano: sec(20.3), Dimension: "a", State: "ejected", Reason: "connection refused"},

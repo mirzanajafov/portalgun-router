@@ -8,8 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"slices"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 )
 
 type Toxiproxy struct {
@@ -50,17 +51,10 @@ func (t *Toxiproxy) do(ctx context.Context, method, path string, body any, want 
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := t.Client.Do(req)
-	if err != nil {
-		return fmt.Errorf("toxiproxy %s %s: %w", method, path, err)
+	if err := httpx.Do(t.Client, req, nil, want...); err != nil {
+		return fmt.Errorf("toxiproxy: %w", err)
 	}
-	defer resp.Body.Close()
-	if slices.Contains(want, resp.StatusCode) {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return nil
-	}
-	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-	return fmt.Errorf("toxiproxy %s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(msg))
+	return nil
 }
 
 func (t *Toxiproxy) Populate(ctx context.Context, proxies []Proxy) error {

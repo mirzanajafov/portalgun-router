@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 )
 
 const (
@@ -16,11 +16,11 @@ const (
 )
 
 type Merged struct {
-	Second         int64                          `json:"second"`
-	Instances      []string                       `json:"instances"`
-	ConfigVersions map[string]int64               `json:"configVersions"`
-	Routes         map[string]proxy.RouteSnapshot `json:"routes"`
-	Dimensions     []proxy.DimensionSnapshot      `json:"dimensions"`
+	Second         int64                               `json:"second"`
+	Instances      []string                            `json:"instances"`
+	ConfigVersions map[string]int64                    `json:"configVersions"`
+	Routes         map[string]gatewayapi.RouteSnapshot `json:"routes"`
+	Dimensions     []gatewayapi.DimensionSnapshot      `json:"dimensions"`
 }
 
 func (m Merged) MinConfig() int64 {
@@ -35,17 +35,17 @@ func (m Merged) MinConfig() int64 {
 
 type Aggregator struct {
 	mu      sync.Mutex
-	pending map[int64]map[string]proxy.Snapshot
+	pending map[int64]map[string]gatewayapi.Snapshot
 	seen    map[string]int64
 	emitted int64
 	out     func(Merged)
 }
 
 func NewAggregator(out func(Merged)) *Aggregator {
-	return &Aggregator{pending: map[int64]map[string]proxy.Snapshot{}, seen: map[string]int64{}, out: out}
+	return &Aggregator{pending: map[int64]map[string]gatewayapi.Snapshot{}, seen: map[string]int64{}, out: out}
 }
 
-func (a *Aggregator) Add(s proxy.Snapshot) {
+func (a *Aggregator) Add(s gatewayapi.Snapshot) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if s.Second <= a.emitted {
@@ -54,7 +54,7 @@ func (a *Aggregator) Add(s proxy.Snapshot) {
 	a.seen[s.Instance] = max(a.seen[s.Instance], s.Second)
 	bin, ok := a.pending[s.Second]
 	if !ok {
-		bin = map[string]proxy.Snapshot{}
+		bin = map[string]gatewayapi.Snapshot{}
 		a.pending[s.Second] = bin
 	}
 	bin[s.Instance] = s
@@ -89,7 +89,7 @@ func (a *Aggregator) Flush(now time.Time) {
 	}
 }
 
-func (a *Aggregator) complete(sec int64, bin map[string]proxy.Snapshot) bool {
+func (a *Aggregator) complete(sec int64, bin map[string]gatewayapi.Snapshot) bool {
 	for inst, last := range a.seen {
 		if sec-last > instanceTTL {
 			continue
@@ -113,16 +113,16 @@ func severity(s health.State) int {
 	return 0
 }
 
-func merge(sec int64, bin map[string]proxy.Snapshot) Merged {
-	m := Merged{Second: sec, ConfigVersions: map[string]int64{}, Routes: map[string]proxy.RouteSnapshot{}}
-	dims := map[string]*proxy.DimensionSnapshot{}
+func merge(sec int64, bin map[string]gatewayapi.Snapshot) Merged {
+	m := Merged{Second: sec, ConfigVersions: map[string]int64{}, Routes: map[string]gatewayapi.RouteSnapshot{}}
+	dims := map[string]*gatewayapi.DimensionSnapshot{}
 	for inst, s := range bin {
 		m.Instances = append(m.Instances, inst)
 		m.ConfigVersions[inst] = s.ClusterConfig
 		for name, r := range s.Routes {
 			acc, ok := m.Routes[name]
 			if !ok {
-				acc = proxy.RouteSnapshot{Stable: r.Stable, Canary: r.Canary, Weight: r.Weight, Rollout: r.Rollout}
+				acc = gatewayapi.RouteSnapshot{Stable: r.Stable, Canary: r.Canary, Weight: r.Weight, Rollout: r.Rollout}
 			}
 			acc.Requests += r.Requests
 			acc.Limited += r.Limited
@@ -160,6 +160,6 @@ func merge(sec int64, bin map[string]proxy.Snapshot) Merged {
 	for _, d := range dims {
 		m.Dimensions = append(m.Dimensions, *d)
 	}
-	slices.SortFunc(m.Dimensions, func(a, b proxy.DimensionSnapshot) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(m.Dimensions, func(a, b gatewayapi.DimensionSnapshot) int { return strings.Compare(a.ID, b.ID) })
 	return m
 }
