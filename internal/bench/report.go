@@ -241,14 +241,6 @@ func (r Report) WriteText(w io.Writer) error {
 	return writeTable(w, b.String(), tabwriter.AlignRight)
 }
 
-func writeTable(w io.Writer, text string, flags uint) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', flags)
-	if _, err := io.WriteString(tw, text); err != nil {
-		return err
-	}
-	return tw.Flush()
-}
-
 func (r Report) WriteOverloadText(w io.Writer) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rate\tsystem\truns\tcollapsed\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")

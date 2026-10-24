@@ -497,11 +497,3 @@ func firstLine(s string) string {
 	}
 	return ""
 }
-
-func WriteJSON(path string, v any) error {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(b, '\n'), 0o644)
-}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/bench"
 	"github.com/mirzanajafov/portalgun-router/internal/canary/sim"
 )
 
@@ -36,11 +36,7 @@ func main() {
 		"elapsedSec": elapsed.Seconds(),
 		"cells":      results,
 	}
-	b, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		fail(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "results.json"), append(b, '\n'), 0o644); err != nil {
+	if err := bench.WriteJSON(filepath.Join(dir, "results.json"), payload); err != nil {
 		fail(err)
 	}
 	if err := print(results); err != nil {
