@@ -94,14 +94,14 @@ func (l *logSink) String() string {
 	return l.b.String()
 }
 
-func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector) {
-	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, &fakeCounter{hits: map[string]int64{}}, NewHub(), limits, []string{"dim-a", "dim-b"}, 1, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	return svc, inj
+func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector, *fakeCounter) {
+	inj, counter := &fakeInjector{}, &fakeCounter{hits: map[string]int64{}}
+	svc := NewChaosService(inj, nil, counter, NewHub(), limits, []string{"dim-a", "dim-b"}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return svc, inj, counter
 }
 
 func TestVisitorsGetBoundedChaos(t *testing.T) {
-	svc, _ := newChaos(DefaultChaosLimits())
+	svc, _, _ := newChaos(DefaultChaosLimits())
 	ctx := context.Background()
 	for _, req := range []ChaosRequest{
 		{Mode: "crash", Target: "dim-a", DurationSec: 120},
@@ -122,7 +122,7 @@ func TestVisitorsGetBoundedChaos(t *testing.T) {
 func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 	limits := DefaultChaosLimits()
 	limits.Cooldown = time.Hour
-	svc, inj := newChaos(limits)
+	svc, inj, _ := newChaos(limits)
 	ctx := context.Background()
 	run, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 0.05}, false, "1.2.3.4")
 	if err != nil {
@@ -155,7 +155,7 @@ func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 func TestVisitorsHaveAnHourlyLimit(t *testing.T) {
 	limits := DefaultChaosLimits()
 	limits.Cooldown = 0
-	svc, _ := newChaos(limits)
+	svc, _, _ := newChaos(limits)
 	ctx := context.Background()
 	for i := range 4 {
 		_, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 1}, false, "1.2.3.4")
@@ -173,30 +173,20 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	logs := &logSink{}
 	counter := downCounter()
 	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(logs, nil)))
+	svc := NewChaosService(inj, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
 	var elapsed atomic.Int64
 	start := time.Now()
 	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
 	mux := http.NewServeMux()
-	api := &API{token: "s3cret"}
-	svc.Routes(mux, api.admin, "s3cret")
+	api := &API{token: adminToken}
+	svc.Routes(mux, api.admin, adminToken)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	call := func(method, auth string) *http.Response {
-		req, _ := http.NewRequest(method, srv.URL+"/api/chaos", strings.NewReader(`{"mode":"crash","target":"dim-a"}`))
-		req.Header.Set("X-Forwarded-For", "1.2.3.4")
-		if auth != "" {
-			req.Header.Set("Authorization", auth)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		return resp
-	}
+	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
+	url, fault := srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`
+	visitor, admin := viaProxy("1.2.3.4"), asAdmin("1.2.3.4")
 	for range 2 {
-		if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
+		if resp := send(t, http.MethodPost, url, fault, visitor); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
 			t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 		}
 	}
@@ -209,18 +199,18 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	if strings.Contains(logs.String(), "1.2.3.4") || !strings.Contains(logs.String(), "limit=chaos") {
 		t.Fatalf("the log should name the limit and not the visitor: %q", logs.String())
 	}
-	if resp := call(http.MethodPost, "Bearer s3cret"); resp.StatusCode != http.StatusCreated {
+	if resp := send(t, http.MethodPost, url, fault, admin); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("admin with the counter down: %d", resp.StatusCode)
 	}
-	if resp := call(http.MethodDelete, "Bearer s3cret"); resp.StatusCode != http.StatusOK {
+	if resp := send(t, http.MethodDelete, url, "", admin); resp.StatusCode != http.StatusOK {
 		t.Fatalf("admin stop: %d", resp.StatusCode)
 	}
 	counter.fail(nil)
-	if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusServiceUnavailable {
+	if resp := send(t, http.MethodPost, url, fault, visitor); resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("visitor within a minute of the failure: %d, want the pause to hold", resp.StatusCode)
 	}
 	elapsed.Store(int64(recountAfter))
-	if resp := call(http.MethodPost, ""); resp.StatusCode != http.StatusCreated {
+	if resp := send(t, http.MethodPost, url, fault, visitor); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("visitor a minute after the failure: %d", resp.StatusCode)
 	}
 }
@@ -228,7 +218,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	logs := &logSink{}
 	counter := &fakeCounter{hits: map[string]int64{}, err: context.Canceled}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, 1, slog.New(slog.NewTextHandler(logs, nil)))
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {
@@ -244,7 +234,7 @@ func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 }
 
 func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
-	svc, _ := newChaos(DefaultChaosLimits())
+	svc, _, _ := newChaos(DefaultChaosLimits())
 	base := time.Unix(2_000_000, 0)
 	svc.now = func() time.Time { return base.Add(300 * time.Millisecond) }
 	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 1}, true, ""); err != nil {
@@ -273,38 +263,29 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 }
 
 func TestChaosEndpoints(t *testing.T) {
-	svc, _ := newChaos(DefaultChaosLimits())
+	svc, _, counter := newChaos(DefaultChaosLimits())
 	mux := http.NewServeMux()
-	api := &API{token: "s3cret"}
-	svc.Routes(mux, api.admin, "s3cret")
+	api := &API{token: adminToken}
+	svc.Routes(mux, api.admin, adminToken)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	call := func(method, body, auth string) int {
-		req, _ := http.NewRequest(method, srv.URL+"/api/chaos", strings.NewReader(body))
-		req.Header.Set("X-Forwarded-For", "9.9.9.9")
-		if auth != "" {
-			req.Header.Set("Authorization", auth)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		return resp.StatusCode
-	}
-	if got := call(http.MethodPost, `{"mode":"crash","target":"dim-a"}`, ""); got != 201 {
+	url, visitor := srv.URL+"/api/chaos", viaProxy("9.9.9.9")
+	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 201 {
 		t.Fatalf("visitor fault: %d", got)
 	}
-	if got := call(http.MethodPost, `{"mode":"crash","target":"dim-b"}`, ""); got != 409 {
+	if n := counter.hits["chaos:ip:9.9.9.9"]; n != 1 || len(counter.hits) != 1 {
+		t.Fatalf("counts %v, want the fault on the address the dashboard forwarded", counter.hits)
+	}
+	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-b"}`, visitor).StatusCode; got != 409 {
 		t.Fatalf("second fault: %d", got)
 	}
-	if got := call(http.MethodDelete, "", ""); got != 401 {
+	if got := send(t, http.MethodDelete, url, "", visitor).StatusCode; got != 401 {
 		t.Fatalf("visitor stop: %d", got)
 	}
-	if got := call(http.MethodDelete, "", "Bearer s3cret"); got != 200 {
+	if got := send(t, http.MethodDelete, url, "", asAdmin("9.9.9.9")).StatusCode; got != 200 {
 		t.Fatalf("admin stop: %d", got)
 	}
-	if got := call(http.MethodPost, `{"mode":"crash","target":"dim-a"}`, ""); got != 429 {
+	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 429 {
 		t.Fatalf("during the cooldown: %d", got)
 	}
 }

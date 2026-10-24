@@ -96,10 +96,12 @@ jobs:
         env:
           POSTGRES_PASSWORD: check
           PORTAL_ADMIN_TOKEN: check
+          PORTAL_PROXY_TOKEN: check
           EDGE_NETWORK: edge
       - run: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.registry.yml config --quiet
         env:
           POSTGRES_PASSWORD: check
           PORTAL_ADMIN_TOKEN: check
+          PORTAL_PROXY_TOKEN: check
           EDGE_NETWORK: edge
           PORTAL_REGISTRY: http://fivefamilies-n1:3171
