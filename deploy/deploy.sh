@@ -22,14 +22,10 @@ if [ -n "$(setting PORTAL_REGISTRY)" ]; then
 fi
 
 registry_led() {
-  local nodes node status
-  IFS=, read -ra nodes <<< "$(setting PORTAL_REGISTRY)"
-  for node in "${nodes[@]}"; do
-    node=${node// /}
-    [ -n "$node" ] || continue
-    status=$(docker run --rm --pull=never --network "$network" portalgun wget -q -T 3 -O - "$node/v1/status") && grep -Eq '"leader":[1-9]' <<< "$status" && return 0
-  done
-  return 1
+  local nodes probe
+  IFS=', ' read -ra nodes <<< "$(setting PORTAL_REGISTRY)"
+  probe="for node; do wget -q -T 3 -O - \"\$node/v1/status\" | grep -q '\"leader\":[1-9]' && exit 0; done; exit 1"
+  docker run --rm --pull=never --network "$network" --cpus 0.25 --memory 64m portalgun sh -c "$probe" sh "${nodes[@]}"
 }
 
 deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
@@ -44,7 +40,7 @@ states() {
   local ids
   mapfile -t ids < <("${compose[@]}" ps -aq)
   [ "${#ids[@]}" -gt 0 ] || return 1
-  docker inspect -f '{{index .Config.Labels "com.docker.compose.oneoff"}} {{slice .Name 1}} {{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}} {{.State.StartedAt}}' "${ids[@]}" | grep '^False ' | cut -d ' ' -f 2- | sort
+  { docker inspect -f '{{index .Config.Labels "com.docker.compose.oneoff"}} {{slice .Name 1}} {{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}} {{.State.StartedAt}}' "${ids[@]}" 2> /dev/null || true; } | grep '^False ' | cut -d ' ' -f 2- | sort
 }
 
 unready() { grep -Ev '^[^ ]+ running(/healthy)? ' <<< "$1" | cut -d ' ' -f 1,2; }

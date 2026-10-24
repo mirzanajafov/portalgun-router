@@ -88,15 +88,12 @@ func TestADimensionThatRegistersIsReadyOnlyOnceItHoldsALease(t *testing.T) {
 		t.Fatalf("the dimension stopped before registering: %v", err)
 	}
 	ready := func() int {
-		for range 100 {
-			if resp, err := http.Get("http://" + control + "/ready"); err == nil {
-				resp.Body.Close()
-				return resp.StatusCode
-			}
-			time.Sleep(10 * time.Millisecond)
+		resp, err := http.Get("http://" + control + "/ready")
+		if err != nil {
+			t.Fatal(err)
 		}
-		t.Fatal("the control port never answered")
-		return 0
+		resp.Body.Close()
+		return resp.StatusCode
 	}
 	if got := ready(); got != http.StatusServiceUnavailable {
 		t.Fatalf("before the first lease: %d", got)
