@@ -186,7 +186,7 @@ func TestACallThatWaitsOnTheDatabaseGivesUpInTime(t *testing.T) {
 				t.Fatal(err)
 			}
 			began := time.Now()
-			if err := c.call(); err == nil || time.Since(began) > callTimeout+time.Second {
+			if err := c.call(); !errors.Is(err, context.DeadlineExceeded) || time.Since(began) > callTimeout+time.Second {
 				t.Fatalf("took %v and came back as %v", time.Since(began), err)
 			}
 		})

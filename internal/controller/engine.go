@@ -66,8 +66,7 @@ type settlement struct {
 	versions   config.Versions
 	decided    time.Time
 	configDone bool
-	applied    bool
-	logged     time.Time
+	log        everyMinute
 	err        error
 }
 
@@ -97,11 +96,11 @@ func NewEngine(opts EngineOptions, cfgs *ConfigManager, s RolloutStore, logger *
 }
 
 var (
-	ErrBusy          = errors.New("a rollout is already running")
-	ErrNoRollout     = errors.New("no rollout is running")
-	ErrRolloutFailed = errors.New("the rollout could not be started")
-	ErrEndNotSaved   = errors.New("the rollout's end is decided but not saved yet, and it is tried again every few seconds")
-	ErrPromoted      = errors.New("the rollout is already promoted, only its record is waiting to be saved")
+	ErrBusy           = errors.New("a rollout is already running")
+	ErrNoRollout      = errors.New("no rollout is running")
+	ErrRolloutFailed  = errors.New("the rollout could not be started")
+	ErrEndNotSaved    = errors.New("the rollout's end is decided but not saved yet, and it is tried again every few seconds")
+	ErrAlreadySettled = errors.New("the rollout's config is already settled, only its record waits for the database")
 )
 
 func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
@@ -149,6 +148,10 @@ func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author 
 		return store.Rollout{}, err
 	}
 	ctx = context.WithoutCancel(ctx)
+	e.closeUnclosed(ctx)
+	if len(e.unclosed) > 0 {
+		return store.Rollout{}, fmt.Errorf("%w: an earlier start's row is not closed yet", ErrRolloutFailed)
+	}
 	ro := store.Rollout{ID: id, Route: route, Stable: stable, Canary: canaryVersion, StartedAt: now}
 	if err := e.store.StartRollout(ctx, ro); err != nil {
 		e.unclosed = append(e.unclosed, unclosed{id: id, reason: "its row may not have been saved", at: now})
@@ -182,9 +185,9 @@ func (e *Engine) beginStep(ctx context.Context, step int, version int64) {
 }
 
 func (a *active) record() store.Step {
-	seq := a.policy.Sequential()
-	a.step.LLRErrors, a.step.LLRSlow = seq.Errors().LLR(), seq.Slow().LLR()
-	return a.step
+	st, seq := a.step, a.policy.Sequential()
+	st.LLRErrors, st.LLRSlow = seq.Errors().LLR(), seq.Slow().LLR()
+	return st
 }
 
 func (e *Engine) saveStep(ctx context.Context) {
@@ -201,6 +204,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	if a == nil {
 		return
 	}
+	ctx = context.WithoutCancel(ctx)
 	rs, ok := m.Routes[a.rollout.Route]
 	current := ok && rs.Rollout == a.rollout.ID && m.MinConfig() >= a.stepVersion
 	if s := a.settling; s != nil {
@@ -340,15 +344,19 @@ func (e *Engine) Run(ctx context.Context) {
 func (e *Engine) retry(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.closeUnclosed(ctx)
+	if e.active != nil && e.active.settling != nil {
+		e.trySettle(ctx)
+	}
+}
+
+func (e *Engine) closeUnclosed(ctx context.Context) {
 	for len(e.unclosed) > 0 {
 		u := e.unclosed[0]
 		if err := e.store.FinishRollout(ctx, u.id, store.OutcomeAborted, u.reason, u.at); err != nil && !errors.Is(err, store.ErrRolloutNotActive) {
-			break
+			return
 		}
 		e.unclosed = e.unclosed[1:]
-	}
-	if e.active != nil && e.active.settling != nil {
-		e.trySettle(ctx)
 	}
 }
 
@@ -356,9 +364,8 @@ func (e *Engine) trySettle(ctx context.Context) {
 	a := e.active
 	s := a.settling
 	if err := e.saveSettlement(ctx, a, s); err != nil {
-		if now := e.now(); s.err == nil || now.Sub(s.logged) >= time.Minute {
+		if s.log.allow(e.now()) {
 			e.logger.Error("the rollout's end could not be saved, it is tried again every few seconds", "rollout", a.rollout.ID, "outcome", s.outcome, "err", err)
-			s.logged = now
 		}
 		s.err = err
 		return
@@ -383,7 +390,7 @@ func (e *Engine) saveSettlement(ctx context.Context, a *active, s *settlement) e
 		if err != nil {
 			e.logger.Error("the rollout ended without changing the config", "rollout", a.rollout.ID, "outcome", s.outcome, "err", err)
 		}
-		s.configDone, s.applied = true, err == nil
+		s.configDone = true
 	}
 	if err := e.store.SaveStep(ctx, a.rollout.ID, a.record()); err != nil {
 		return err
@@ -406,7 +413,7 @@ func (e *Engine) Abort(ctx context.Context, reason string) error {
 	case s == nil, s.outcome == store.OutcomePromoted && !s.configDone:
 		e.finish(ctx, store.OutcomeAborted, reason)
 	case s.outcome == store.OutcomePromoted:
-		return ErrPromoted
+		return ErrAlreadySettled
 	default:
 		e.trySettle(ctx)
 	}
@@ -428,7 +435,6 @@ type Status struct {
 	Lower      float64       `json:"lower"`
 	Upper      float64       `json:"upper"`
 	Pending    store.Outcome `json:"pending,omitempty"`
-	Applied    bool          `json:"applied,omitempty"`
 }
 
 func (e *Engine) Status() Status {
@@ -439,13 +445,12 @@ func (e *Engine) Status() Status {
 	if a == nil {
 		return st
 	}
-	seq := a.policy.Sequential()
-	st.Active, st.Rollout, st.Step, st.DataSec = true, a.rollout, a.step, a.seconds
+	st.Active, st.Rollout, st.Step, st.DataSec = true, a.rollout, a.record(), a.seconds
 	st.ElapsedSec = e.now().Sub(a.step.StartedAt).Seconds()
-	st.LLRErrors, st.LLRSlow = seq.Errors().LLR(), seq.Slow().LLR()
-	st.Lower, st.Upper = seq.Errors().Bounds()
+	st.LLRErrors, st.LLRSlow = st.Step.LLRErrors, st.Step.LLRSlow
+	st.Lower, st.Upper = a.policy.Sequential().Errors().Bounds()
 	if a.settling != nil {
-		st.Pending, st.Applied = a.settling.outcome, a.settling.applied
+		st.Pending = a.settling.outcome
 	}
 	return st
 }

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
@@ -33,6 +32,7 @@ type API struct {
 	visitors   *visitorLimit
 	logger     *slog.Logger
 	historyLog everyMinute
+	stateLog   everyMinute
 }
 
 type RolloutLimits struct {
@@ -196,7 +196,7 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 	}
 	err := a.engine.Abort(r.Context(), req.Reason)
 	switch {
-	case errors.Is(err, ErrNoRollout), errors.Is(err, ErrPromoted):
+	case errors.Is(err, ErrNoRollout), errors.Is(err, ErrAlreadySettled):
 		httpx.WriteError(w, http.StatusConflict, err.Error())
 	case err != nil:
 		unavailable(w, a.logger, true, ErrEndNotSaved, err)
@@ -211,18 +211,18 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
-	first, err := frame("state", a.State())
-	if err != nil {
-		a.logger.Error("the state for a new dashboard could not be sent", "err", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "the state could not be encoded")
-		return
-	}
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(first)
+	if first, err := frame("state", a.State()); err != nil {
+		if a.stateLog.allow(time.Now()) {
+			a.logger.Error("the state for a new dashboard could not be sent", "err", err)
+		}
+	} else {
+		_, _ = w.Write(first)
+	}
 	flusher.Flush()
 	ch, done := a.hub.Subscribe()
 	defer done()
@@ -261,7 +261,7 @@ var errHistory = errors.New("the history could not be read")
 func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, err error) {
 	if err != nil {
 		if a.historyLog.allow(time.Now()) {
-			a.logger.Error(errHistory.Error(), "err", err)
+			logFailure(a.logger, errHistory, err)
 		}
 		refuse(w, httpx.Authorized(r, a.token), errHistory, err)
 		return
@@ -270,12 +270,16 @@ func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, err error) 
 }
 
 func unavailable(w http.ResponseWriter, logger *slog.Logger, admin bool, public, err error, attrs ...any) {
+	logFailure(logger, public, err, attrs...)
+	refuse(w, admin, public, err)
+}
+
+func logFailure(logger *slog.Logger, public, err error, attrs ...any) {
 	level := slog.LevelError
 	if errors.Is(err, context.Canceled) {
 		level = slog.LevelInfo
 	}
 	logger.Log(context.Background(), level, public.Error(), append(attrs, "err", err)...)
-	refuse(w, admin, public, err)
 }
 
 func refuse(w http.ResponseWriter, admin bool, public, err error) {
@@ -284,19 +288,4 @@ func refuse(w http.ResponseWriter, admin bool, public, err error) {
 		msg = err.Error()
 	}
 	httpx.WriteError(w, http.StatusServiceUnavailable, msg)
-}
-
-type everyMinute struct {
-	mu   sync.Mutex
-	last time.Time
-}
-
-func (g *everyMinute) allow(now time.Time) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if !g.last.IsZero() && now.Sub(g.last) < time.Minute {
-		return false
-	}
-	g.last = now
-	return true
 }

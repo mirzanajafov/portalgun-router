@@ -16,9 +16,10 @@ type Hub struct {
 	closed    chan struct{}
 	closeOnce sync.Once
 
-	mu     sync.Mutex
-	subs   map[chan []byte]struct{}
-	events []Event
+	mu      sync.Mutex
+	subs    map[chan []byte]struct{}
+	events  []Event
+	backlog [][]byte
 }
 
 func NewHub(logger *slog.Logger) *Hub {
@@ -41,14 +42,9 @@ func (h *Hub) Subscribe() (<-chan []byte, func()) {
 	ch := make(chan []byte, 16)
 	h.mu.Lock()
 	h.subs[ch] = struct{}{}
-	backlog := append([]Event(nil), h.events...)
+	backlog := append([][]byte(nil), h.backlog...)
 	h.mu.Unlock()
-	for _, e := range backlog {
-		f, err := frame("event", e)
-		if err != nil {
-			h.logger.Error("an event for the dashboards could not be sent", "err", err)
-			continue
-		}
+	for _, f := range backlog {
 		select {
 		case ch <- f:
 		default:
@@ -70,11 +66,19 @@ func (h *Hub) Viewers() int {
 func (h *Hub) Broadcast(kind string, v any) {
 	f, err := frame(kind, v)
 	if err != nil {
-		if h.brokenLog.allow(time.Now()) {
-			h.logger.Error("an update for the dashboards could not be sent", "err", err)
-		}
+		h.broken(err)
 		return
 	}
+	h.send(f)
+}
+
+func (h *Hub) broken(err error) {
+	if h.brokenLog.allow(time.Now()) {
+		h.logger.Error("an update for the dashboards could not be sent", "err", err)
+	}
+}
+
+func (h *Hub) send(f []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for ch := range h.subs {
@@ -89,13 +93,20 @@ func (h *Hub) Event(e Event) {
 	if e.At.IsZero() {
 		e.At = time.Now().UTC()
 	}
+	f, err := frame("event", e)
+	if err != nil {
+		h.broken(err)
+		return
+	}
 	h.mu.Lock()
 	h.events = append(h.events, e)
+	h.backlog = append(h.backlog, f)
 	if len(h.events) > recentEvents {
 		h.events = h.events[len(h.events)-recentEvents:]
+		h.backlog = h.backlog[len(h.backlog)-recentEvents:]
 	}
 	h.mu.Unlock()
-	h.Broadcast("event", e)
+	h.send(f)
 }
 
 func (h *Hub) Events() []Event {

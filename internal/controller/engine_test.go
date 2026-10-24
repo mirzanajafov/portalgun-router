@@ -482,7 +482,7 @@ func TestARollbackTheStoreRefusesIsTriedAgainUntilItIsSaved(t *testing.T) {
 	}
 	r.store.refuseConfigs.Store(true)
 	r.failCanary()
-	if st := r.engine.Status(); !st.Active || st.Pending != store.OutcomeRolledBack || st.Applied || r.versions(t).Canary != "v2" {
+	if st := r.engine.Status(); !st.Active || st.Pending != store.OutcomeRolledBack || r.versions(t).Canary != "v2" {
 		t.Fatalf("a rollback that couldn't be saved left the rollout %+v and the config %+v", st, r.versions(t))
 	}
 	r.store.refuseConfigs.Store(false)
@@ -657,7 +657,7 @@ func TestAnAbortCannotTakeBackAPromotionThatIsSaved(t *testing.T) {
 	if v := r.versions(t); v.Stable != "v2" {
 		t.Fatalf("the promotion's config should be saved: %+v", v)
 	}
-	if err := r.engine.Abort(context.Background(), "too late"); !errors.Is(err, ErrPromoted) {
+	if err := r.engine.Abort(context.Background(), "too late"); !errors.Is(err, ErrAlreadySettled) {
 		t.Fatalf("an abort of a saved promotion came back as %v", err)
 	}
 	r.store.refuseFinishes.Store(false)
@@ -806,7 +806,7 @@ func TestADeadCanaryCannotUndoAPromotionThatIsSaved(t *testing.T) {
 	for range 10 {
 		r.feed(bin{}, func(m *Merged) { m.Dimensions[0].Outlier = health.Ejected }, withStable(true))
 	}
-	if st := r.engine.Status(); st.Pending != store.OutcomePromoted || !st.Applied {
+	if st := r.engine.Status(); st.Pending != store.OutcomePromoted {
 		t.Fatalf("a saved promotion became %q", st.Pending)
 	}
 	r.store.refuseFinishes.Store(false)
@@ -950,5 +950,23 @@ func TestARefusedConfigEndsTheRolloutInsteadOfRetrying(t *testing.T) {
 	r.failCanary()
 	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
 		t.Fatalf("a rollback the config refused: active %v, outcome %q", r.engine.Status().Active, r.store.outcomes[ro.ID])
+	}
+}
+
+func TestAFailedStartCannotCloseTheRolloutThatTakesItsIDLater(t *testing.T) {
+	r := newRig(t)
+	r.store.refuseRollouts.Store(true)
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); !errors.Is(err, ErrRolloutFailed) {
+		t.Fatalf("start during the outage: %v", err)
+	}
+	r.store.refuseRollouts.Store(false)
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.engine.retry(context.Background())
+	r.failCanary()
+	if r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
+		t.Fatalf("the rollout that reused the id ended as %q", r.store.outcomes[ro.ID])
 	}
 }

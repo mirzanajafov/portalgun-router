@@ -96,7 +96,7 @@ func TestAWrongProxyTokenIsLoggedOnceAMinuteWithoutTheAddress(t *testing.T) {
 			t.Fatalf("counted as %s, want the peer", got)
 		}
 	}
-	elapsed = warnEvery
+	elapsed = time.Minute
 	limit.client(req)
 	if n := strings.Count(logs.String(), "doesn't match"); n != 2 || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
 		t.Fatalf("want two warnings a minute apart, naming the limit and not the visitor: %q", logs.String())

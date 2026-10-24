@@ -77,7 +77,6 @@ export type RolloutStatus = {
   lower: number
   upper: number
   pending?: Outcome
-  applied?: boolean
 }
 
 export type Fault = { mode: string; target: string; latency?: number; errorRate?: number; period?: number }
