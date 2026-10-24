@@ -20,14 +20,14 @@ import (
 var failoverDims = []string{"a", "b", "c"}
 
 type Variant struct {
-	Probes       bool          `json:"probes"`
-	Passive      bool          `json:"passive"`
-	Retries      int           `json:"retries"`
-	PerTry       time.Duration `json:"perTry"`
-	EjectRefused bool          `json:"ejectRefused"`
-	Balancer     string        `json:"balancer"`
-	SlowStart    time.Duration `json:"slowStart"`
-	Panic        float64       `json:"panic"`
+	Probes       bool            `json:"probes"`
+	Passive      bool            `json:"passive"`
+	Retries      int             `json:"retries"`
+	PerTry       time.Duration   `json:"perTry"`
+	EjectRefused bool            `json:"ejectRefused"`
+	Balancer     config.Balancer `json:"balancer"`
+	SlowStart    time.Duration   `json:"slowStart"`
+	Panic        float64         `json:"panic"`
 }
 
 func baseVariant() Variant {
@@ -57,7 +57,7 @@ func (v Variant) Name() string {
 		parts = append(parts, "refused")
 	}
 	if v.Balancer != base.Balancer {
-		parts = append(parts, v.Balancer)
+		parts = append(parts, string(v.Balancer))
 	}
 	if v.SlowStart != base.SlowStart {
 		parts = append(parts, "warm"+shortDuration(v.SlowStart))
@@ -176,7 +176,7 @@ var Studies = map[string]func() []FailoverCell{
 	},
 	"balancers": func() []FailoverCell {
 		var cs []FailoverCell
-		for _, b := range []string{config.BalancerRoundRobin, config.BalancerLeastOutstanding, config.BalancerP2C} {
+		for _, b := range []config.Balancer{config.BalancerRoundRobin, config.BalancerLeastOutstanding, config.BalancerP2C} {
 			v := baseVariant()
 			v.Balancer = b
 			cs = append(cs, cell(faultOf(chaos.Slow), v))

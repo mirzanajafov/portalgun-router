@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
@@ -56,14 +57,14 @@ type ChaosRequest struct {
 
 type Running struct {
 	Fault   chaos.Fault `json:"fault"`
-	Actor   string      `json:"actor"`
+	Actor   store.Actor `json:"actor"`
 	Started time.Time   `json:"startedAt"`
 	Until   time.Time   `json:"until"`
 }
 
 type Incident struct {
 	Fault      chaos.Fault `json:"fault"`
-	Actor      string      `json:"actor"`
+	Actor      store.Actor `json:"actor"`
 	InjectedAt time.Time   `json:"injectedAt"`
 	ClearedAt  *time.Time  `json:"clearedAt,omitempty"`
 	DetectedS  *float64    `json:"detectedAfterSec,omitempty"`
@@ -135,9 +136,9 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 	if c.current != nil {
 		return Running{}, c.current.Until.Sub(now), ErrChaosBusy
 	}
-	actor := "admin"
+	actor := store.ActorAdmin
 	if !admin {
-		actor = "visitor"
+		actor = store.ActorVisitor
 		if wait := c.cooldown.Sub(now); wait > 0 {
 			return Running{}, wait, ErrChaosCooldown
 		}
@@ -184,7 +185,7 @@ func (c *ChaosService) clearLocked(ctx context.Context, why string) {
 			inc.ClearedAt = &now
 		}
 	}
-	if run.Actor == "visitor" {
+	if run.Actor == store.ActorVisitor {
 		c.cooldown = now.Add(c.limits.Cooldown)
 	}
 	c.current = nil
@@ -207,7 +208,7 @@ func (c *ChaosService) Reset(ctx context.Context) error {
 	return c.inj.ClearAll(ctx)
 }
 
-func (c *ChaosService) record(ctx context.Context, actor string, f chaos.Fault, action string) {
+func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fault, action string) {
 	if c.log == nil {
 		return
 	}
@@ -239,7 +240,7 @@ func (c *ChaosService) Observe(m Merged) {
 		if !ok {
 			continue
 		}
-		if inc.DetectedS == nil && (!d.Healthy || d.Outlier == "ejected") {
+		if inc.DetectedS == nil && (!d.Healthy || d.Outlier == health.Ejected) {
 			inc.DetectedS = &after
 		}
 		if inc.MovedS == nil && (inc.ClearedAt == nil || !start.After(*inc.ClearedAt)) {

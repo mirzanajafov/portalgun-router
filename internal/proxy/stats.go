@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/stats"
 )
 
@@ -151,16 +152,16 @@ type RouteSnapshot struct {
 }
 
 type DimensionSnapshot struct {
-	ID        string  `json:"id"`
-	Version   string  `json:"version"`
-	Attempts  int64   `json:"attempts"`
-	Errors    int64   `json:"errors"`
-	P50Ms     float64 `json:"p50Ms"`
-	P99Ms     float64 `json:"p99Ms"`
-	Inflight  int64   `json:"inflight"`
-	Healthy   bool    `json:"healthy"`
-	Outlier   string  `json:"outlier"`
-	EjectedMs float64 `json:"ejectedForMs,omitempty"`
+	ID        string       `json:"id"`
+	Version   string       `json:"version"`
+	Attempts  int64        `json:"attempts"`
+	Errors    int64        `json:"errors"`
+	P50Ms     float64      `json:"p50Ms"`
+	P99Ms     float64      `json:"p99Ms"`
+	Inflight  int64        `json:"inflight"`
+	Healthy   bool         `json:"healthy"`
+	Outlier   health.State `json:"outlier"`
+	EjectedMs float64      `json:"ejectedForMs,omitempty"`
 }
 
 type Snapshot struct {

@@ -1,6 +1,8 @@
 package health
 
 import (
+	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,18 +14,29 @@ const (
 	Closed State = iota
 	Ejected
 	HalfOpen
+	Disabled
 )
 
+var states = [...]string{Closed: "closed", Ejected: "ejected", HalfOpen: "half-open", Disabled: "disabled"}
+
 func (s State) String() string {
-	switch s {
-	case Closed:
-		return "closed"
-	case Ejected:
-		return "ejected"
-	case HalfOpen:
-		return "half-open"
+	if s >= 0 && int(s) < len(states) {
+		return states[s]
 	}
 	return "unknown"
+}
+
+func (s State) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+func (s *State) UnmarshalText(b []byte) error {
+	i := slices.Index(states[:], string(b))
+	if i < 0 {
+		return fmt.Errorf("unknown outlier state %q", b)
+	}
+	*s = State(i)
+	return nil
 }
 
 const ejectionMemory = int64(5 * time.Minute)

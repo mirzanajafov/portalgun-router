@@ -48,7 +48,7 @@ func parse(t testing.TB, c config.Config) *config.Config {
 	return parsed
 }
 
-func onePool(t *testing.T, balancer string, dims ...config.Dimension) *config.Config {
+func onePool(t *testing.T, balancer config.Balancer, dims ...config.Dimension) *config.Config {
 	return parse(t, config.Config{
 		Routes: []config.Route{{Name: "all", PathPrefix: "/", Pool: "main"}},
 		Pools:  []config.Pool{{Name: "main", Balancer: balancer, Dimensions: dims}},

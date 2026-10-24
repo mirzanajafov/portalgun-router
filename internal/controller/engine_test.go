@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
@@ -24,11 +26,11 @@ type memStore struct {
 	configs  []store.ConfigVersion
 	rollouts []store.Rollout
 	steps    map[string]map[int]store.Step
-	outcomes map[string]string
+	outcomes map[string]store.Outcome
 }
 
 func newMemStore() *memStore {
-	return &memStore{steps: map[string]map[int]store.Step{}, outcomes: map[string]string{}}
+	return &memStore{steps: map[string]map[int]store.Step{}, outcomes: map[string]store.Outcome{}}
 }
 
 func (m *memStore) LatestConfig(context.Context) (*store.ConfigVersion, error) {
@@ -41,7 +43,7 @@ func (m *memStore) LatestConfig(context.Context) (*store.ConfigVersion, error) {
 	return &c, nil
 }
 
-func (m *memStore) SaveConfig(_ context.Context, author, reason string, body json.RawMessage) (store.ConfigVersion, error) {
+func (m *memStore) SaveConfig(_ context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	c := store.ConfigVersion{Version: int64(len(m.configs) + 1), Author: author, Reason: reason, Body: body}
@@ -72,7 +74,7 @@ func (m *memStore) SaveStep(_ context.Context, id string, st store.Step) error {
 	return nil
 }
 
-func (m *memStore) FinishRollout(_ context.Context, id, outcome, _ string, _ time.Time) error {
+func (m *memStore) FinishRollout(_ context.Context, id string, outcome store.Outcome, _ string, _ time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, done := m.outcomes[id]; done {
@@ -125,7 +127,7 @@ func (r *rig) feed(b bin, opts ...func(*Merged)) {
 				{Attempts: b.canary, Errors: b.canaryErr, Slow: b.canarySlow},
 			},
 		}},
-		Dimensions: []proxy.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: "closed"}},
+		Dimensions: []proxy.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: health.Closed}},
 	}
 	for _, o := range opts {
 		o(&m)
@@ -213,14 +215,14 @@ func TestTheBrakeRollsBackAtOnce(t *testing.T) {
 
 func withStable(healthy bool) func(*Merged) {
 	return func(m *Merged) {
-		m.Dimensions = append(m.Dimensions, proxy.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: "closed"})
+		m.Dimensions = append(m.Dimensions, proxy.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: health.Closed})
 	}
 }
 
 func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 	r := newRig(t)
 	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
-	dead := func(m *Merged) { m.Dimensions[0].Outlier = "ejected" }
+	dead := func(m *Merged) { m.Dimensions[0].Outlier = health.Ejected }
 	for range 9 {
 		r.feed(bin{}, dead, withStable(true))
 	}
@@ -358,13 +360,13 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	if n := counter.hits["rollout:ip:9.9.9.9"]; n != 3 {
 		t.Fatalf("counted %d visitor starts, want 3: the one refused because a rollout was running must not count", n)
 	}
-	var authors []string
+	var authors []store.Actor
 	for _, c := range r.store.configs {
 		if strings.Contains(c.Reason, "starts") {
 			authors = append(authors, c.Author)
 		}
 	}
-	if strings.Join(authors, ",") != "visitor,visitor,admin" {
+	if !slices.Equal(authors, []store.Actor{store.ActorVisitor, store.ActorVisitor, store.ActorAdmin}) {
 		t.Fatalf("rollouts started by %v", authors)
 	}
 }

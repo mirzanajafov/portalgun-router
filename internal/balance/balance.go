@@ -1,9 +1,10 @@
 package balance
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"sync/atomic"
+
+	"github.com/mirzanajafov/portalgun-router/internal/config"
 )
 
 type Target interface {
@@ -16,16 +17,14 @@ type Balancer[T Target] interface {
 	Pick(items []T, now int64, ok Filter[T]) (T, bool)
 }
 
-func New[T Target](name string) (Balancer[T], error) {
-	switch name {
-	case "p2c-ewma":
-		return P2C[T]{}, nil
-	case "round-robin":
-		return &RoundRobin[T]{}, nil
-	case "least-outstanding":
-		return LeastOutstanding[T]{}, nil
+func New[T Target](kind config.Balancer) Balancer[T] {
+	switch kind {
+	case config.BalancerRoundRobin:
+		return &RoundRobin[T]{}
+	case config.BalancerLeastOutstanding:
+		return LeastOutstanding[T]{}
 	}
-	return nil, fmt.Errorf("unknown balancer %q", name)
+	return P2C[T]{}
 }
 
 func usable[T Target](it T, now int64, ok Filter[T]) bool {

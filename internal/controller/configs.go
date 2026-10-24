@@ -14,7 +14,7 @@ import (
 
 type ConfigStore interface {
 	LatestConfig(ctx context.Context) (*store.ConfigVersion, error)
-	SaveConfig(ctx context.Context, author, reason string, body json.RawMessage) (store.ConfigVersion, error)
+	SaveConfig(ctx context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error)
 }
 
 type ConfigManager struct {
@@ -26,7 +26,7 @@ type ConfigManager struct {
 	current *config.Config
 	raw     json.RawMessage
 	version int64
-	author  string
+	author  store.Actor
 	reason  string
 }
 
@@ -55,7 +55,7 @@ func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 	return m.publishLocked(ctx)
 }
 
-func (m *ConfigManager) saveLocked(ctx context.Context, author, reason string, raw []byte) error {
+func (m *ConfigManager) saveLocked(ctx context.Context, author store.Actor, reason string, raw []byte) error {
 	cfg, err := config.Parse(raw)
 	if err != nil {
 		return err
@@ -79,10 +79,10 @@ func (m *ConfigManager) saveLocked(ctx context.Context, author, reason string, r
 }
 
 func (m *ConfigManager) publishLocked(ctx context.Context) error {
-	return m.publish(ctx, distrib.Envelope{Version: m.version, Config: m.raw, Author: m.author, Reason: m.reason})
+	return m.publish(ctx, distrib.Envelope{Version: m.version, Config: m.raw, Author: string(m.author), Reason: m.reason})
 }
 
-func (m *ConfigManager) Replace(ctx context.Context, author, reason string, raw []byte) (int64, error) {
+func (m *ConfigManager) Replace(ctx context.Context, author store.Actor, reason string, raw []byte) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err := m.saveLocked(ctx, author, reason, raw); err != nil {
@@ -91,7 +91,7 @@ func (m *ConfigManager) Replace(ctx context.Context, author, reason string, raw 
 	return m.version, nil
 }
 
-func (m *ConfigManager) Update(ctx context.Context, author, reason string, change func(*config.Config) error) (int64, error) {
+func (m *ConfigManager) Update(ctx context.Context, author store.Actor, reason string, change func(*config.Config) error) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	next, err := clone(m.current)

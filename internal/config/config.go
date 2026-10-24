@@ -32,11 +32,15 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 func (d Duration) D() time.Duration { return time.Duration(d) }
 
-const (
-	BalancerP2C              = "p2c-ewma"
-	BalancerRoundRobin       = "round-robin"
-	BalancerLeastOutstanding = "least-outstanding"
+type Balancer string
 
+const (
+	BalancerP2C              Balancer = "p2c-ewma"
+	BalancerRoundRobin       Balancer = "round-robin"
+	BalancerLeastOutstanding Balancer = "least-outstanding"
+)
+
+const (
 	DefaultVersion     = "v1"
 	DefaultMaxInflight = 1024
 	DefaultGatewayCap  = 256
@@ -74,23 +78,25 @@ type Versions struct {
 	Rollout string  `json:"rollout,omitempty"`
 }
 
+type LimitDesign string
+
 const (
-	LimitStaticSplit = "static-split"
-	LimitRedisExact  = "redis-exact"
-	LimitLocalSync   = "local-sync"
-	LimitLease       = "lease"
+	LimitStaticSplit LimitDesign = "static-split"
+	LimitRedisExact  LimitDesign = "redis-exact"
+	LimitLocalSync   LimitDesign = "local-sync"
+	LimitLease       LimitDesign = "lease"
 )
 
 type RateLimit struct {
-	Design       string   `json:"design"`
-	Rate         float64  `json:"rate"`
-	Burst        float64  `json:"burst"`
-	Key          string   `json:"key,omitempty"`
-	Instances    int      `json:"instances,omitempty"`
-	SyncInterval Duration `json:"syncInterval,omitempty"`
-	LeaseTarget  Duration `json:"leaseTarget,omitempty"`
-	LeaseTTL     Duration `json:"leaseTtl,omitempty"`
-	RedisTimeout Duration `json:"redisTimeout,omitempty"`
+	Design       LimitDesign `json:"design"`
+	Rate         float64     `json:"rate"`
+	Burst        float64     `json:"burst"`
+	Key          string      `json:"key,omitempty"`
+	Instances    int         `json:"instances,omitempty"`
+	SyncInterval Duration    `json:"syncInterval,omitempty"`
+	LeaseTarget  Duration    `json:"leaseTarget,omitempty"`
+	LeaseTTL     Duration    `json:"leaseTtl,omitempty"`
+	RedisTimeout Duration    `json:"redisTimeout,omitempty"`
 }
 
 func (v Versions) validate(present map[string]bool) error {
@@ -149,7 +155,7 @@ type Retries struct {
 
 type Pool struct {
 	Name           string      `json:"name"`
-	Balancer       string      `json:"balancer,omitempty"`
+	Balancer       Balancer    `json:"balancer,omitempty"`
 	HealthCheck    HealthCheck `json:"healthCheck,omitzero"`
 	Outlier        Outlier     `json:"outlier,omitzero"`
 	PanicThreshold *float64    `json:"panicThreshold,omitempty"`

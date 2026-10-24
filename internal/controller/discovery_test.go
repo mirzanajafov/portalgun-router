@@ -10,6 +10,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/registry"
+	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
 func dimension(name, addr, version string) registry.Instance {
@@ -77,7 +78,7 @@ func eventually(t *testing.T, what string, ok func() bool) {
 	}
 }
 
-func (r *rig) latest(t *testing.T) (int, string, string, []config.Dimension) {
+func (r *rig) latest(t *testing.T) (int, store.Actor, string, []config.Dimension) {
 	t.Helper()
 	r.store.mu.Lock()
 	n := len(r.store.configs)

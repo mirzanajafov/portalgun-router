@@ -404,11 +404,11 @@ func (g *Gateway) Tick(second int64) Snapshot {
 			P99Ms:    ms(lat.Quantile(0.99)),
 			Inflight: u.load.Inflight(),
 			Healthy:  u.checker == nil || u.checker.Healthy(),
-			Outlier:  "disabled",
+			Outlier:  health.Disabled,
 		}
 		if u.outlier != nil {
-			d.Outlier = u.outlier.StateAt(now).String()
-			if left := u.outlier.Until() - now; d.Outlier == "ejected" && left > 0 {
+			d.Outlier = u.outlier.StateAt(now)
+			if left := u.outlier.Until() - now; d.Outlier == health.Ejected && left > 0 {
 				d.EjectedMs = float64(left) / 1e6
 			}
 		}
@@ -520,35 +520,18 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	keep := map[string]*upstream{}
 	type poolSpec struct {
 		upstreams []*upstream
-		balancer  string
+		balancer  config.Balancer
 		panic     float64
 	}
 	pools := map[string]*poolSpec{}
-	abort := func(err error) error {
-		for id, u := range keep {
-			if g.upstreams[id] != u {
-				u.stop()
-			}
-		}
-		for name, l := range limiters {
-			if g.limiters[name] != l {
-				l.l.Close()
-			}
-		}
-		return err
-	}
-	newSubset := func(ps *poolSpec, version string) (*subset, error) {
-		bal, err := balance.New[*upstream](ps.balancer)
-		if err != nil {
-			return nil, err
-		}
-		s := &subset{balancer: bal, panic: ps.panic}
+	newSubset := func(ps *poolSpec, version string) *subset {
+		s := &subset{balancer: balance.New[*upstream](ps.balancer), panic: ps.panic}
 		for _, u := range ps.upstreams {
 			if version == "" || u.version == version {
 				s.upstreams = append(s.upstreams, u)
 			}
 		}
-		return s, nil
+		return s
 	}
 	for _, pc := range cfg.Pools {
 		p := &poolSpec{balancer: pc.Balancer, panic: *pc.PanicThreshold}
@@ -582,10 +565,7 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 	stats := map[string]*routeStats{}
 	for _, rc := range cfg.Routes {
 		v := rc.Versions
-		stable, err := newSubset(pools[rc.Pool], v.Stable)
-		if err != nil {
-			return abort(err)
-		}
+		stable := newSubset(pools[rc.Pool], v.Stable)
 		rs, ok := g.routeStats[rc.Name]
 		if !ok {
 			rs = newRouteStats()
@@ -618,9 +598,7 @@ func (g *Gateway) Apply(cfg *config.Config) error {
 		}
 		r.proxy = g.newReverseProxy(r, stable)
 		if v.Canary != "" {
-			if r.canary, err = newSubset(pools[rc.Pool], v.Canary); err != nil {
-				return abort(err)
-			}
+			r.canary = newSubset(pools[rc.Pool], v.Canary)
 			r.canaryProxy = g.newReverseProxy(r, r.canary)
 		}
 		routes = append(routes, r)
@@ -769,15 +747,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type Upstream struct {
-	ID          string  `json:"id"`
-	Version     string  `json:"version"`
-	Address     string  `json:"address"`
-	Inflight    int64   `json:"inflight"`
-	MaxInflight int64   `json:"maxInflight"`
-	LatencyMs   float64 `json:"latencyMs"`
-	Healthy     bool    `json:"healthy"`
-	Outlier     string  `json:"outlier"`
-	EjectedMs   float64 `json:"ejectedForMs,omitempty"`
+	ID          string       `json:"id"`
+	Version     string       `json:"version"`
+	Address     string       `json:"address"`
+	Inflight    int64        `json:"inflight"`
+	MaxInflight int64        `json:"maxInflight"`
+	LatencyMs   float64      `json:"latencyMs"`
+	Healthy     bool         `json:"healthy"`
+	Outlier     health.State `json:"outlier"`
+	EjectedMs   float64      `json:"ejectedForMs,omitempty"`
 }
 
 type State struct {
@@ -801,11 +779,11 @@ func (g *Gateway) State() State {
 			MaxInflight: u.load.MaxInflight(),
 			LatencyMs:   float64(u.load.Latency().Microseconds()) / 1000,
 			Healthy:     u.checker == nil || u.checker.Healthy(),
-			Outlier:     "disabled",
+			Outlier:     health.Disabled,
 		}
 		if u.outlier != nil {
-			v.Outlier = u.outlier.StateAt(now).String()
-			if left := u.outlier.Until() - now; v.Outlier == "ejected" && left > 0 {
+			v.Outlier = u.outlier.StateAt(now)
+			if left := u.outlier.Until() - now; v.Outlier == health.Ejected && left > 0 {
 				v.EjectedMs = float64(left) / 1e6
 			}
 		}

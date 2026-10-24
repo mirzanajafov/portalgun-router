@@ -185,10 +185,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	return srv.Shutdown(shutdownCtx)
 }
 
 func recoverRollouts(ctx context.Context, st *store.Store, cfgs *controller.ConfigManager, logger *slog.Logger) error {
@@ -205,7 +202,7 @@ func recoverRollouts(ctx context.Context, st *store.Store, cfgs *controller.Conf
 		return nil
 	}
 	logger.Warn("taking traffic off canaries left from before a restart", "rollouts", abandoned)
-	_, err = cfgs.Update(ctx, "controller", "restarted during a rollout: canary traffic set to zero", func(c *config.Config) error {
+	_, err = cfgs.Update(ctx, store.ActorController, "restarted during a rollout: canary traffic set to zero", func(c *config.Config) error {
 		for i := range c.Routes {
 			v := &c.Routes[i].Versions
 			if v.Canary != "" {

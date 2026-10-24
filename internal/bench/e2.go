@@ -17,22 +17,22 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/limitbench"
 )
 
-const NoLimiter = "none"
+const NoLimiter config.LimitDesign = "none"
 
 type Design struct {
-	Kind  string        `json:"kind"`
-	Sync  time.Duration `json:"sync,omitempty"`
-	Lease time.Duration `json:"lease,omitempty"`
+	Kind  config.LimitDesign `json:"kind"`
+	Sync  time.Duration      `json:"sync,omitempty"`
+	Lease time.Duration      `json:"lease,omitempty"`
 }
 
 func (d Design) Name() string {
 	switch {
 	case d.Sync > 0:
-		return d.Kind + "-" + shortDuration(d.Sync)
+		return string(d.Kind) + "-" + shortDuration(d.Sync)
 	case d.Lease > 0:
-		return d.Kind + "-" + shortDuration(d.Lease)
+		return string(d.Kind) + "-" + shortDuration(d.Lease)
 	}
-	return d.Kind
+	return string(d.Kind)
 }
 
 var Designs = []Design{

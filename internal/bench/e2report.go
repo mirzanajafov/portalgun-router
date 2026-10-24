@@ -62,7 +62,7 @@ func baselineOf(cell string) string {
 	if !ok {
 		return ""
 	}
-	return NoLimiter + "/" + rest
+	return string(NoLimiter) + "/" + rest
 }
 
 func SummarizeLimiter(runs []LimiterRun) []LimiterSummary {
@@ -158,7 +158,7 @@ func WriteLimiterText(w io.Writer, sums []LimiterSummary) error {
 			added50, added99 = fmt.Sprintf("%+.0f", s.AddedP50Us.Median), fmt.Sprintf("%+.0f", s.AddedP99Us.Median)
 		}
 		over, ahead, behind, worst, fa, fr := "-", "-", "-", "-", "-", "-"
-		if !strings.HasPrefix(s.Cell, NoLimiter+"/") && valid > 0 {
+		if !strings.HasPrefix(s.Cell, string(NoLimiter)+"/") && valid > 0 {
 			over, worst = pctOf(s.OverAdmission), rangeOf(s.WorstRatio, valid, valid, 2)
 			ahead, behind = rangeOf(s.MaxAhead, valid, valid, 0), rangeOf(s.MaxBehind, valid, valid, 0)
 			fa, fr = pctOf(s.FalseAdmits), pctOf(s.FalseRejects)

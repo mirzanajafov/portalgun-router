@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
@@ -204,9 +205,9 @@ func sleepUntil(ctx context.Context, at time.Time) bool {
 
 type upstreamState struct {
 	Upstreams []struct {
-		ID      string `json:"id"`
-		Healthy bool   `json:"healthy"`
-		Outlier string `json:"outlier"`
+		ID      string       `json:"id"`
+		Healthy bool         `json:"healthy"`
+		Outlier health.State `json:"outlier"`
 	} `json:"upstreams"`
 }
 
@@ -222,7 +223,7 @@ func waitReady(ctx context.Context, client *http.Client, admins []string, limit 
 				break
 			}
 			for _, u := range st.Upstreams {
-				if !u.Healthy || (u.Outlier != "closed" && u.Outlier != "disabled") {
+				if !u.Healthy || (u.Outlier != health.Closed && u.Outlier != health.Disabled) {
 					ready, why = false, fmt.Sprintf("%s is %s, healthy=%v", u.ID, u.Outlier, u.Healthy)
 				}
 			}

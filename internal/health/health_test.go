@@ -1,6 +1,7 @@
 package health
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -256,5 +257,22 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("condition not reached in time")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestStatesTravelAsTheirNames(t *testing.T) {
+	for state, name := range map[State]string{Closed: "closed", Ejected: "ejected", HalfOpen: "half-open", Disabled: "disabled"} {
+		b, err := json.Marshal(state)
+		if err != nil || string(b) != `"`+name+`"` {
+			t.Fatalf("%v marshalled as %s, %v", state, b, err)
+		}
+		var back State
+		if err := json.Unmarshal(b, &back); err != nil || back != state {
+			t.Fatalf("%s came back as %v, %v", b, back, err)
+		}
+	}
+	var s State
+	if err := json.Unmarshal([]byte(`"open"`), &s); err == nil {
+		t.Fatal("an unknown state was accepted")
 	}
 }

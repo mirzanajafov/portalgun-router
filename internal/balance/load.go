@@ -7,10 +7,7 @@ import (
 	"time"
 )
 
-const (
-	DefaultDecay = 10 * time.Second
-	penaltyNanos = float64(time.Second)
-)
+const penaltyNanos = float64(time.Second)
 
 type Load struct {
 	inflight    atomic.Int64
@@ -23,9 +20,6 @@ type Load struct {
 }
 
 func NewLoad(maxInflight int64, decay time.Duration) *Load {
-	if decay <= 0 {
-		decay = DefaultDecay
-	}
 	return &Load{maxInflight: maxInflight, decay: float64(decay)}
 }
 

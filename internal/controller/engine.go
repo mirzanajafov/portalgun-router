@@ -11,6 +11,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/canary"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
@@ -18,7 +19,7 @@ import (
 type RolloutStore interface {
 	StartRollout(ctx context.Context, r store.Rollout) error
 	SaveStep(ctx context.Context, rollout string, st store.Step) error
-	FinishRollout(ctx context.Context, id, outcome, reason string, at time.Time) error
+	FinishRollout(ctx context.Context, id string, outcome store.Outcome, reason string, at time.Time) error
 }
 
 type EngineOptions struct {
@@ -76,7 +77,7 @@ func NewEngine(opts EngineOptions, cfgs *ConfigManager, s RolloutStore, logger *
 
 var ErrBusy = errors.New("a rollout is already running")
 
-func (e *Engine) Start(ctx context.Context, route, canaryVersion, author string) (store.Rollout, error) {
+func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.active != nil {
@@ -160,13 +161,13 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 		return
 	}
 	if rs.Brake {
-		e.finish(ctx, "rolled_back", "an instance's emergency brake stopped the canary")
+		e.finish(ctx, store.OutcomeRolledBack, "an instance's emergency brake stopped the canary")
 		return
 	}
 	if !alive(m.Dimensions, a.rollout.Canary) && alive(m.Dimensions, a.rollout.Stable) {
 		a.dead++
 		if a.dead >= e.opts.DeadSeconds {
-			e.finish(ctx, "rolled_back", fmt.Sprintf("no healthy dimension ran the canary for %d s while the stable version had one", a.dead))
+			e.finish(ctx, store.OutcomeRolledBack, fmt.Sprintf("no healthy dimension ran the canary for %d s while the stable version had one", a.dead))
 			return
 		}
 	} else {
@@ -191,7 +192,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	case canary.Promote:
 		e.advance(ctx, d.Reason)
 	case canary.Rollback:
-		e.finish(ctx, "rolled_back", d.Reason)
+		e.finish(ctx, store.OutcomeRolledBack, d.Reason)
 	default:
 		if a.seconds%10 == 0 {
 			e.saveStep(ctx)
@@ -206,14 +207,14 @@ func alive(dims []proxy.DimensionSnapshot, version string) bool {
 			continue
 		}
 		seen = true
-		if d.Healthy && d.Outlier != "ejected" {
+		if d.Healthy && d.Outlier != health.Ejected {
 			return true
 		}
 	}
 	return !seen
 }
 
-func (e *Engine) closeStep(ctx context.Context, decision, reason string) {
+func (e *Engine) closeStep(ctx context.Context, decision store.Decision, reason string) {
 	a := e.active
 	ended := e.now().UTC()
 	a.step.EndedAt = &ended
@@ -223,14 +224,14 @@ func (e *Engine) closeStep(ctx context.Context, decision, reason string) {
 
 func (e *Engine) advance(ctx context.Context, reason string) {
 	a := e.active
-	e.closeStep(ctx, "promote", reason)
+	e.closeStep(ctx, store.DecisionPromote, reason)
 	next := a.step.Step + 1
 	if next == len(e.opts.Steps) {
-		e.settle(ctx, "promoted", reason, config.Versions{Stable: a.rollout.Canary, Rollout: a.rollout.ID})
+		e.settle(ctx, store.OutcomePromoted, reason, config.Versions{Stable: a.rollout.Canary, Rollout: a.rollout.ID})
 		return
 	}
 	weight := e.opts.Steps[next]
-	version, err := e.cfgs.Update(ctx, "controller", fmt.Sprintf("rollout %s: step %d, %s at %s", a.rollout.ID, next+1, a.rollout.Canary, pct(weight)), func(c *config.Config) error {
+	version, err := e.cfgs.Update(ctx, store.ActorController, fmt.Sprintf("rollout %s: step %d, %s at %s", a.rollout.ID, next+1, a.rollout.Canary, pct(weight)), func(c *config.Config) error {
 		r, _, err := findRoute(c, a.rollout.Route)
 		if err != nil {
 			return err
@@ -240,23 +241,23 @@ func (e *Engine) advance(ctx context.Context, reason string) {
 	})
 	if err != nil {
 		e.logger.Error("raising the canary weight", "err", err)
-		e.finish(ctx, "aborted", "the next step's config could not be published: "+err.Error())
+		e.finish(ctx, store.OutcomeAborted, "the next step's config could not be published: "+err.Error())
 		return
 	}
 	e.beginStep(ctx, next, version)
 	e.emit(fmt.Sprintf("rollout %s: %s promoted to %s (%s)", a.rollout.ID, a.rollout.Canary, pct(weight), reason))
 }
 
-func (e *Engine) finish(ctx context.Context, outcome, reason string) {
+func (e *Engine) finish(ctx context.Context, outcome store.Outcome, reason string) {
 	a := e.active
-	e.closeStep(ctx, "rollback", reason)
+	e.closeStep(ctx, store.DecisionRollback, reason)
 	e.settle(ctx, outcome, reason, config.Versions{Stable: a.rollout.Stable, Rollout: a.rollout.ID})
 }
 
-func (e *Engine) settle(ctx context.Context, outcome, reason string, v config.Versions) {
+func (e *Engine) settle(ctx context.Context, outcome store.Outcome, reason string, v config.Versions) {
 	a := e.active
 	e.active = nil
-	_, err := e.cfgs.Update(ctx, "controller", fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, outcome, reason), func(c *config.Config) error {
+	_, err := e.cfgs.Update(ctx, store.ActorController, fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, outcome, reason), func(c *config.Config) error {
 		r, _, err := findRoute(c, a.rollout.Route)
 		if err != nil {
 			return err
@@ -279,7 +280,7 @@ func (e *Engine) Abort(ctx context.Context, reason string) error {
 	if e.active == nil {
 		return errors.New("no rollout is running")
 	}
-	e.finish(ctx, "aborted", reason)
+	e.finish(ctx, store.OutcomeAborted, reason)
 	return nil
 }
 

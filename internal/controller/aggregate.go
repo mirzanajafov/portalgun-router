@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 )
 
@@ -100,7 +101,15 @@ func (a *Aggregator) complete(sec int64, bin map[string]proxy.Snapshot) bool {
 	return true
 }
 
-var outlierRank = map[string]int{"disabled": 0, "closed": 0, "half-open": 1, "ejected": 2}
+func severity(s health.State) int {
+	switch s {
+	case health.Ejected:
+		return 2
+	case health.HalfOpen:
+		return 1
+	}
+	return 0
+}
 
 func merge(sec int64, bin map[string]proxy.Snapshot) Merged {
 	m := Merged{Second: sec, ConfigVersions: map[string]int64{}, Routes: map[string]proxy.RouteSnapshot{}}
@@ -139,7 +148,7 @@ func merge(sec int64, bin map[string]proxy.Snapshot) Merged {
 			acc.P50Ms = max(acc.P50Ms, d.P50Ms)
 			acc.P99Ms = max(acc.P99Ms, d.P99Ms)
 			acc.Healthy = acc.Healthy && d.Healthy
-			if outlierRank[d.Outlier] > outlierRank[acc.Outlier] {
+			if severity(d.Outlier) > severity(acc.Outlier) {
 				acc.Outlier = d.Outlier
 			}
 			acc.EjectedMs = max(acc.EjectedMs, d.EjectedMs)
