@@ -178,10 +178,10 @@ func TestPartialPatchesTheDimension(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	control := httptest.NewServer(s.ControlHandler())
+	control := httptest.NewServer(s.ControlHandler("control-token"))
 	t.Cleanup(control.Close)
 	_, toxi := newFakeToxiproxy(t)
-	in := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control.URL}})
+	in := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control.URL, Token: "control-token"}})
 
 	f := Fault{Mode: Partial, Target: "dim-a", ErrorRate: 1}
 	if err := in.Inject(context.Background(), f); err != nil {

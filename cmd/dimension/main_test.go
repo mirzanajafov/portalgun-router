@@ -79,7 +79,7 @@ func TestADimensionThatRegistersIsReadyOnlyOnceItHoldsALease(t *testing.T) {
 	}
 	stopped := make(chan error, 1)
 	go func() {
-		stopped <- run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), "e-7", "v1", "127.0.0.1:0", ln, dimension.DefaultBehavior(), keep)
+		stopped <- run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), "e-7", "v1", "127.0.0.1:0", ln, "control-token", dimension.DefaultBehavior(), keep)
 	}()
 	var held func(bool)
 	select {

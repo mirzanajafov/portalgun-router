@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 )
 
 const (
@@ -275,13 +277,23 @@ func sleep(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-func (s *Server) ControlHandler() http.Handler {
+func (s *Server) ControlHandler(token string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ready", s.ready)
-	mux.HandleFunc("GET /state", s.getState)
-	mux.HandleFunc("PATCH /state", s.patchState)
-	mux.HandleFunc("POST /reset", s.reset)
+	mux.HandleFunc("GET /state", withToken(token, s.getState))
+	mux.HandleFunc("PATCH /state", withToken(token, s.patchState))
+	mux.HandleFunc("POST /reset", withToken(token, s.reset))
 	return mux
+}
+
+func withToken(token string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !httpx.Authorized(r, token) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this needs the control token"})
+			return
+		}
+		next(w, r)
+	}
 }
 
 func (s *Server) view() View {
