@@ -101,6 +101,8 @@ func chaosInjector(ctx context.Context, o options, logger *slog.Logger) (*chaos.
 }
 
 func run(ctx context.Context, logger *slog.Logger, o options) error {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 	addr, postgres, redisAddr, bootstrapPath, token := o.addr, o.postgres, o.redis, o.bootstrap, o.token
 	if postgres == "" || redisAddr == "" {
 		return errors.New("-postgres and -redis are required")
@@ -126,9 +128,9 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 			return err
 		}
 	}
-	hub := controller.NewHub()
+	hub := controller.NewHub(logger)
 	publish := func(ctx context.Context, env distrib.Envelope) error { return distrib.PublishConfig(ctx, rdb, env) }
-	cfgs := controller.NewConfigManager(st, publish, hub.Event)
+	cfgs := controller.NewConfigManager(st, publish, hub.Event, logger)
 	if err := cfgs.Load(ctx, boot); err != nil {
 		return err
 	}
@@ -147,7 +149,12 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
-	api := controller.NewAPI(cfgs, engine, st, hub, token)
+	settled := make(chan struct{})
+	go func() {
+		defer close(settled)
+		engine.Run(ctx)
+	}()
+	api := controller.NewAPI(cfgs, engine, st, hub, token, logger)
 	if o.visitorRollouts {
 		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.proxyToken, logger)
 	}
@@ -193,18 +200,22 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}()
 
 	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	srv.RegisterOnShutdown(hub.Close)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	_, version := cfgs.Raw()
 	logger.Info("controller up", "addr", ln.Addr().String(), "config", version, "admin", token != "", "registry", o.registry != "")
+	var serveErr error
 	select {
 	case <-ctx.Done():
-	case err := <-errc:
-		return err
+	case serveErr = <-errc:
+		stop()
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	err = errors.Join(serveErr, srv.Shutdown(shutdownCtx))
+	<-settled
+	return err
 }
 
 func recoverRollouts(ctx context.Context, st *store.Store, cfgs *controller.ConfigManager, logger *slog.Logger) error {

@@ -58,10 +58,12 @@ export type Rollout = {
   canary: string
   startedAt: string
   finishedAt?: string
-  outcome?: string
+  outcome?: Outcome
   reason?: string
   steps: Step[] | null
 }
+
+export type Outcome = 'promoted' | 'rolled_back' | 'aborted'
 
 export type RolloutStatus = {
   active: boolean
@@ -69,11 +71,11 @@ export type RolloutStatus = {
   step?: Step
   steps: number[]
   dataSec: number
-  elapsedSec: number
   llrErrors: number
   llrSlow: number
   lower: number
   upper: number
+  pending?: Outcome
 }
 
 export type Fault = { mode: string; target: string; latency?: number; errorRate?: number; period?: number }

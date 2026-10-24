@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -295,5 +296,16 @@ func TestClearAllClearsTheDimensionsThatTakeTheTokenAndReportsOneThatRefuses(t *
 	servers["dim-a"].Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("the dimension that took the token still fails: %d", w.Code)
+	}
+}
+
+func TestABlackholeThatFailsHalfwayTakesBackItsFirstToxic(t *testing.T) {
+	fake, toxi := newFakeToxiproxy(t)
+	fake.toxics["dim-a"]["blackhole-downstream"] = Toxic{Name: "blackhole-downstream", Type: "timeout", Stream: "downstream"}
+	if err := NewInjector(toxi, nil).Inject(context.Background(), Fault{Mode: Blackhole, Target: "dim-a"}); err == nil {
+		t.Fatal("a blackhole Toxiproxy refused halfway came back without an error")
+	}
+	if _, names := fake.state("dim-a"); slices.Contains(names, "blackhole-upstream") {
+		t.Fatalf("the half that took effect is still there: %v", names)
 	}
 }

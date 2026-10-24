@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { dimensionName, pct } from '@/lib/format'
 import type { LlrPoint } from '@/lib/live'
-import type { Merged, PortalEvent, RolloutStatus } from '@/lib/types'
+import type { Merged, Outcome, PortalEvent, RolloutStatus } from '@/lib/types'
 import { LlrChart } from './LlrChart'
 
 export const ROUTE = 'portal'
+
+const outcomeLabel: Record<Outcome, string> = { promoted: 'promoted', rolled_back: 'rolled back', aborted: 'aborted' }
 
 export function candidate(latest: Merged | null): { stable?: string; canary?: string; target?: string; hosts: string[] } {
   const route = latest?.routes[ROUTE]
@@ -81,11 +83,16 @@ export function CanaryPanel({
             })}
           </ol>
           <div className="mono muted flex flex-wrap gap-x-4 text-xs">
-            <span>{Math.round(active.elapsedSec)} s in step</span>
+            <span>{active.dataSec} s in step</span>
             <span>{active.step?.canaryRequests ?? 0} canary req</span>
             <span>{active.step?.canaryErrors ?? 0} canary errors</span>
             <span>{active.step?.stableErrors ?? 0} stable errors</span>
           </div>
+          {active.pending ? (
+            <p className="text-xs text-[var(--color-warn)]">
+              Decided: {outcomeLabel[active.pending]}. The controller keeps saving it until the database answers.
+            </p>
+          ) : null}
         </>
       ) : (
         <p className="text-sm">

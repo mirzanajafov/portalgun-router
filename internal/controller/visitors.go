@@ -37,10 +37,7 @@ const proxyTokenHeader = "X-Portal-Proxy-Token"
 
 var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right now, so try again in a minute")
 
-const (
-	recountAfter = time.Minute
-	warnEvery    = time.Minute
-)
+const recountAfter = time.Minute
 
 type visitorLimit struct {
 	name       string
@@ -50,9 +47,9 @@ type visitorLimit struct {
 	logger     *slog.Logger
 	now        func() time.Time
 
-	mu         sync.Mutex
-	failedAt   time.Time
-	mismatchAt time.Time
+	mu          sync.Mutex
+	failedAt    time.Time
+	mismatchLog everyMinute
 }
 
 func newVisitorLimit(name string, perHour int64, counter Counter, proxyToken string, logger *slog.Logger) *visitorLimit {
@@ -74,11 +71,8 @@ func (l *visitorLimit) client(r *http.Request) string {
 }
 
 func (l *visitorLimit) mismatch() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if now := l.now(); now.Sub(l.mismatchAt) >= warnEvery {
+	if l.mismatchLog.allow(l.now()) {
 		l.logger.Warn("a request carried a proxy token that doesn't match, so it was counted by its peer", "limit", l.name)
-		l.mismatchAt = now
 	}
 }
 

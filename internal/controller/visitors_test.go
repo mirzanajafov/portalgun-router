@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -67,7 +66,7 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 			if c.sent != "" {
 				req.Header.Set(proxyTokenHeader, c.sent)
 			}
-			if got := newVisitorLimit("chaos", 3, nil, c.configured, slog.New(slog.NewTextHandler(io.Discard, nil))).client(req); got != c.want {
+			if got := newVisitorLimit("chaos", 3, nil, c.configured, quiet).client(req); got != c.want {
 				t.Fatalf("counted as %s, want %s", got, c.want)
 			}
 		})
@@ -97,7 +96,7 @@ func TestAWrongProxyTokenIsLoggedOnceAMinuteWithoutTheAddress(t *testing.T) {
 			t.Fatalf("counted as %s, want the peer", got)
 		}
 	}
-	elapsed = warnEvery
+	elapsed = time.Minute
 	limit.client(req)
 	if n := strings.Count(logs.String(), "doesn't match"); n != 2 || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
 		t.Fatalf("want two warnings a minute apart, naming the limit and not the visitor: %q", logs.String())
@@ -116,9 +115,9 @@ func TestTheWebServerSendsTheTokenUnderTheHeaderTheLimitsRead(t *testing.T) {
 
 func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, proxyToken, quiet)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -139,7 +138,7 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 
 func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) {
 	counter := &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(quiet), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, quiet)
 	mux := http.NewServeMux()
 	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
 	srv := httptest.NewServer(mux)

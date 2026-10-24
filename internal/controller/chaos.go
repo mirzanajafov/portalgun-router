@@ -292,12 +292,7 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 		case errors.Is(err, ErrLimitUnchecked):
 			uncounted(w)
 		case errors.Is(err, ErrChaosFailed):
-			c.logger.Error("starting a fault", "mode", req.Mode, "target", req.Target, "err", err)
-			msg := ErrChaosFailed.Error()
-			if authorized {
-				msg = err.Error()
-			}
-			httpx.WriteError(w, http.StatusServiceUnavailable, msg)
+			unavailable(w, c.logger, authorized, ErrChaosFailed, err, "mode", req.Mode, "target", req.Target)
 		case err != nil:
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		default:

@@ -118,6 +118,17 @@ func (in *Injector) Inject(ctx context.Context, f Fault) error {
 	if err := f.Validate(); err != nil {
 		return err
 	}
+	err := in.apply(ctx, f)
+	if err == nil || f.Mode == Flapping || errors.Is(err, ErrControlToken) {
+		return err
+	}
+	if uerr := in.Clear(context.WithoutCancel(ctx), f); uerr != nil {
+		return errors.Join(err, fmt.Errorf("undoing what may have taken effect: %w", uerr))
+	}
+	return err
+}
+
+func (in *Injector) apply(ctx context.Context, f Fault) error {
 	var err error
 	switch f.Mode {
 	case Crash:
