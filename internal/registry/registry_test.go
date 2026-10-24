@@ -236,9 +236,20 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	c, _ := cluster(t, f, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	var mu sync.Mutex
+	var held []bool
+	reported := func() []bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(held)
+	}
 	done := make(chan struct{})
 	go func() {
-		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 300*time.Millisecond, quiet())
+		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 300*time.Millisecond, quiet(), func(h bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			held = append(held, h)
+		})
 		close(done)
 	}()
 	deadline := time.Now().Add(5 * time.Second)
@@ -256,7 +267,9 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	}
 	f.drop(leases[0])
 	for time.Now().Before(deadline) {
-		if list, _, _, now := f.snapshot(); len(now) == 1 && now[0] != leases[0] && names(list) == "e-7" && list[0].Meta["version"] == "v1" {
+		list, _, _, now := f.snapshot()
+		r := reported()
+		if len(now) == 1 && now[0] != leases[0] && names(list) == "e-7" && list[0].Meta["version"] == "v1" && len(r) >= 3 && r[len(r)-1] {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -273,6 +286,14 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	if list, _, _, now := f.snapshot(); len(list) != 0 || len(now) != 0 {
 		t.Fatalf("still registered after the context ended: %v on %v", list, now)
 	}
+	got := reported()
+	turns := len(got) >= 4 && !got[len(got)-1]
+	for i, h := range got {
+		turns = turns && h == (i%2 == 0)
+	}
+	if !turns {
+		t.Fatalf("reported the lease as %v, want held and lost in turn, at least twice, ending lost", got)
+	}
 }
 
 func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
@@ -282,7 +303,7 @@ func TestKeepalivesAndTheFinalRevokeMoveOffANodeThatHangs(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 1200*time.Millisecond, quiet())
+		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 1200*time.Millisecond, quiet(), func(bool) {})
 		close(done)
 	}()
 	deadline := time.Now().Add(5 * time.Second)
@@ -342,7 +363,7 @@ func TestARegistrationInFlightWhenTheDimensionStopsIsRevoked(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second, quiet())
+		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 10*time.Second, quiet(), func(bool) {})
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)

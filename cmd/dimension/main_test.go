@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/dimension"
 	"github.com/mirzanajafov/portalgun-router/internal/registry"
 )
 
@@ -55,5 +61,49 @@ func TestARegistrationAnnouncesTheVersionAndTheCapAsTheRegistryWillList(t *testi
 func TestNamesUpToTheRegistrysLimitAreAccepted(t *testing.T) {
 	if _, _, err := registration(flags(func(f *registrationFlags) { f.id = strings.Repeat("e", 128) })); err != nil {
 		t.Fatalf("a 128-byte id: %v", err)
+	}
+}
+
+func TestADimensionThatRegistersIsReadyOnlyOnceItHoldsALease(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	control := ln.Addr().String()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	reports := make(chan func(bool), 1)
+	keep := func(ctx context.Context, held func(bool)) {
+		reports <- held
+		<-ctx.Done()
+	}
+	stopped := make(chan error, 1)
+	go func() {
+		stopped <- run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), "e-7", "v1", "127.0.0.1:0", ln, dimension.DefaultBehavior(), keep)
+	}()
+	var held func(bool)
+	select {
+	case held = <-reports:
+	case err := <-stopped:
+		t.Fatalf("the dimension stopped before registering: %v", err)
+	}
+	ready := func() int {
+		resp, err := http.Get("http://" + control + "/ready")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if got := ready(); got != http.StatusServiceUnavailable {
+		t.Fatalf("before the first lease: %d", got)
+	}
+	held(true)
+	if got := ready(); got != http.StatusOK {
+		t.Fatalf("with a lease: %d", got)
+	}
+	cancel()
+	if err := <-stopped; err != nil {
+		t.Fatal(err)
 	}
 }

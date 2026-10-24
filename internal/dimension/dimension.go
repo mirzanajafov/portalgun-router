@@ -150,6 +150,7 @@ type Server struct {
 	versionHeader []string
 	initial       Behavior
 	state         atomic.Pointer[state]
+	awaitingLease atomic.Bool
 
 	mu   sync.Mutex
 	addr string
@@ -222,6 +223,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+func (s *Server) SetLeased(held bool) { s.awaitingLease.Store(!held) }
+
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(s.serve)
 }
@@ -274,6 +277,7 @@ func sleep(ctx context.Context, d time.Duration) bool {
 
 func (s *Server) ControlHandler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ready", s.ready)
 	mux.HandleFunc("GET /state", s.getState)
 	mux.HandleFunc("PATCH /state", s.patchState)
 	mux.HandleFunc("POST /reset", s.reset)
@@ -286,6 +290,20 @@ func (s *Server) view() View {
 		Version:   s.version,
 		Listening: s.data != nil,
 		Behavior:  s.state.Load().b,
+	}
+}
+
+func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	listening := s.data != nil
+	s.mu.Unlock()
+	switch {
+	case !listening:
+		http.Error(w, "not listening", http.StatusServiceUnavailable)
+	case s.awaitingLease.Load():
+		http.Error(w, "not registered", http.StatusServiceUnavailable)
+	default:
+		_, _ = io.WriteString(w, "ready\n")
 	}
 }
 
