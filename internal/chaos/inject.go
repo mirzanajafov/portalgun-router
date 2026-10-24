@@ -55,8 +55,11 @@ func (f Fault) Validate() error {
 	return nil
 }
 
+var ErrControlToken = errors.New("the dimension refused the control token")
+
 type DimensionControl struct {
 	BaseURL string
+	Token   string
 	Client  *http.Client
 }
 
@@ -78,6 +81,7 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+d.Token)
 	client := d.Client
 	if client == nil {
 		client = http.DefaultClient
@@ -87,9 +91,12 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 		return fmt.Errorf("dimension control: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("dimension control %s: %w", d.BaseURL, ErrControlToken)
+	}
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-		return fmt.Errorf("dimension control: %s: %s", resp.Status, bytes.TrimSpace(msg))
+		return fmt.Errorf("dimension control %s: %s: %s", d.BaseURL, resp.Status, bytes.TrimSpace(msg))
 	}
 	return nil
 }

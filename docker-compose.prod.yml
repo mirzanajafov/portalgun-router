@@ -14,6 +14,7 @@ services:
       PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/portal?sslmode=disable
       PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:?set PORTAL_ADMIN_TOKEN}
       PORTAL_PROXY_TOKEN: *proxy-token
+      PORTAL_CONTROL_TOKEN: ${PORTAL_CONTROL_TOKEN:?set PORTAL_CONTROL_TOKEN}
 
   web:
     container_name: portalgun-web

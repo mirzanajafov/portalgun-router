@@ -1,13 +1,13 @@
 package proxy
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -39,7 +39,7 @@ func AdminHandler(g *Gateway, token string) http.Handler {
 		writeJSON(w, http.StatusOK, g.Config())
 	})
 	mux.HandleFunc("PUT /config", func(w http.ResponseWriter, r *http.Request) {
-		if !authorized(r, token) {
+		if !httpx.Authorized(r, token) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "config writes need the admin token"})
 			return
 		}
@@ -59,14 +59,6 @@ func AdminHandler(g *Gateway, token string) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]int64{"version": g.Version()})
 	})
 	return mux
-}
-
-func authorized(r *http.Request, token string) bool {
-	if token == "" {
-		return false
-	}
-	got := []byte(r.Header.Get("Authorization"))
-	return subtle.ConstantTimeCompare(got, []byte("Bearer "+token)) == 1
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -32,7 +32,7 @@ func serve(t *testing.T, s *Server) *httptest.Server {
 		defer cancel()
 		_ = s.Shutdown(ctx)
 	})
-	control := httptest.NewServer(s.ControlHandler())
+	control := httptest.NewServer(s.ControlHandler(controlToken))
 	t.Cleanup(control.Close)
 	return control
 }
@@ -51,16 +51,27 @@ func get(t *testing.T, url string) (int, http.Header, []byte) {
 	return resp.StatusCode, resp.Header, body
 }
 
-func patch(t *testing.T, control *httptest.Server, body string) (int, View) {
+const controlToken = "control-token"
+
+func callControl(t *testing.T, method, url, auth, body string) *http.Response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPatch, control.URL+"/state", strings.NewReader(body))
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return resp
+}
+
+func patch(t *testing.T, control *httptest.Server, body string) (int, View) {
+	t.Helper()
+	resp := callControl(t, http.MethodPatch, control.URL+"/state", "Bearer "+controlToken, body)
 	defer resp.Body.Close()
 	var v View
 	if resp.StatusCode == http.StatusOK {
@@ -260,20 +271,53 @@ func TestReadyOnlyWhileListeningAndHoldingTheLeaseItNeeds(t *testing.T) {
 	}
 }
 
+func TestTheControlPortWantsItsTokenExceptForReadiness(t *testing.T) {
+	s, control := start(t, DefaultBehavior())
+	if status, _ := patch(t, control, `{"errorRate": 0.5}`); status != http.StatusOK {
+		t.Fatalf("patch with the token: %d", status)
+	}
+	for _, auth := range []string{"", "Bearer guess", controlToken} {
+		for _, c := range []struct{ method, path, body string }{
+			{http.MethodGet, "/state", ""},
+			{http.MethodPatch, "/state", `{"errorRate": 1, "listening": false}`},
+			{http.MethodPost, "/reset", ""},
+		} {
+			resp := callControl(t, c.method, control.URL+c.path, auth, c.body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusUnauthorized {
+				t.Fatalf("%s %s with %q: %d", c.method, c.path, auth, resp.StatusCode)
+			}
+		}
+	}
+	if status, _, _ := get(t, control.URL+"/ready"); status != http.StatusOK {
+		t.Fatalf("readiness without a token: %d", status)
+	}
+	if status, v := patch(t, control, `{}`); status != http.StatusOK || v.ErrorRate != 0.5 || !v.Listening {
+		t.Fatalf("a refused patch or reset changed the dimension: %d %+v", status, v)
+	}
+	unconfigured := httptest.NewServer(s.ControlHandler(""))
+	t.Cleanup(unconfigured.Close)
+	resp := callControl(t, http.MethodPatch, unconfigured.URL+"/state", "Bearer ", `{}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("a control port without a token took an empty one: %d", resp.StatusCode)
+	}
+}
+
 func TestResetRestoresTheInitialBehavior(t *testing.T) {
 	s, control := start(t, DefaultBehavior())
 	if status, _ := patch(t, control, `{"errorRate": 1, "delayMs": 5, "listening": false}`); status != http.StatusOK {
 		t.Fatalf("patch got %d", status)
 	}
-	resp, err := http.Post(control.URL+"/reset", "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
+	resp := callControl(t, http.MethodPost, control.URL+"/reset", "Bearer "+controlToken, "")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("reset got %d", resp.StatusCode)
 	}
 	var v View
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
 	if !v.Listening || v.Behavior != DefaultBehavior() {
 		t.Fatalf("after reset: %+v", v)
 	}

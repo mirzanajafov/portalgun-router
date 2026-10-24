@@ -13,6 +13,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
@@ -20,7 +21,6 @@ import (
 type Injector interface {
 	Inject(ctx context.Context, f chaos.Fault) error
 	Clear(ctx context.Context, f chaos.Fault) error
-	ClearAll(ctx context.Context) error
 }
 
 type ChaosLog interface {
@@ -77,6 +77,7 @@ var (
 	ErrChaosBusy     = errors.New("another fault is running")
 	ErrChaosCooldown = errors.New("the portal gun is cooling down")
 	ErrChaosLimit    = errors.New("that is enough chaos from this address for an hour")
+	ErrChaosFailed   = errors.New("the fault could not be started")
 )
 
 type ChaosService struct {
@@ -151,7 +152,7 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		}
 	}
 	if err := c.inj.Inject(ctx, f); err != nil {
-		return Running{}, 0, err
+		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
 	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
 	c.current = &run
@@ -202,10 +203,6 @@ func (c *ChaosService) Stop(ctx context.Context) error {
 	c.timer.Stop()
 	c.clearLocked(ctx, "stopped by an admin")
 	return nil
-}
-
-func (c *ChaosService) Reset(ctx context.Context) error {
-	return c.inj.ClearAll(ctx)
 }
 
 func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fault, action string) {
@@ -279,7 +276,7 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 		if err := decode(w, r, &req); err != nil {
 			return
 		}
-		authorized, client := Authorized(r, token), ""
+		authorized, client := httpx.Authorized(r, token), ""
 		if !authorized {
 			client = c.visitors.client(r)
 		}
@@ -294,6 +291,13 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			writeJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
 		case errors.Is(err, ErrLimitUnchecked):
 			uncounted(w)
+		case errors.Is(err, ErrChaosFailed):
+			c.logger.Error("starting a fault", "mode", req.Mode, "target", req.Target, "err", err)
+			msg := ErrChaosFailed.Error()
+			if authorized {
+				msg = err.Error()
+			}
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": msg})
 		case err != nil:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		default:

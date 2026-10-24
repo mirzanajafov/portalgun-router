@@ -533,7 +533,4 @@ func TestAdminEndpoints(t *testing.T) {
 	if st := g.State(); st.Version != 2 || st.Upstreams[0].MaxInflight != 7 {
 		t.Fatalf("state after the update: %+v", st)
 	}
-	if authorized(&http.Request{Header: http.Header{"Authorization": {"Bearer "}}}, "") {
-		t.Fatal("an empty token authorized a request")
-	}
 }

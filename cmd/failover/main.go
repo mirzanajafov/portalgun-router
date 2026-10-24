@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	c := failover.Cell{Controls: map[string]string{}, Options: failover.DefaultOptions()}
+	c := failover.Cell{Controls: map[string]string{}, Token: os.Getenv("PORTAL_CONTROL_TOKEN"), Options: failover.DefaultOptions()}
 	flag.StringVar(&c.Label, "label", "", "label copied into the report")
 	flag.Func("url", "gateway traffic URL, repeatable", func(v string) error {
 		c.Gateways = append(c.Gateways, v)

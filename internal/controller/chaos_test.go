@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,11 +24,15 @@ type fakeInjector struct {
 	mu       sync.Mutex
 	injected []chaos.Fault
 	cleared  []chaos.Fault
+	err      error
 }
 
 func (f *fakeInjector) Inject(_ context.Context, fault chaos.Fault) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
 	f.injected = append(f.injected, fault)
 	return nil
 }
@@ -38,8 +43,6 @@ func (f *fakeInjector) Clear(_ context.Context, fault chaos.Fault) error {
 	f.cleared = append(f.cleared, fault)
 	return nil
 }
-
-func (f *fakeInjector) ClearAll(context.Context) error { return nil }
 
 func (f *fakeInjector) injections() int {
 	f.mu.Lock()
@@ -289,5 +292,29 @@ func TestChaosEndpoints(t *testing.T) {
 	}
 	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 429 {
 		t.Fatalf("during the cooldown: %d", got)
+	}
+}
+
+func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
+	for _, failure := range []error{
+		fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken),
+		errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`),
+	} {
+		svc, inj, _ := newChaos(DefaultChaosLimits())
+		inj.err = failure
+		mux := http.NewServeMux()
+		svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
+		for _, caller := range []struct {
+			header http.Header
+			admin  bool
+		}{{viaProxy("9.9.9.9"), false}, {asAdmin("9.9.9.9"), true}} {
+			req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.3}`))
+			req.Header = caller.header
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if named := strings.Contains(w.Body.String(), "dim-a"); w.Code != http.StatusServiceUnavailable || named != caller.admin {
+				t.Fatalf("%v came back to admin=%v as %d %s", failure, caller.admin, w.Code, w.Body)
+			}
+		}
 	}
 }
