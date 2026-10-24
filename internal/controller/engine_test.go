@@ -293,7 +293,11 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 		{"Bearer " + adminToken, `{"route":"api","canary":"v2"}`, 201},
 		{"Bearer " + adminToken, `{"route":"api","canary":"v2"}`, 409},
 	} {
-		if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", tc.body, http.Header{"Authorization": {tc.auth}}).StatusCode; got != tc.want {
+		header := http.Header{}
+		if tc.auth != "" {
+			header.Set("Authorization", tc.auth)
+		}
+		if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", tc.body, header).StatusCode; got != tc.want {
 			t.Errorf("auth %q body %s: %d, want %d", tc.auth, tc.body, got, tc.want)
 		}
 	}
@@ -319,10 +323,10 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
-	visitor, admin := viaDashboard("9.9.9.9"), asAdmin("9.9.9.9")
+	visitor, admin := viaProxy("9.9.9.9"), asAdmin("9.9.9.9")
 	start := `{"route":"api","canary":"v2"}`
 	abort := func() {
 		t.Helper()
@@ -369,11 +373,11 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), ProxyToken(proxySecret), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
-	if resp := send(t, http.MethodPost, url, start, viaDashboard("9.9.9.9")); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
+	if resp := send(t, http.MethodPost, url, start, viaProxy("9.9.9.9")); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
 		t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if r.engine.Status().Active {
@@ -401,7 +405,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
-	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), ProxyToken(proxySecret), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup

@@ -96,7 +96,7 @@ func (l *logSink) String() string {
 
 func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector) {
 	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, &fakeCounter{hits: map[string]int64{}}, NewHub(), limits, []string{"dim-a", "dim-b"}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc := NewChaosService(inj, nil, &fakeCounter{hits: map[string]int64{}}, NewHub(), limits, []string{"dim-a", "dim-b"}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return svc, inj
 }
 
@@ -173,7 +173,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	logs := &logSink{}
 	counter := downCounter()
 	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
+	svc := NewChaosService(inj, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(logs, nil)))
 	var elapsed atomic.Int64
 	start := time.Now()
 	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
@@ -183,7 +183,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	url, fault := srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`
-	visitor, admin := viaDashboard("1.2.3.4"), asAdmin("1.2.3.4")
+	visitor, admin := viaProxy("1.2.3.4"), asAdmin("1.2.3.4")
 	for range 2 {
 		if resp := send(t, http.MethodPost, url, fault, visitor); resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "60" {
 			t.Fatalf("visitor with the counter down: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
@@ -217,7 +217,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	logs := &logSink{}
 	counter := &fakeCounter{hits: map[string]int64{}, err: context.Canceled}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(logs, nil)))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {
@@ -268,7 +268,7 @@ func TestChaosEndpoints(t *testing.T) {
 	svc.Routes(mux, api.admin, adminToken)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	url, visitor := srv.URL+"/api/chaos", viaDashboard("9.9.9.9")
+	url, visitor := srv.URL+"/api/chaos", viaProxy("9.9.9.9")
 	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 201 {
 		t.Fatalf("visitor fault: %d", got)
 	}

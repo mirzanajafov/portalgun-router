@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net"
@@ -12,16 +13,16 @@ import (
 )
 
 const (
-	adminToken     = "s3cret"
-	dashboardToken = "dashboard-token"
+	adminToken  = "s3cret"
+	proxySecret = "proxy-token"
 )
 
-func viaDashboard(visitor string) http.Header {
-	return http.Header{"X-Forwarded-For": {visitor}, proxyTokenHeader: {dashboardToken}}
+func viaProxy(visitor string) http.Header {
+	return http.Header{"X-Forwarded-For": {visitor}, proxyTokenHeader: {proxySecret}}
 }
 
 func asAdmin(visitor string) http.Header {
-	h := viaDashboard(visitor)
+	h := viaProxy(visitor)
 	h.Set("Authorization", "Bearer "+adminToken)
 	return h
 }
@@ -41,16 +42,16 @@ func send(t *testing.T, method, url, body string, header http.Header) *http.Resp
 	return resp
 }
 
-func TestOnlyTheDashboardsServerNamesTheVisitor(t *testing.T) {
+func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 	cases := []struct {
 		name, forwardedFor, configured, sent, want string
 	}{
 		{"no token configured", "6.6.6.6, 9.9.9.9", "", "", "192.0.2.1"},
-		{"a token sent while none is configured", "6.6.6.6, 9.9.9.9", "", dashboardToken, "192.0.2.1"},
-		{"the dashboard's token", "6.6.6.6, 9.9.9.9", dashboardToken, dashboardToken, "9.9.9.9"},
-		{"the dashboard's token without an address", "", dashboardToken, dashboardToken, "192.0.2.1"},
-		{"a wrong token", "6.6.6.6, 9.9.9.9", dashboardToken, "dashboard-tokem", "192.0.2.1"},
-		{"no token sent", "6.6.6.6, 9.9.9.9", dashboardToken, "", "192.0.2.1"},
+		{"a token sent while none is configured", "6.6.6.6, 9.9.9.9", "", proxySecret, "192.0.2.1"},
+		{"the proxy token", "6.6.6.6, 9.9.9.9", proxySecret, proxySecret, "9.9.9.9"},
+		{"the proxy token without an address", "", proxySecret, proxySecret, "192.0.2.1"},
+		{"a wrong token", "6.6.6.6, 9.9.9.9", proxySecret, "proxy-tokem", "192.0.2.1"},
+		{"no token sent", "6.6.6.6, 9.9.9.9", proxySecret, "", "192.0.2.1"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -69,11 +70,11 @@ func TestOnlyTheDashboardsServerNamesTheVisitor(t *testing.T) {
 	}
 }
 
-func TestACallerWithoutTheDashboardsTokenCannotRotatePastTheVisitorLimit(t *testing.T) {
+func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T) {
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -87,27 +88,28 @@ func TestACallerWithoutTheDashboardsTokenCannotRotatePastTheVisitorLimit(t *test
 	if got := send(t, http.MethodPost, url, start, http.Header{"X-Forwarded-For": {"9.9.9.2"}}).StatusCode; got != http.StatusTooManyRequests {
 		t.Fatalf("second start under a new X-Forwarded-For: %d, want the limit", got)
 	}
-	if n := counter.hits["rollout:ip:"+callerOf(t, srv)]; n != 2 {
-		t.Fatalf("counts %v, want both starts on the caller's own address", counter.hits)
+	if n := counter.hits["rollout:ip:"+serverHost(t, srv)]; n != 2 {
+		t.Fatalf("counts %v, want both starts on the caller's own loopback address", counter.hits)
 	}
 }
 
-func TestAChaosCallerWithoutTheDashboardsTokenIsCountedByItsOwnAddress(t *testing.T) {
+func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) {
 	counter := &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	mux := http.NewServeMux()
 	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
 	if got := send(t, http.MethodPost, srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`, http.Header{"X-Forwarded-For": {"9.9.9.1"}}).StatusCode; got != http.StatusCreated {
 		t.Fatalf("visitor fault: %d", got)
 	}
-	if n := counter.hits["chaos:ip:"+callerOf(t, srv)]; n != 1 || len(counter.hits) != 1 {
-		t.Fatalf("counts %v, want the fault on the caller's own address", counter.hits)
+	if n := counter.hits["chaos:ip:"+serverHost(t, srv)]; n != 1 || len(counter.hits) != 1 {
+		t.Fatalf("counts %v, want the fault on the caller's own loopback address", counter.hits)
 	}
 }
 
-func callerOf(t *testing.T, srv *httptest.Server) string {
+func serverHost(t *testing.T, srv *httptest.Server) string {
 	t.Helper()
 	host, _, err := net.SplitHostPort(srv.Listener.Addr().String())
 	if err != nil {
