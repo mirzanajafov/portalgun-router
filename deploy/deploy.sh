@@ -20,30 +20,36 @@ fi
 
 deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
 
-unready() { grep -Ev ' running( healthy)?$' <<< "$1"; }
+states() {
+  local ids
+  mapfile -t ids < <("${compose[@]}" ps -a --format '{{.ID}} {{.Labels}}' | grep -F com.docker.compose.oneoff=False | cut -d ' ' -f 1)
+  [ "${#ids[@]}" -gt 0 ] && docker inspect -f '{{slice .Name 1}} {{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}} {{.State.StartedAt}}' "${ids[@]}"
+}
+
+unready() { grep -Ev '^[^ ]+ running(/healthy)? ' <<< "$1" | cut -d ' ' -f 1,2; }
 
 healthy() {
-  local states
+  local now=""
   for _ in $(seq 1 60); do
-    states=$("${compose[@]}" ps -a --format '{{.Name}} {{.State}} {{.Health}}' | sed 's/ *$//')
-    [ -n "$states" ] && ! unready "$states" > /dev/null && return 0
+    now=$(states) && [ -z "$(unready "$now")" ] && return 0
     sleep 3
   done
-  unready "$states" >&2
+  unready "${now:-no containers}" >&2
   return 1
 }
 
 settled() {
-  local since ids
+  local since now name status started failed=0
   since=$(date +%s%N)
   sleep 15
-  mapfile -t ids < <("${compose[@]}" ps -aq)
-  docker inspect -f '{{.Name}} {{.State.Status}} {{.State.StartedAt}}' "${ids[@]}" | while read -r name status started; do
-    if [ "$status" != running ] || [ "$(date -d "$started" +%s%N)" -gt "$since" ]; then
-      echo "${name#/} did not stay up" >&2
-      exit 1
+  now=$(states) || { echo "the containers could not be inspected" >&2; return 1; }
+  while read -r name status started; do
+    if [[ $status != running* ]] || [ "$(date -d "$started" +%s%N)" -gt "$since" ]; then
+      echo "$name did not stay up" >&2
+      failed=1
     fi
-  done
+  done <<< "$now"
+  return "$failed"
 }
 
 release() {
@@ -90,8 +96,9 @@ if [ "$previous" = "$target" ]; then
 fi
 say "Not healthy, rolling back to $(git log --oneline -1 "$previous")"
 git reset --hard --quiet "$previous"
+stamp=$(deployed)
 if release; then
-  deployed > .deployed
+  echo "$stamp" > .deployed
   rm -f .deploying
   echo "Rolled back. Schema migrations from the failed release stay applied, and the dump taken above is in backups/db if one has to be undone."
 else
