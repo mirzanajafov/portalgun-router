@@ -16,10 +16,14 @@ type Hub struct {
 	closed    chan struct{}
 	closeOnce sync.Once
 
-	mu      sync.Mutex
-	subs    map[chan []byte]struct{}
-	events  []Event
-	backlog [][]byte
+	mu     sync.Mutex
+	subs   map[chan []byte]struct{}
+	recent []recent
+}
+
+type recent struct {
+	event Event
+	frame []byte
 }
 
 func NewHub(logger *slog.Logger) *Hub {
@@ -42,11 +46,11 @@ func (h *Hub) Subscribe() (<-chan []byte, func()) {
 	ch := make(chan []byte, 16)
 	h.mu.Lock()
 	h.subs[ch] = struct{}{}
-	backlog := append([][]byte(nil), h.backlog...)
+	backlog := append([]recent(nil), h.recent...)
 	h.mu.Unlock()
-	for _, f := range backlog {
+	for _, r := range backlog {
 		select {
-		case ch <- f:
+		case ch <- r.frame:
 		default:
 		}
 	}
@@ -99,11 +103,9 @@ func (h *Hub) Event(e Event) {
 		return
 	}
 	h.mu.Lock()
-	h.events = append(h.events, e)
-	h.backlog = append(h.backlog, f)
-	if len(h.events) > recentEvents {
-		h.events = h.events[len(h.events)-recentEvents:]
-		h.backlog = h.backlog[len(h.backlog)-recentEvents:]
+	h.recent = append(h.recent, recent{event: e, frame: f})
+	if len(h.recent) > recentEvents {
+		h.recent = h.recent[len(h.recent)-recentEvents:]
 	}
 	h.mu.Unlock()
 	h.send(f)
@@ -112,5 +114,9 @@ func (h *Hub) Event(e Event) {
 func (h *Hub) Events() []Event {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return append([]Event(nil), h.events...)
+	events := make([]Event, len(h.recent))
+	for i, r := range h.recent {
+		events[i] = r.event
+	}
+	return events
 }

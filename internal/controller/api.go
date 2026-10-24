@@ -260,8 +260,8 @@ var errHistory = errors.New("the history could not be read")
 
 func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, err error) {
 	if err != nil {
-		if a.historyLog.allow(time.Now()) {
-			logFailure(a.logger, errHistory, err)
+		if !errors.Is(err, context.Canceled) && a.historyLog.allow(time.Now()) {
+			a.logger.Error(errHistory.Error(), "err", err)
 		}
 		refuse(w, httpx.Authorized(r, a.token), errHistory, err)
 		return

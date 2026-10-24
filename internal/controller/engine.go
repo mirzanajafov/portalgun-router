@@ -209,7 +209,8 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	current := ok && rs.Rollout == a.rollout.ID && m.MinConfig() >= a.stepVersion
 	if s := a.settling; s != nil {
 		if current && s.outcome == store.OutcomePromoted && !s.configDone {
-			if reason := e.broken(a, m, rs); reason != "" {
+			a.countDead(m)
+			if reason := e.broken(a, rs); reason != "" {
 				e.finish(ctx, store.OutcomeRolledBack, reason)
 			}
 		}
@@ -218,7 +219,8 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	if !current {
 		return
 	}
-	if reason := e.broken(a, m, rs); reason != "" {
+	a.countDead(m)
+	if reason := e.broken(a, rs); reason != "" {
 		e.finish(ctx, store.OutcomeRolledBack, reason)
 		return
 	}
@@ -232,7 +234,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	a.step.CanaryRequests += bin.Requests[1]
 	a.step.StableErrors += bin.Errors[0]
 	a.step.CanaryErrors += bin.Errors[1]
-	elapsed := e.now().Sub(a.step.StartedAt)
+	elapsed := time.Duration(a.seconds) * time.Second
 	d := a.policy.Observe(bin, elapsed)
 	if d.Verdict == canary.Continue && elapsed >= e.opts.MaxStep {
 		d = a.policy.Finish()
@@ -249,19 +251,22 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	}
 }
 
-func (e *Engine) broken(a *active, m Merged, rs gatewayapi.RouteSnapshot) string {
-	if rs.Brake {
-		return "an instance's emergency brake stopped the canary"
-	}
+func (a *active) countDead(m Merged) {
 	if alive(m.Dimensions, a.rollout.Canary) || !alive(m.Dimensions, a.rollout.Stable) {
 		a.dead = 0
-		return ""
+		return
 	}
 	a.dead++
-	if a.dead < e.opts.DeadSeconds {
-		return ""
+}
+
+func (e *Engine) broken(a *active, rs gatewayapi.RouteSnapshot) string {
+	switch {
+	case rs.Brake:
+		return "an instance's emergency brake stopped the canary"
+	case a.dead >= e.opts.DeadSeconds:
+		return fmt.Sprintf("no healthy dimension ran the canary for %d s while the stable version had one", a.dead)
 	}
-	return fmt.Sprintf("no healthy dimension ran the canary for %d s while the stable version had one", a.dead)
+	return ""
 }
 
 func alive(dims []gatewayapi.DimensionSnapshot, version string) bool {

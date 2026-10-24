@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -57,14 +58,22 @@ var migrations = []string{
 	`create index rollouts_started on rollouts (started_at desc)`,
 }
 
-const callTimeout = 2 * time.Second
+const (
+	statementTimeout = 2 * time.Second
+	callTimeout      = statementTimeout + time.Second
+)
 
 type Store struct {
 	pool *pgxpool.Pool
 }
 
 func Open(ctx context.Context, url string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, url)
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, err
+	}
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = strconv.FormatInt(statementTimeout.Milliseconds(), 10)
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

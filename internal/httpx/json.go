@@ -13,7 +13,7 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-var ErrTrailingData = errors.New("the body holds more than one JSON value")
+var errTrailingData = errors.New("the body has more after its JSON value")
 
 func ReadJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
@@ -27,7 +27,7 @@ func ReadJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	case errors.Is(err, io.EOF):
 		return nil
 	case err == nil, errors.As(err, &syntax):
-		return ErrTrailingData
+		return errTrailingData
 	default:
 		return err
 	}

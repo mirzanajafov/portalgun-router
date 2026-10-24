@@ -970,3 +970,19 @@ func TestAFailedStartCannotCloseTheRolloutThatTakesItsIDLater(t *testing.T) {
 		t.Fatalf("the rollout that reused the id ended as %q", r.store.outcomes[ro.ID])
 	}
 }
+
+func TestAStepIsTimedBySecondsTheGatewaysRanIt(t *testing.T) {
+	r := newRig(t)
+	r.engine.opts.MaxStep = 10 * time.Second
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
+		t.Fatal(err)
+	}
+	stale := func(m *Merged) { m.ConfigVersions["gw-2"] = 1 }
+	for range 30 {
+		r.feed(goodBin(r.versions(t).Weight), stale)
+	}
+	r.feed(goodBin(r.versions(t).Weight))
+	if st := r.engine.Status(); !st.Active || st.Step.Step != 0 || st.DataSec != 1 {
+		t.Fatalf("a step decided on its first second after the gateways caught up: %+v", st)
+	}
+}

@@ -158,36 +158,52 @@ func TestEveryListedRolloutGetsItsOwnSteps(t *testing.T) {
 	}
 }
 
-func TestACallThatWaitsOnTheDatabaseGivesUpInTime(t *testing.T) {
+func TestAWriteThatWaitsTooLongIsCancelledByPostgresAndNeverLands(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	if err := s.StartRollout(ctx, Rollout{ID: "ro-held", Route: "api", Stable: "v1", Canary: "v2", StartedAt: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
+	count := func(query string) int {
+		var n int
+		if err := s.pool.QueryRow(ctx, query).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
 	for _, c := range []struct {
-		name, hold string
-		call       func() error
+		name, hold, landed string
+		write              func() error
 	}{
-		{"finishing a rollout whose row is locked", `select 1 from rollouts where id = 'ro-held' for update`, func() error {
+		{"finishing a rollout whose row is locked", `select 1 from rollouts where id = 'ro-held' for update`, `select count(*) from rollouts where finished_at is not null`, func() error {
 			return s.FinishRollout(ctx, "ro-held", OutcomeAborted, "the row is locked", time.Now().UTC())
 		}},
-		{"saving a config while its table is locked", `lock table config_versions in exclusive mode`, func() error {
+		{"saving a config while its table is locked", `lock table config_versions in exclusive mode`, `select count(*) from config_versions`, func() error {
 			_, err := s.SaveConfig(ctx, ActorAdmin, "the table is locked", json.RawMessage(`{}`))
 			return err
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			before := count(c.landed)
 			tx, err := s.pool.Begin(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer func() { _ = tx.Rollback(ctx) }()
 			if _, err := tx.Exec(ctx, c.hold); err != nil {
 				t.Fatal(err)
 			}
 			began := time.Now()
-			if err := c.call(); !errors.Is(err, context.DeadlineExceeded) || time.Since(began) > callTimeout+time.Second {
-				t.Fatalf("took %v and came back as %v", time.Since(began), err)
+			err = c.write()
+			took := time.Since(began)
+			if err := tx.Rollback(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err == nil || took > callTimeout {
+				t.Fatalf("took %v and came back as %v", took, err)
+			}
+			time.Sleep(200 * time.Millisecond)
+			if after := count(c.landed); after != before {
+				t.Fatalf("the write landed after it was reported as failed: %d rows, was %d", after, before)
 			}
 		})
 	}

@@ -26,7 +26,7 @@ func TestReadJSONRefusesWhatItCannotTrust(t *testing.T) {
 		t.Fatal("an unknown field was accepted")
 	}
 	for _, trailing := range []string{`{"rate": 1} {"rate": 2}`, `{"rate": 1}garbage`, `{"rate": 1}}`} {
-		if err := read(trailing); !errors.Is(err, ErrTrailingData) {
+		if err := read(trailing); !errors.Is(err, errTrailingData) {
 			t.Fatalf("%s came back as %v", trailing, err)
 		}
 	}
