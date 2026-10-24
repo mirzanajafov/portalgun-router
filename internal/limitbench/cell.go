@@ -358,7 +358,7 @@ func waitUp(ctx context.Context, client *http.Client, admin string, patience tim
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("%s not up after %v: %w", admin, patience, err)
+			return fmt.Errorf("not up after %v: %w", patience, err)
 		}
 		select {
 		case <-ctx.Done():

@@ -29,10 +29,10 @@ func TestGetJSONDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
 		wantCode           int
 	}{
 		{name: "an accepted answer is decoded", url: srv.URL + "/count"},
-		{name: "a refused answer names the request and the reason", url: srv.URL + "/missing", wantErr: "GET " + srv.URL + "/missing: 404 Not Found: no such thing", wantCode: http.StatusNotFound},
-		{name: "a JSON error answer gives its error field as the reason", url: srv.URL + "/busy", wantErr: "GET " + srv.URL + "/busy: 503 Service Unavailable: no leader", wantCode: http.StatusServiceUnavailable},
-		{name: "an answer that isn't JSON names the request", url: srv.URL + "/garbled", wantErr: "GET " + srv.URL + "/garbled: "},
-		{name: "a password in the URL stays out of the error", url: strings.Replace(srv.URL, "http://", "http://admin:hunter2@", 1) + "/missing", wantErr: "GET " + redacted + "/missing: 404 Not Found", wantCode: http.StatusNotFound},
+		{name: "a refused answer names the request and the reason", url: srv.URL + "/missing", wantErr: `Get "` + srv.URL + `/missing": 404 Not Found: no such thing`, wantCode: http.StatusNotFound},
+		{name: "a JSON error answer gives its error field as the reason", url: srv.URL + "/busy", wantErr: `Get "` + srv.URL + `/busy": 503 Service Unavailable: no leader`, wantCode: http.StatusServiceUnavailable},
+		{name: "an answer that isn't JSON names the request", url: srv.URL + "/garbled", wantErr: `Get "` + srv.URL + `/garbled": `},
+		{name: "a password in the URL stays out of the error", url: strings.Replace(srv.URL, "http://", "http://admin:hunter2@", 1) + "/missing", wantErr: `Get "` + redacted + `/missing": 404 Not Found`, wantCode: http.StatusNotFound},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

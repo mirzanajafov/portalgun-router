@@ -4,26 +4,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
+	"strings"
 )
 
 type StatusError struct {
-	Method string
-	URL    string
 	Code   int
 	Status string
 	Reason string
 }
 
 func (e *StatusError) Error() string {
-	msg := fmt.Sprintf("%s %s: %s", e.Method, e.URL, e.Status)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
+	if e.Reason == "" {
+		return e.Status
 	}
-	return msg
+	return e.Status + ": " + e.Reason
 }
 
 func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...int) error {
@@ -37,7 +35,7 @@ func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...i
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return fmt.Errorf("%s %s: %w", req.Method, req.URL.Redacted(), err)
+			return requestError(req, err)
 		}
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
@@ -48,7 +46,11 @@ func CheckStatus(req *http.Request, resp *http.Response, want int, alsoWant ...i
 	if resp.StatusCode == want || slices.Contains(alsoWant, resp.StatusCode) {
 		return nil
 	}
-	return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)}
+	return requestError(req, &StatusError{Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)})
+}
+
+func requestError(req *http.Request, err error) error {
+	return &url.Error{Op: req.Method[:1] + strings.ToLower(req.Method[1:]), URL: req.URL.Redacted(), Err: err}
 }
 
 func reason(body io.Reader) string {
@@ -62,8 +64,8 @@ func reason(body io.Reader) string {
 	return string(bytes.TrimSpace(raw))
 }
 
-func GetJSON(ctx context.Context, client *http.Client, url string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func GetJSON(ctx context.Context, client *http.Client, target string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return err
 	}
