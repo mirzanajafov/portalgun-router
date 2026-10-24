@@ -102,10 +102,6 @@ func (a *API) admin(next http.HandlerFunc) http.HandlerFunc {
 	return httpx.RequireBearer(a.token, adminOnly, next)
 }
 
-func unauthorized(w http.ResponseWriter) {
-	httpx.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": adminOnly})
-}
-
 func uncounted(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
 	httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
@@ -133,7 +129,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	author := store.ActorAdmin
 	if !httpx.Authorized(r, a.token) {
 		if a.visitors == nil {
-			unauthorized(w)
+			httpx.Unauthorized(w, adminOnly)
 			return
 		}
 		author = store.ActorVisitor

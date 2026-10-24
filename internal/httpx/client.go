@@ -36,13 +36,12 @@ func Do(client *http.Client, req *http.Request, out any, ok ...int) error {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
 		return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Body: string(bytes.TrimSpace(body))}
 	}
-	if out == nil {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return nil
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return fmt.Errorf("%s %s: %w", req.Method, req.URL.Redacted(), err)
+		}
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("%s %s: %w", req.Method, req.URL.Redacted(), err)
-	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
 

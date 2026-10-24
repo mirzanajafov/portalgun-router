@@ -297,7 +297,7 @@ func TestChaosEndpoints(t *testing.T) {
 
 func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
 	for _, failure := range []error{
-		fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken),
+		fmt.Errorf("dimension control: %w: PATCH http://dim-a:8081/state: 401 Unauthorized", chaos.ErrControlToken),
 		errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`),
 	} {
 		svc, inj, _ := newChaos(DefaultChaosLimits())

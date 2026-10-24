@@ -90,7 +90,7 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 	err = httpx.Do(client, req, nil, http.StatusOK)
 	var refused *httpx.StatusError
 	if errors.As(err, &refused) && refused.Code == http.StatusUnauthorized {
-		return fmt.Errorf("dimension control %s: %w", d.BaseURL, ErrControlToken)
+		return fmt.Errorf("dimension control: %w: %w", ErrControlToken, err)
 	}
 	if err != nil {
 		return fmt.Errorf("dimension control: %w", err)

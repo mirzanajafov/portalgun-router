@@ -45,7 +45,7 @@ func clientIPReference(req *http.Request, hops int) string {
 func FuzzClientIP(f *testing.F) {
 	f.Add("10.0.0.2:4000", "6.6.6.6, 1.2.3.4", "10.0.0.1", uint8(2))
 	f.Add("[::1]:80", ",,", " , 9.9.9.9 ,", uint8(1))
-	f.Add("no-port", "", "\t1.1.1.1 ", uint8(3))
+	f.Add("no-port", "", "\t1.1.1.1\u00a0", uint8(3))
 	f.Fuzz(func(t *testing.T, remote, first, second string, hops uint8) {
 		req := &http.Request{RemoteAddr: remote, Header: http.Header{"X-Forwarded-For": {first, second}}}
 		n := int(hops % 12)

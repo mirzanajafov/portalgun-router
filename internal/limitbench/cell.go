@@ -229,6 +229,9 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GET %s/metrics: %s", admin, resp.Status)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
