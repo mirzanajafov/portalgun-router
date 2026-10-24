@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -268,6 +269,7 @@ type load struct {
 	file          string
 	duration      time.Duration
 	log           *loadgen.Log
+	progress      *log.Logger
 	counted, read bool
 }
 
@@ -276,8 +278,8 @@ const (
 	lostMessage  = "the registration was lost, registering again"
 )
 
-func startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
-	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed), duration: d}
+func (r *Runner) startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
+	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed), duration: d, progress: r.Log}
 	go func() {
 		defer close(l.done)
 		l.sum, l.err = compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
@@ -327,7 +329,11 @@ func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*l
 	if _, err := compose.run(ctx, "cp", "loadgen:"+l.file, local); err != nil {
 		return nil, err
 	}
-	defer func() { _ = os.Remove(local) }()
+	defer func() {
+		if err := os.Remove(local); err != nil {
+			l.progress.Printf("removing %s: %v", local, err)
+		}
+	}()
 	f, err := os.Open(local)
 	if err != nil {
 		return nil, err
@@ -525,7 +531,7 @@ func dimESteps(ctx context.Context, compose Compose, run *RegistryRun, from, to 
 
 func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
 	defer r.removeDimE(compose)
-	l := startLoad(ctx, compose, rate, 15*time.Second, i)
+	l := r.startLoad(ctx, compose, rate, 15*time.Second, i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 2*time.Second)
 	if _, err := compose.run(ctx, "--profile", "join", "up", "-d", "--no-deps", "--force-recreate", "dim-e"); err != nil {
@@ -570,7 +576,7 @@ func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i i
 }
 
 func (r *Runner) leaderRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
-	l := startLoad(ctx, compose, rate, 20*time.Second, 100+i)
+	l := r.startLoad(ctx, compose, rate, 20*time.Second, 100+i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 3*time.Second)
 	node, err := leader(ctx, compose)
@@ -592,7 +598,7 @@ func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64,
 	if _, err := compose.run(ctx, "--profile", "join", "up", "--no-start", "--no-deps", "--force-recreate", "dim-e"); err != nil {
 		return err
 	}
-	l := startLoad(ctx, compose, rate, 25*time.Second, 200+i)
+	l := r.startLoad(ctx, compose, rate, 25*time.Second, 200+i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 3*time.Second)
 	node, err := leader(ctx, compose)
@@ -636,7 +642,7 @@ func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64,
 }
 
 func (r *Runner) downRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
-	l := startLoad(ctx, compose, rate, 45*time.Second, 300+i)
+	l := r.startLoad(ctx, compose, rate, 45*time.Second, 300+i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 5*time.Second)
 	defer r.startAgain(compose, registryNodes...)

@@ -107,7 +107,11 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = os.RemoveAll(tmp) }()
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			plan.Log.Printf("removing %s: %v", tmp, err)
+		}
+	}()
 	bin := filepath.Join(tmp, "proxy.test")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
