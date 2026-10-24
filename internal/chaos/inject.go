@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 )
 
 type Mode string
@@ -86,17 +87,13 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 	if client == nil {
 		client = http.DefaultClient
 	}
-	resp, err := client.Do(req)
+	err = httpx.Do(client, req, nil, http.StatusOK)
+	var refused *httpx.StatusError
+	if errors.As(err, &refused) && refused.Code == http.StatusUnauthorized {
+		return fmt.Errorf("dimension control: %w: %w", ErrControlToken, err)
+	}
 	if err != nil {
 		return fmt.Errorf("dimension control: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("dimension control %s: %w", d.BaseURL, ErrControlToken)
-	}
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-		return fmt.Errorf("dimension control %s: %s: %s", d.BaseURL, resp.Status, bytes.TrimSpace(msg))
 	}
 	return nil
 }

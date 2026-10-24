@@ -11,8 +11,8 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/canary"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -200,7 +200,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	}
 }
 
-func alive(dims []proxy.DimensionSnapshot, version string) bool {
+func alive(dims []gatewayapi.DimensionSnapshot, version string) bool {
 	seen := false
 	for _, d := range dims {
 		if d.Version != version {

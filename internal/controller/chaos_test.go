@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -248,8 +248,8 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	tick := func(sec int64, attemptsA int64, healthy bool, outlier health.State, failed int64) {
 		svc.Observe(Merged{
 			Second: sec,
-			Routes: map[string]proxy.RouteSnapshot{"api": {Failed: failed}},
-			Dimensions: []proxy.DimensionSnapshot{
+			Routes: map[string]gatewayapi.RouteSnapshot{"api": {Failed: failed}},
+			Dimensions: []gatewayapi.DimensionSnapshot{
 				{ID: "dim-a", Attempts: attemptsA, Healthy: healthy, Outlier: outlier},
 				{ID: "dim-b", Attempts: 900 - attemptsA, Healthy: true, Outlier: health.Closed},
 			},
@@ -297,7 +297,7 @@ func TestChaosEndpoints(t *testing.T) {
 
 func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
 	for _, failure := range []error{
-		fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken),
+		fmt.Errorf(`dimension control: %w: Patch "http://dim-a:8081/state": 401 Unauthorized`, chaos.ErrControlToken),
 		errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`),
 	} {
 		svc, inj, _ := newChaos(DefaultChaosLimits())

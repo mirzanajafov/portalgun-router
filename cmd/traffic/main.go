@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +14,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 )
 
 func main() {
@@ -105,19 +106,10 @@ func watch(ctx context.Context, logger *slog.Logger, controller string, linger t
 func viewers(ctx context.Context, controller string) int {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, controller+"/api/state", nil)
-	if err != nil {
-		return 0
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0
-	}
-	defer resp.Body.Close()
 	var st struct {
 		Viewers int `json:"viewers"`
 	}
-	if json.NewDecoder(resp.Body).Decode(&st) != nil {
+	if httpx.GetJSON(ctx, http.DefaultClient, controller+"/api/state", &st) != nil {
 		return 0
 	}
 	return st.Viewers

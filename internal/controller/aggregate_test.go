@@ -4,20 +4,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 )
 
-func snap(inst string, sec int64, attempts, errors int64, dim proxy.DimensionSnapshot) proxy.Snapshot {
-	return proxy.Snapshot{
+func snap(inst string, sec int64, attempts, errors int64, dim gatewayapi.DimensionSnapshot) gatewayapi.Snapshot {
+	return gatewayapi.Snapshot{
 		Instance:      inst,
 		Second:        sec,
 		ClusterConfig: 7,
-		Routes: map[string]proxy.RouteSnapshot{"api": {
+		Routes: map[string]gatewayapi.RouteSnapshot{"api": {
 			Requests: attempts,
-			Versions: [2]proxy.VersionSnapshot{{Attempts: attempts, Errors: errors}, {Attempts: 1}},
+			Versions: [2]gatewayapi.VersionSnapshot{{Attempts: attempts, Errors: errors}, {Attempts: 1}},
 		}},
-		Dimensions: []proxy.DimensionSnapshot{dim},
+		Dimensions: []gatewayapi.DimensionSnapshot{dim},
 	}
 }
 
@@ -28,8 +28,8 @@ func collect() (*Aggregator, *[]Merged) {
 
 func TestMergeSumsAcrossInstances(t *testing.T) {
 	agg, out := collect()
-	agg.Add(snap("gw-1", 100, 10, 1, proxy.DimensionSnapshot{ID: "a", Attempts: 10, P99Ms: 3, Healthy: true, Outlier: health.Closed}))
-	agg.Add(snap("gw-2", 100, 20, 2, proxy.DimensionSnapshot{ID: "a", Attempts: 20, P99Ms: 9, Healthy: false, Outlier: health.Ejected}))
+	agg.Add(snap("gw-1", 100, 10, 1, gatewayapi.DimensionSnapshot{ID: "a", Attempts: 10, P99Ms: 3, Healthy: true, Outlier: health.Closed}))
+	agg.Add(snap("gw-2", 100, 20, 2, gatewayapi.DimensionSnapshot{ID: "a", Attempts: 20, P99Ms: 9, Healthy: false, Outlier: health.Ejected}))
 	agg.Flush(time.Unix(100, 0))
 	if len(*out) != 1 {
 		t.Fatalf("emitted %d seconds", len(*out))
@@ -50,7 +50,7 @@ func TestMergeSumsAcrossInstances(t *testing.T) {
 
 func TestWaitsForEveryKnownInstanceOrTheGrace(t *testing.T) {
 	agg, out := collect()
-	dim := proxy.DimensionSnapshot{ID: "a", Healthy: true}
+	dim := gatewayapi.DimensionSnapshot{ID: "a", Healthy: true}
 	agg.Add(snap("gw-1", 100, 1, 0, dim))
 	agg.Add(snap("gw-2", 100, 1, 0, dim))
 	agg.Flush(time.Unix(101, 0))
@@ -72,7 +72,7 @@ func TestWaitsForEveryKnownInstanceOrTheGrace(t *testing.T) {
 
 func TestSecondsComeOutInOrder(t *testing.T) {
 	agg, out := collect()
-	dim := proxy.DimensionSnapshot{ID: "a", Healthy: true}
+	dim := gatewayapi.DimensionSnapshot{ID: "a", Healthy: true}
 	agg.Add(snap("gw-1", 102, 1, 0, dim))
 	agg.Add(snap("gw-1", 101, 1, 0, dim))
 	agg.Flush(time.Unix(200, 0))

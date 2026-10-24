@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 )
 
 const maxReplayBody = 64 << 10
@@ -215,7 +217,7 @@ func (a *attempt) finish(resp *http.Response, err error, attempts int) (*http.Re
 	if resp.StatusCode >= 500 {
 		a.r.stats.failed.Add(1)
 	}
-	resp.Header[AttemptsHeader] = attemptHeaders[min(attempts, len(attemptHeaders)-1)]
+	resp.Header[gatewayapi.AttemptsHeader] = attemptHeaders[min(attempts, len(attemptHeaders)-1)]
 	return resp, nil
 }
 
@@ -284,7 +286,7 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 	if f == failNone {
 		u.load.Observe(time.Duration(finished-started), finished)
 	}
-	resp.Header[DimensionHeader] = u.idHeader
+	resp.Header[gatewayapi.DimensionHeader] = u.idHeader
 	r.metrics.result(u, resp.StatusCode)
 	if resp.StatusCode == http.StatusSwitchingProtocols {
 		u.load.Release()

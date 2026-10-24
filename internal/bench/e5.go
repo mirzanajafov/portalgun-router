@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
@@ -219,11 +220,7 @@ func settled(ctx context.Context, compose Compose) (int64, string) {
 	}
 	version := int64(-1)
 	for k, g := range e5Gateways {
-		var st struct {
-			Upstreams []struct {
-				Healthy bool `json:"healthy"`
-			} `json:"upstreams"`
-		}
+		var st gatewayapi.State
 		if err := fetch(ctx, compose, "http://"+g+":9090/state", &st); err != nil {
 			return 0, fmt.Sprintf("%s: %v", g, err)
 		}

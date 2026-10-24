@@ -1,9 +1,12 @@
-package limit
+package limitbench
 
 import (
 	"math/rand/v2"
 	"testing"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
+	"github.com/mirzanajafov/portalgun-router/internal/limit"
 )
 
 const base = int64(1_700_000_000_000_000_000)
@@ -11,13 +14,13 @@ const base = int64(1_700_000_000_000_000_000)
 func at(ms float64) int64 { return base + int64(ms*float64(time.Millisecond)) }
 
 func TestReplayAgreesWithAPerfectLimiter(t *testing.T) {
-	rule := Rule{Rate: 100, Burst: 10}
-	exact := NewBuckets(rule)
-	var ds []Logged
+	rule := limit.Rule{Rate: 100, Burst: 10}
+	exact := limit.NewBuckets(rule)
+	var ds []gatewayapi.Decision
 	for i := range 3000 {
 		now := at(float64(i) * 2)
 		ok, _ := exact.Take("k", now)
-		ds = append(ds, Logged{UnixNano: now, Key: "k", Allowed: ok})
+		ds = append(ds, gatewayapi.Decision{UnixNano: now, Key: "k", Allowed: ok})
 	}
 	rand.New(rand.NewPCG(1, 2)).Shuffle(len(ds), func(i, j int) { ds[i], ds[j] = ds[j], ds[i] })
 	v := Replay(ds, rule)
@@ -33,9 +36,9 @@ func TestReplayAgreesWithAPerfectLimiter(t *testing.T) {
 }
 
 func TestReplayCountsTwoInstancesThatEachThinkTheyAreAlone(t *testing.T) {
-	rule := Rule{Rate: 100, Burst: 10}
-	a, b := NewBuckets(rule), NewBuckets(rule)
-	var ds []Logged
+	rule := limit.Rule{Rate: 100, Burst: 10}
+	a, b := limit.NewBuckets(rule), limit.NewBuckets(rule)
+	var ds []gatewayapi.Decision
 	for i := range 2000 {
 		now := at(float64(i) * 2.5)
 		inst := a
@@ -43,7 +46,7 @@ func TestReplayCountsTwoInstancesThatEachThinkTheyAreAlone(t *testing.T) {
 			inst = b
 		}
 		ok, _ := inst.Take("k", now)
-		ds = append(ds, Logged{UnixNano: now, Key: "k", Allowed: ok})
+		ds = append(ds, gatewayapi.Decision{UnixNano: now, Key: "k", Allowed: ok})
 	}
 	v := Replay(ds, rule)
 	if v.OverAdmission < 0.9 || v.OverAdmission > 1.1 {
@@ -55,13 +58,13 @@ func TestReplayCountsTwoInstancesThatEachThinkTheyAreAlone(t *testing.T) {
 }
 
 func TestReplayFindsFalseRejects(t *testing.T) {
-	ds := []Logged{
+	ds := []gatewayapi.Decision{
 		{UnixNano: at(0), Key: "a", Allowed: true},
 		{UnixNano: at(1), Key: "a", Allowed: false},
 		{UnixNano: at(2), Key: "b", Allowed: false},
 		{UnixNano: at(3), Key: "a", Allowed: false},
 	}
-	v := Replay(ds, Rule{Rate: 1, Burst: 2})
+	v := Replay(ds, limit.Rule{Rate: 1, Burst: 2})
 	if v.FalseRejects != 2 || v.FalseAdmits != 0 || v.OracleAdmitted != 3 || v.Admitted != 1 {
 		t.Fatalf("%+v", v)
 	}
@@ -71,27 +74,27 @@ func TestReplayFindsFalseRejects(t *testing.T) {
 }
 
 func TestWorstWindowIsPerKey(t *testing.T) {
-	var ds []Logged
+	var ds []gatewayapi.Decision
 	for i := range 8 {
-		ds = append(ds, Logged{UnixNano: at(float64(i) * 100), Key: "a", Allowed: true})
-		ds = append(ds, Logged{UnixNano: at(float64(i)*100 + 50), Key: "b", Allowed: i < 3})
+		ds = append(ds, gatewayapi.Decision{UnixNano: at(float64(i) * 100), Key: "a", Allowed: true})
+		ds = append(ds, gatewayapi.Decision{UnixNano: at(float64(i)*100 + 50), Key: "b", Allowed: i < 3})
 	}
-	v := Replay(ds, Rule{Rate: 2, Burst: 2})
+	v := Replay(ds, limit.Rule{Rate: 2, Burst: 2})
 	if v.Worst.Key != "a" || v.Worst.Admitted != 8 || v.Worst.Allowed != 4 || v.WorstRatio != 2 {
 		t.Fatalf("%+v", v.Worst)
 	}
 }
 
 func TestJitteredTimestampsSwapDecisionsButNotTheCount(t *testing.T) {
-	rule := Rule{Rate: 1000, Burst: 100}
-	exact := NewBuckets(rule)
+	rule := limit.Rule{Rate: 1000, Burst: 100}
+	exact := limit.NewBuckets(rule)
 	rng := rand.New(rand.NewPCG(9, 9))
-	var ds []Logged
+	var ds []gatewayapi.Decision
 	for i := range 45000 {
 		now := at(float64(i) / 1.5)
 		ok, _ := exact.Take("k", now)
 		seen := now + int64(rng.Float64()*float64(2*time.Millisecond))
-		ds = append(ds, Logged{UnixNano: seen, Key: "k", Allowed: ok})
+		ds = append(ds, gatewayapi.Decision{UnixNano: seen, Key: "k", Allowed: ok})
 	}
 	v := Replay(ds, rule)
 	if v.FalseAdmits < 1000 || v.FalseRejects < 1000 {

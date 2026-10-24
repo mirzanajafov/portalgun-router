@@ -16,8 +16,8 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -120,14 +120,14 @@ func (r *rig) feed(b bin, opts ...func(*Merged)) {
 	m := Merged{
 		Second:         r.sec,
 		ConfigVersions: map[string]int64{"gw-1": version},
-		Routes: map[string]proxy.RouteSnapshot{"api": {
+		Routes: map[string]gatewayapi.RouteSnapshot{"api": {
 			Rollout: st.Rollout.ID,
-			Versions: [2]proxy.VersionSnapshot{
+			Versions: [2]gatewayapi.VersionSnapshot{
 				{Attempts: b.stable, Errors: b.stableErr, Slow: b.stableSlow},
 				{Attempts: b.canary, Errors: b.canaryErr, Slow: b.canarySlow},
 			},
 		}},
-		Dimensions: []proxy.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: health.Closed}},
+		Dimensions: []gatewayapi.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: health.Closed}},
 	}
 	for _, o := range opts {
 		o(&m)
@@ -215,7 +215,7 @@ func TestTheBrakeRollsBackAtOnce(t *testing.T) {
 
 func withStable(healthy bool) func(*Merged) {
 	return func(m *Merged) {
-		m.Dimensions = append(m.Dimensions, proxy.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: health.Closed})
+		m.Dimensions = append(m.Dimensions, gatewayapi.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: health.Closed})
 	}
 }
 

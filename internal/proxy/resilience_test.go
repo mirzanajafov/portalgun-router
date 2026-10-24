@@ -15,6 +15,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
 )
 
@@ -47,8 +48,8 @@ func send(t *testing.T, client *http.Client, method, url string, n int) tally {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		out.status[resp.StatusCode]++
-		out.attempts[resp.Header.Get(AttemptsHeader)]++
-		out.served[resp.Header.Get(DimensionHeader)]++
+		out.attempts[resp.Header.Get(gatewayapi.AttemptsHeader)]++
+		out.served[resp.Header.Get(gatewayapi.DimensionHeader)]++
 	}
 	return out
 }
@@ -292,7 +293,7 @@ func TestAnIdleDimensionIsNotReportedEjectedAfterItsEjectionEnds(t *testing.T) {
 	)
 	g, srv := manual(t, cfg)
 	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 4)
-	outlier := func(snap Snapshot) health.State {
+	outlier := func(snap gatewayapi.Snapshot) health.State {
 		for _, d := range snap.Dimensions {
 			if d.ID == "b" {
 				return d.Outlier

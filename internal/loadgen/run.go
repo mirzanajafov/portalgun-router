@@ -16,12 +16,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/dimension"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 )
 
 const (
-	DimensionHeader = "X-Dimension-Id"
-	AttemptsHeader  = "X-Portal-Attempts"
-
 	sleepThreshold = 3 * time.Millisecond
 	spinWindow     = 2 * time.Millisecond
 
@@ -296,8 +296,8 @@ func (g *generator) fire(ctx context.Context, u *url.URL, key string, scheduled 
 		_ = resp.Body.Close()
 		rec.Status = uint16(resp.StatusCode)
 		rec.Bytes = uint32(min(n, math.MaxUint32))
-		rec.Attempts = attempts(resp.Header.Get(AttemptsHeader))
-		dim = resp.Header.Get(DimensionHeader)
+		rec.Attempts = attempts(resp.Header.Get(gatewayapi.AttemptsHeader))
+		dim = resp.Header.Get(dimension.IDHeader)
 	}
 	rec.Ended = g.now()
 	rec.Connected = connected.Load()

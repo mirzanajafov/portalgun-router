@@ -5,12 +5,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mirzanajafov/portalgun-router/internal/limit"
+	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 )
 
 type decisionLog struct {
 	mu      sync.RWMutex
-	buf     []limit.Logged
+	buf     []gatewayapi.Decision
 	next    atomic.Int64
 	dropped atomic.Int64
 }
@@ -19,7 +19,7 @@ func newDecisionLog(capacity int) *decisionLog {
 	if capacity <= 0 {
 		return nil
 	}
-	return &decisionLog{buf: make([]limit.Logged, capacity)}
+	return &decisionLog{buf: make([]gatewayapi.Decision, capacity)}
 }
 
 func (l *decisionLog) add(key string, allowed bool) {
@@ -33,27 +33,21 @@ func (l *decisionLog) add(key string, allowed bool) {
 		l.dropped.Add(1)
 		return
 	}
-	l.buf[i] = limit.Logged{UnixNano: time.Now().UnixNano(), Key: key, Allowed: allowed}
+	l.buf[i] = gatewayapi.Decision{UnixNano: time.Now().UnixNano(), Key: key, Allowed: allowed}
 }
 
-type Decisions struct {
-	Recording bool           `json:"recording"`
-	Dropped   int64          `json:"dropped"`
-	Decisions []limit.Logged `json:"decisions"`
-}
-
-func (l *decisionLog) drain() Decisions {
+func (l *decisionLog) drain() gatewayapi.Decisions {
 	if l == nil {
-		return Decisions{Decisions: []limit.Logged{}}
+		return gatewayapi.Decisions{Decisions: []gatewayapi.Decision{}}
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	n := min(l.next.Load(), int64(len(l.buf)))
-	out := Decisions{Recording: true, Dropped: l.dropped.Swap(0), Decisions: make([]limit.Logged, n)}
+	out := gatewayapi.Decisions{Recording: true, Dropped: l.dropped.Swap(0), Decisions: make([]gatewayapi.Decision, n)}
 	copy(out.Decisions, l.buf[:n])
 	clear(l.buf[:n])
 	l.next.Store(0)
 	return out
 }
 
-func (g *Gateway) DrainDecisions() Decisions { return g.decisions.drain() }
+func (g *Gateway) DrainDecisions() gatewayapi.Decisions { return g.decisions.drain() }
