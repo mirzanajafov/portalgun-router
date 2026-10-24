@@ -280,46 +280,27 @@ func TestStartChecksItsInputs(t *testing.T) {
 
 func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
-	post := func(auth, body string) int {
-		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rollouts", strings.NewReader(body))
-		if auth != "" {
-			req.Header.Set("Authorization", auth)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		return resp.StatusCode
-	}
 	for _, tc := range []struct {
 		auth, body string
 		want       int
 	}{
 		{"", `{"route":"api","canary":"v2"}`, 401},
 		{"Bearer nope", `{"route":"api","canary":"v2"}`, 401},
-		{"Bearer s3cret", `{"route":"api","canary":"v9"}`, 400},
-		{"Bearer s3cret", `{"route":"api","canary":"v2"}`, 201},
-		{"Bearer s3cret", `{"route":"api","canary":"v2"}`, 409},
+		{"Bearer " + adminToken, `{"route":"api","canary":"v9"}`, 400},
+		{"Bearer " + adminToken, `{"route":"api","canary":"v2"}`, 201},
+		{"Bearer " + adminToken, `{"route":"api","canary":"v2"}`, 409},
 	} {
-		if got := post(tc.auth, tc.body); got != tc.want {
+		if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", tc.body, http.Header{"Authorization": {tc.auth}}).StatusCode; got != tc.want {
 			t.Errorf("auth %q body %s: %d, want %d", tc.auth, tc.body, got, tc.want)
 		}
 	}
 	check := func(auth string) int {
-		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/admin", nil)
-		req.Header.Set("Authorization", auth)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		return resp.StatusCode
+		return send(t, http.MethodGet, srv.URL+"/api/admin", "", http.Header{"Authorization": {auth}}).StatusCode
 	}
-	if check("Bearer s3cret") != 200 || check("Bearer guess") != 401 {
+	if check("Bearer "+adminToken) != 200 || check("Bearer guess") != 401 {
 		t.Fatal("the admin check endpoint does not check")
 	}
 	resp, err := http.Get(srv.URL + "/api/state")
@@ -336,7 +317,7 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 
 func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
 	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
@@ -387,7 +368,7 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
@@ -419,7 +400,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	logs := &logSink{}
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)

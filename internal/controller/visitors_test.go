@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const dashboardToken = "dashboard-token"
+const (
+	adminToken     = "s3cret"
+	dashboardToken = "dashboard-token"
+)
 
 func viaDashboard(visitor string) http.Header {
 	return http.Header{"X-Forwarded-For": {visitor}, proxyTokenHeader: {dashboardToken}}
@@ -19,7 +22,7 @@ func viaDashboard(visitor string) http.Header {
 
 func asAdmin(visitor string) http.Header {
 	h := viaDashboard(visitor)
-	h.Set("Authorization", "Bearer s3cret")
+	h.Set("Authorization", "Bearer "+adminToken)
 	return h
 }
 
@@ -40,18 +43,22 @@ func send(t *testing.T, method, url, body string, header http.Header) *http.Resp
 
 func TestOnlyTheDashboardsServerNamesTheVisitor(t *testing.T) {
 	cases := []struct {
-		name, configured, sent, want string
+		name, forwardedFor, configured, sent, want string
 	}{
-		{"no token configured", "", "", "192.0.2.1"},
-		{"the dashboard's token", dashboardToken, dashboardToken, "9.9.9.9"},
-		{"a wrong token", dashboardToken, "dashboard-tokem", "192.0.2.1"},
-		{"no token sent", dashboardToken, "", "192.0.2.1"},
+		{"no token configured", "6.6.6.6, 9.9.9.9", "", "", "192.0.2.1"},
+		{"a token sent while none is configured", "6.6.6.6, 9.9.9.9", "", dashboardToken, "192.0.2.1"},
+		{"the dashboard's token", "6.6.6.6, 9.9.9.9", dashboardToken, dashboardToken, "9.9.9.9"},
+		{"the dashboard's token without an address", "", dashboardToken, dashboardToken, "192.0.2.1"},
+		{"a wrong token", "6.6.6.6, 9.9.9.9", dashboardToken, "dashboard-tokem", "192.0.2.1"},
+		{"no token sent", "6.6.6.6, 9.9.9.9", dashboardToken, "", "192.0.2.1"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/chaos", nil)
 			req.RemoteAddr = "192.0.2.1:4000"
-			req.Header.Set("X-Forwarded-For", "6.6.6.6, 9.9.9.9")
+			if c.forwardedFor != "" {
+				req.Header.Set("X-Forwarded-For", c.forwardedFor)
+			}
 			if c.sent != "" {
 				req.Header.Set(proxyTokenHeader, c.sent)
 			}
@@ -64,7 +71,7 @@ func TestOnlyTheDashboardsServerNamesTheVisitor(t *testing.T) {
 
 func TestACallerWithoutTheDashboardsTokenCannotRotatePastTheVisitorLimit(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
+	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
 	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
@@ -80,11 +87,31 @@ func TestACallerWithoutTheDashboardsTokenCannotRotatePastTheVisitorLimit(t *test
 	if got := send(t, http.MethodPost, url, start, http.Header{"X-Forwarded-For": {"9.9.9.2"}}).StatusCode; got != http.StatusTooManyRequests {
 		t.Fatalf("second start under a new X-Forwarded-For: %d, want the limit", got)
 	}
-	caller, _, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if n := counter.hits["rollout:ip:"+callerOf(t, srv)]; n != 2 {
+		t.Fatalf("counts %v, want both starts on the caller's own address", counter.hits)
+	}
+}
+
+func TestAChaosCallerWithoutTheDashboardsTokenIsCountedByItsOwnAddress(t *testing.T) {
+	counter := &fakeCounter{hits: map[string]int64{}}
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(dashboardToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	mux := http.NewServeMux()
+	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	if got := send(t, http.MethodPost, srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`, http.Header{"X-Forwarded-For": {"9.9.9.1"}}).StatusCode; got != http.StatusCreated {
+		t.Fatalf("visitor fault: %d", got)
+	}
+	if n := counter.hits["chaos:ip:"+callerOf(t, srv)]; n != 1 || len(counter.hits) != 1 {
+		t.Fatalf("counts %v, want the fault on the caller's own address", counter.hits)
+	}
+}
+
+func callerOf(t *testing.T, srv *httptest.Server) string {
+	t.Helper()
+	host, _, err := net.SplitHostPort(srv.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := counter.hits["rollout:ip:"+caller]; n != 2 {
-		t.Fatalf("counts %v, want both starts on the caller's own address %s", counter.hits, caller)
-	}
+	return host
 }

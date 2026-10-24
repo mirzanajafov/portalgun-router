@@ -7,6 +7,7 @@ secret() { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 
 touch .env
 chmod 600 .env
+[ -z "$(tail -c 1 .env)" ] || echo >> .env
 
 add() {
   grep -q "^$1=" .env || printf '%s=%s\n' "$1" "$2" >> .env

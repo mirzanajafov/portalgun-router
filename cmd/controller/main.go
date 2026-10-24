@@ -121,7 +121,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 
 	proxyToken := controller.ProxyToken(o.proxyToken)
 	if proxyToken == "" && (o.visitorRollouts || o.toxiproxy != "") {
-		logger.Warn("PORTAL_PROXY_TOKEN is not set, so every visitor is counted under the address of the dashboard's server")
+		logger.Warn("PORTAL_PROXY_TOKEN is not set, so the visitor limits ignore X-Forwarded-For and count every caller by its own address")
 	}
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	api := controller.NewAPI(cfgs, engine, st, hub, token)

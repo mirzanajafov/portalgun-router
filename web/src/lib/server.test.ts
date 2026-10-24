@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { forwarded } from './server'
 
 vi.mock('server-only', () => ({}))
-vi.mock('next/headers', () => ({ cookies: () => Promise.resolve({ get: () => undefined }) }))
 
 const visitor = new Request('http://web/api/chaos', { headers: { 'X-Forwarded-For': '203.0.113.7' } })
 

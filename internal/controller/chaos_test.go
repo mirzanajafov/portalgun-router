@@ -178,8 +178,8 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	start := time.Now()
 	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
 	mux := http.NewServeMux()
-	api := &API{token: "s3cret"}
-	svc.Routes(mux, api.admin, "s3cret")
+	api := &API{token: adminToken}
+	svc.Routes(mux, api.admin, adminToken)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	url, fault := srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`
@@ -264,8 +264,8 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 func TestChaosEndpoints(t *testing.T) {
 	svc, _ := newChaos(DefaultChaosLimits())
 	mux := http.NewServeMux()
-	api := &API{token: "s3cret"}
-	svc.Routes(mux, api.admin, "s3cret")
+	api := &API{token: adminToken}
+	svc.Routes(mux, api.admin, adminToken)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	url, visitor := srv.URL+"/api/chaos", viaDashboard("9.9.9.9")
