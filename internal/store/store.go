@@ -257,7 +257,7 @@ func (s *Store) StartRollout(ctx context.Context, r Rollout, c ConfigChange) (Co
 	defer cancel()
 	var saved ConfigVersion
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, abandonOpen, r.StartedAt, OutcomeAborted, "its start was never confirmed, so it never ran"); err != nil {
+		if _, err := tx.Exec(ctx, abandonOpen, r.StartedAt, OutcomeAborted, "a newer rollout started while it was still open"); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `insert into rollouts (id, route, stable, canary, started_at) values ($1, $2, $3, $4, $5)`,

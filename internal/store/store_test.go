@@ -154,15 +154,18 @@ func TestAStartOrAnEndThatFailsLeavesNothingBehind(t *testing.T) {
 func TestAStartClosesARolloutLeftOpen(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Millisecond)
 	for i, id := range []string{"unconfirmed", "next"} {
 		if _, err := s.StartRollout(ctx, Rollout{ID: id, Route: "api", Stable: "v1", Canary: "v2", StartedAt: now.Add(time.Duration(i) * time.Second)}, change("starts")); err != nil {
 			t.Fatal(err)
 		}
 	}
 	ros, err := s.Rollouts(ctx, 5)
-	if err != nil || len(ros) != 2 || ros[0].ID != "next" || ros[0].FinishedAt != nil || ros[1].Outcome != OutcomeAborted {
+	if err != nil || len(ros) != 2 || ros[0].ID != "next" || ros[0].FinishedAt != nil {
 		t.Fatalf("rollouts %+v (%v)", ros, err)
+	}
+	if closed := ros[1]; closed.Outcome != OutcomeAborted || closed.Reason != "a newer rollout started while it was still open" || closed.FinishedAt == nil || !closed.FinishedAt.Equal(ros[0].StartedAt) {
+		t.Fatalf("the rollout left open was closed as %+v", closed)
 	}
 }
 
