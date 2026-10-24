@@ -295,7 +295,7 @@ func TestChaosEndpoints(t *testing.T) {
 	}
 }
 
-func TestAFaultTheInjectorCannotStartIsTheControllersFailure(t *testing.T) {
+func TestAFaultThatFailsToStartIsClearedAndOnlyTheAdminSeesWhy(t *testing.T) {
 	for _, failure := range []error{
 		fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken),
 		errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`),
@@ -304,12 +304,20 @@ func TestAFaultTheInjectorCannotStartIsTheControllersFailure(t *testing.T) {
 		inj.err = failure
 		mux := http.NewServeMux()
 		svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
-		req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.5}`))
-		req.Header = asAdmin("9.9.9.9")
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-		if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "dim-a") {
-			t.Fatalf("%v came back as %d %s, want 503 without the dimension's address", failure, w.Code, w.Body)
+		for _, caller := range []struct {
+			header http.Header
+			admin  bool
+		}{{viaProxy("9.9.9.9"), false}, {asAdmin("9.9.9.9"), true}} {
+			req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.3}`))
+			req.Header = caller.header
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if named := strings.Contains(w.Body.String(), "dim-a"); w.Code != http.StatusServiceUnavailable || named != caller.admin {
+				t.Fatalf("%v came back to admin=%v as %d %s", failure, caller.admin, w.Code, w.Body)
+			}
+		}
+		if inj.clears() != 2 {
+			t.Fatalf("%d clears after two faults that failed to start, want 2", inj.clears())
 		}
 	}
 }

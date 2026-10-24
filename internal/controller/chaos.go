@@ -152,6 +152,9 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		}
 	}
 	if err := c.inj.Inject(ctx, f); err != nil {
+		if cerr := c.inj.Clear(context.WithoutCancel(ctx), f); cerr != nil {
+			c.logger.Error("clearing what a failed fault left", "mode", f.Mode, "target", f.Target, "err", cerr)
+		}
 		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
 	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
@@ -293,7 +296,11 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			uncounted(w)
 		case errors.Is(err, ErrChaosFailed):
 			c.logger.Error("starting a fault", "mode", req.Mode, "target", req.Target, "err", err)
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": ErrChaosFailed.Error()})
+			msg := ErrChaosFailed.Error()
+			if authorized {
+				msg = err.Error()
+			}
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": msg})
 		case err != nil:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		default:
