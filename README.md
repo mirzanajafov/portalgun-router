@@ -6,7 +6,7 @@ PortalGun is an HTTP reverse proxy in Go. It decides where each request goes fro
 
 Everything a gateway promises is a number: it adds little latency, it keeps a client inside its quota across several instances, it moves traffic off a dead upstream before many requests fail, and it catches a bad release without rolling back good ones. I built the project around those four numbers rather than a feature list, and each of them is measured against something real.
 
-It's running at **[portalgun.najafov.dev](https://portalgun.najafov.dev)**. You can kill a dimension, slow one down, or start a canary rollout and break it, and watch traffic move. The numbers below are on the Results page too.
+It's running at **[portalgun.najafov.dev](https://portalgun.najafov.dev)**. You can kill a dimension, slow one down, or start a canary rollout and break it, and watch traffic move. Most of the numbers below are on the Results page too.
 
 ![The live dashboard: two gateways spreading traffic over four dimensions, the chaos panel with the last fault's detection time, the shared rate limit, and the canary](docs/dashboard.png)
 
@@ -29,7 +29,7 @@ Health is three mechanisms, because each catches what the others miss: active pr
 
 ## Does it work?
 
-All of this was measured on my laptop (i7-1270P, a 16-vCPU WSL2 VM), with a CPU limit on every container and the proxy comparison on separate CPU sets. My own load generator is open-loop and measures latency from the scheduled send time, so a stall can't hide in the tail (the wrk2 correction). I checked it against vegeta and wrk2 first. Medians of three runs or more per cell, always on the charger. A laptop is noisier than a dedicated server, so I only compare numbers from the same session, and I say where the spread is too wide to conclude anything.
+All of this was measured on my laptop (i7-1270P, a 16-vCPU WSL2 VM), with a CPU limit on every container (except Redis and Postgres in the registry runs at the end) and the proxy comparison on separate CPU sets. My own load generator is open-loop and measures latency from the scheduled send time, so a stall can't hide in the tail (the wrk2 correction). I checked it against vegeta and wrk2 first. Medians of three runs or more per cell, always on the charger. A laptop is noisier than a dedicated server, so I only compare numbers from the same session, and I say where the spread is too wide to conclude anything.
 
 ### What a proxy in the path costs
 
@@ -188,9 +188,22 @@ The first live rollout on the real stack (two gateways, 200 rps, v2 failing half
 
 That shortcut was also my worst rule. On the public demo, three rollouts in a row back to v1 were rolled back within a minute and a half each, with nothing wrong with v1: on one gateway, both v1 dimensions failed two health probes at the same moment, and the engine treated one second of that as a dead canary. The probes weren't lying about the network, they were losing a race for CPU. The server is shared, and over 40 minutes its CPU pressure averaged 45%. A `/healthz` sent straight to a dimension took 400-500 ms at the 99th percentile and over 1 s at worst, and the 250 ms probe timeout turned that into a dimension going unhealthy for about 3 s, 783 times in 53 hours across the two gateways and four dimensions. Now a canary has to stay dead for 10 s while the stable version has a healthy dimension, and an outage both versions share doesn't count against the canary. In those 53 hours, the longest a version was down while the other one was up was 7 s. A canary that really dies still goes quickly: its failed requests are retried on the stable version, and the brake or the test takes it out first. On the live demo I also raised the probe timeout to 500 ms, which cut two failed probes in a row from 22 to 1 in a 40-minute sample, and gave Toxiproxy more room: at 0.25 CPU and 64 MB it was throttled in one second out of six and had hit its memory limit 6,651 times. In the 40 minutes after that, the gateways marked a dimension unhealthy once, against 15 times in the 40 minutes I'd measured the day before, though the server was also quieter that morning (CPU pressure about 34% when I checked afterwards, against 45% over the sample). A rollout of v1, left alone, went through all four steps in 254 s.
 
+### Dimensions that come and go
+
+On the live demo the dimensions register themselves with [FiveFamilies](https://github.com/mirzanajafov/fivefamilies), my Raft implementation in Go, which has a service registry on top. I wanted FiveFamilies to have a real user, and a gateway whose upstreams come and go should follow them without anyone editing its config. The controller follows the list with blocking queries and writes every change into the config as a new version, which the gateways pick up like any other. The gateways never ask the registry anything. When I turned it on, the four dimensions registered with the addresses and versions the config already had, so no version was written. The demo's Toxiproxy ports and chaos controls are still fixed lists, so a dimension that joins later goes around Toxiproxy unless it gets a port there, and can't be broken from the dashboard. Without a registry address on the controller and the dimensions (`-registry` or `PORTAL_REGISTRY`), everything runs on the static config, the way the local stack does.
+
+I measured it on the laptop, in a stack of its own without Toxiproxy: five FiveFamilies nodes, two gateways, four dimensions that register themselves, a fifth that joins and leaves, and 500 rps through the gateways. A new dimension got its first request a median of 15 ms after it registered (9-30 ms over 20 runs), and one that started deregistering was out of both gateways' config 15 ms later. That's under the 30-100 ms I'd predicted: the controller had the new version saved about 10 ms after the registration, and both gateways were running it almost at once. On the demo every container on that path gets less CPU than it had here, on a busier machine, so I'd expect a join to take longer there, and I haven't measured how much. Across 43 runs, with dimensions joining and leaving, the registry's leader killed and every node stopped for 30 s, no request was lost, with two retries on the route.
+
+What the runs did lose was registrations. When the leader died, a dimension's lease sometimes ran out by its own clock before a keepalive reached the new leader (3 of 20 such runs), and after the 30 s outage every lease had run out the same way. The dimensions noticed and registered again, the list the controller saw didn't change, and no config version was written, so the gateways never knew. Registering while the leader is dead is slow too: 2.1 s at the median and up to 8.1 s, because a FiveFamilies node keeps retrying the dead leader for 2 s at a time, and in the slowest runs the dimension had to send its registration again. That's FiveFamilies' bug, and the first thing on its list. In another run the controller took 2 s to save the new dimension after it had registered, probably the same 2 s attempt on the node answering its query, though I haven't confirmed it.
+
+The price is a dependency on FiveFamilies, which already runs on the same server for its own demo but now has to be deployed first, and new ways to lose a dimension. If the whole registry is down, the controller keeps the pool it has. If only some leases lapse, say because a dimension can't reach FiveFamilies while it keeps serving, that dimension drops out of the pool once its 10 s TTL is over. The config's own rules still hold (a pool is never emptied, and a version a route uses keeps a dimension), but there's no guard beyond them, so a registry that loses most of its leases at once takes most of the pool with it. And the registry is the same cluster FiveFamilies' own demo lets visitors break, one fault at a time for up to 15 s, so the leader deaths above happen on the live demo too. The runs above only killed nodes. FiveFamilies' visitors have other faults as well, and I haven't measured what those do to a join. A redeploy is another case I haven't watched yet: each dimension revokes its lease when it stops and registers again when it's back, so the pool can shrink for a few seconds while the containers are replaced.
+
 ## How the pieces fit
 
 ```
+                      FiveFamilies (live demo only) <── dimensions register
+                            │ dimension list
+                            ▼
 dashboard (Next.js) ──> controller ──> Postgres (config versions, rollouts, chaos)
                             │  ▲
             config + notify │  │ per-second snapshots from every gateway
@@ -203,6 +216,8 @@ clients ──> gateway ×2 ─────┴──> Toxiproxy ──> dimensio
 Gateways never need the controller, Redis or Postgres to keep routing: they keep the last config they had. Losing the controller freezes config and canaries, losing Redis switches the limiters to the static split, losing Postgres only stops config history. Each of those is a test in the Docker e2e suite.
 
 The dashboard's admin token stays in an httpOnly cookie on the Next server. Visitors get bounded chaos: one action at a time, at most 30 s, reverted automatically, with a cooldown and a limit per address, so nobody can hurt the server or the other apps on it. They can also start a rollout, three an hour per address and one at a time, but only the admin token can abort one. I first kept rollouts for the admin, which left the canary, one of the four things the project is about, invisible to anyone looking at the demo. A rollout only moves the demo's own traffic between two versions that both work until someone breaks one, so it's no more dangerous than the chaos buttons. The controller talks to Toxiproxy and the dimensions' control ports, never to the Docker socket.
+
+On the demo the controller and the dimensions also share a network with FiveFamilies' nodes. FiveFamilies' registry and admin service and the dimensions' control ports answer anything on that network without a token, so a container there could register, replace or revoke a dimension, break one with no time limit, or take the registry itself apart through FiveFamilies' admin service. It could also call the controller's visitor routes directly and rotate `X-Forwarded-For` past their hourly limits per address. Only my own containers are on that network, which is the whole defence for now.
 
 ## Running it
 
@@ -220,14 +235,17 @@ The experiments run their own stacks, publish no ports, and write to `bench/resu
 go run ./cmd/bench e1 -workload w1     # proxy overhead against nginx, HAProxy, Envoy, Caddy
 go run ./cmd/bench e2 -reps 3          # the limiter designs
 go run ./cmd/bench e3 -reps 3          # failover
+go run ./cmd/bench e5                  # the registry, against FiveFamilies' nodes
 go run ./cmd/bench hotpath             # Go benchmarks of the hot path (run it in a Linux container)
 go run ./cmd/canarysim                 # the canary simulator
-go run ./cmd/bench report-e2 bench/results/e2/<run>   # tables from a run (report and report-e3 do the same for E1 and E3)
+go run ./cmd/bench report-e2 bench/results/e2/<run>   # tables from a run (report, report-e3 and report-e5 do the same for E1, E3 and E5)
 ```
+
+The registry run needs FiveFamilies' node image. The numbers above came from FiveFamilies at 056ae86, so to reproduce them, check that commit out in its repo, build it with `docker build -t fivefamilies-node:056ae86 .` and run E5 with `FF_IMAGE=fivefamilies-node:056ae86 FF_COMMIT=056ae86`, which the results then record.
 
 Tests: `go test -race ./...` (with `PORTAL_TEST_REDIS` and `PORTAL_TEST_POSTGRES` set it also runs the integration tests), `PORTAL_E2E=1 go test ./e2e/` for the Docker suite (its own stack on ports 3131-3133), fuzz targets in `internal/proxy`, and `npm test` in `web/`.
 
-On the server it runs with `docker-compose.prod.yml`, which publishes nothing and takes every secret from a `chmod 600` `.env` that `deploy/init-env.sh` generates. `deploy/deploy.sh` backs up Postgres, fast-forwards, rebuilds, waits for every service to report healthy and goes back to the previous commit if one doesn't. A backup container dumps Postgres every night and keeps two weeks, and `deploy/restore-check.sh` restores the latest dump into a throwaway Postgres to prove it can be restored. Only the dashboard is public.
+On the server it runs with `docker-compose.prod.yml`, which publishes nothing and takes every secret from a `chmod 600` `.env` that `deploy/init-env.sh` generates. `deploy/deploy.sh` backs up Postgres, fast-forwards, rebuilds, waits for every service to report healthy and goes back to the previous commit if one doesn't. When `PORTAL_REGISTRY` (the URLs of FiveFamilies' nodes) is added to `.env` by hand, the script also adds `docker-compose.registry.yml`, which puts the controller and the dimensions on FiveFamilies' network, so FiveFamilies has to be deployed first. Without a new commit, that takes `deploy.sh --force`. A backup container dumps Postgres every night and keeps two weeks, and `deploy/restore-check.sh` restores the latest dump into a throwaway Postgres to prove it can be restored. Only the dashboard is public.
 
 ## API at a glance
 
@@ -252,6 +270,7 @@ Each gateway has an admin listener that is never published: `/healthz`, `/metric
 | `internal/limit` | the four limiter designs and the oracle |
 | `internal/canary` | the SPRT, the end-of-step test and the rollout rules |
 | `cmd/controller`, `internal/controller`, `internal/store`, `internal/chaos` | the control plane |
+| `internal/registry` | the client for FiveFamilies' registry |
 | `cmd/dimension`, `cmd/traffic` | the upstreams and the demo's traffic |
 | `cmd/loadgen`, `cmd/bench`, `internal/bench`, `bench/` | the load generator, the experiments and their stacks, and every result |
 | `cmd/canarysim` | the canary simulator |
@@ -264,6 +283,7 @@ Each gateway has an admin listener that is never published: `/healthz`, `/metric
 - An adaptive concurrency limit in place of the fixed 256, following the latency of accepted requests, with the fixed cap kept as a ceiling. Then the same overload run, plus one with 200 ms upstreams where 256 refuses and an adaptive limit shouldn't.
 - Find where the Redis stalls come from, starting with the redis-exact cells without Toxiproxy between the gateways and Redis. And give local-sync the same running total redis-exact and lease now send, so a sync that times out after Redis ran it can't charge twice.
 - Find out where PortalGun's extra tail near the knee comes from, starting with a GC trace at 7k.
+- Measure a registry join on the server, and confirm what made the controller wait 2 s in that one election run. Close what's open on the network shared with FiveFamilies: a token on the dimensions' control ports, `X-Forwarded-For` trusted only from the dashboard's server, and authentication on FiveFamilies' registry and admin service, which is work on FiveFamilies' side.
 - Run E1 on a machine that isn't a laptop: either a quiet window on the server or a dedicated-CPU VM for an hour, and the other four workloads (slow upstream, large responses, request bodies, a new connection per request). The overload run too, since the server's gateways have half a core.
 - Run E3 with two gateways, and with more than three repetitions per cell.
 - Later: a failure penalty in P2C's cost, a gossip limiter without Redis, hedged requests, HTTP/2 to clients, REST to gRPC.
