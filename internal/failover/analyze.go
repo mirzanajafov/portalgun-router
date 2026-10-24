@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
@@ -217,8 +218,9 @@ func Analyze(lg *loadgen.Log, w Window, events []GatewayEvent, opt Options) Resu
 	baseline := bins(rs, start, w.InjectAt, opt.Bin)
 	res.BaselineShare = share(baseline, func(b Bin) int { return b.Target })
 
+	ejected := health.Ejected.String()
 	for _, e := range events {
-		if e.UnixNano < start || (e.State != "ejected" && e.State != "unhealthy") {
+		if e.UnixNano < start || (e.State != ejected && e.State != "unhealthy") {
 			continue
 		}
 		hit := e.Dimension == w.Target && e.UnixNano >= w.InjectAt
@@ -230,10 +232,10 @@ func Analyze(lg *loadgen.Log, w Window, events []GatewayEvent, opt Options) Resu
 			}
 		}
 		switch {
-		case hit && e.State == "ejected":
+		case hit && e.State == ejected:
 			res.TargetEjections++
 		case hit:
-		case e.State == "ejected":
+		case e.State == ejected:
 			res.FalseEjections++
 		default:
 			res.FalseUnhealthy++

@@ -13,6 +13,8 @@ export type RouteSnapshot = {
   brake?: boolean
 }
 
+export type OutlierState = 'closed' | 'ejected' | 'half-open' | 'disabled'
+
 export type DimensionSnapshot = {
   id: string
   version: string
@@ -22,7 +24,7 @@ export type DimensionSnapshot = {
   p99Ms: number
   inflight: number
   healthy: boolean
-  outlier: string
+  outlier: OutlierState
   ejectedForMs?: number
 }
 

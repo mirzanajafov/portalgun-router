@@ -102,10 +102,35 @@ func (s *Store) migrate(ctx context.Context) error {
 	})
 }
 
+type Actor string
+
+const (
+	ActorBootstrap  Actor = "bootstrap"
+	ActorAdmin      Actor = "admin"
+	ActorVisitor    Actor = "visitor"
+	ActorController Actor = "controller"
+	ActorRegistry   Actor = "registry"
+)
+
+type Outcome string
+
+const (
+	OutcomePromoted   Outcome = "promoted"
+	OutcomeRolledBack Outcome = "rolled_back"
+	OutcomeAborted    Outcome = "aborted"
+)
+
+type Decision string
+
+const (
+	DecisionPromote  Decision = "promote"
+	DecisionRollback Decision = "rollback"
+)
+
 type ConfigVersion struct {
 	Version   int64           `json:"version"`
 	CreatedAt time.Time       `json:"createdAt"`
-	Author    string          `json:"author"`
+	Author    Actor           `json:"author"`
 	Reason    string          `json:"reason"`
 	Body      json.RawMessage `json:"body,omitempty"`
 }
@@ -120,7 +145,7 @@ func (s *Store) LatestConfig(ctx context.Context) (*ConfigVersion, error) {
 	return &c, err
 }
 
-func (s *Store) SaveConfig(ctx context.Context, author, reason string, body json.RawMessage) (ConfigVersion, error) {
+func (s *Store) SaveConfig(ctx context.Context, author Actor, reason string, body json.RawMessage) (ConfigVersion, error) {
 	c := ConfigVersion{Author: author, Reason: reason, Body: body}
 	err := s.pool.QueryRow(ctx, `insert into config_versions (author, reason, body) values ($1, $2, $3) returning version, created_at`,
 		author, reason, body).Scan(&c.Version, &c.CreatedAt)
@@ -146,7 +171,7 @@ type Rollout struct {
 	Canary     string     `json:"canary"`
 	StartedAt  time.Time  `json:"startedAt"`
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-	Outcome    string     `json:"outcome,omitempty"`
+	Outcome    Outcome    `json:"outcome,omitempty"`
 	Reason     string     `json:"reason,omitempty"`
 	Steps      []Step     `json:"steps"`
 }
@@ -156,7 +181,7 @@ type Step struct {
 	Weight         float64    `json:"weight"`
 	StartedAt      time.Time  `json:"startedAt"`
 	EndedAt        *time.Time `json:"endedAt,omitempty"`
-	Decision       string     `json:"decision,omitempty"`
+	Decision       Decision   `json:"decision,omitempty"`
 	Reason         string     `json:"reason,omitempty"`
 	LLRErrors      float64    `json:"llrErrors"`
 	LLRSlow        float64    `json:"llrSlow"`
@@ -186,7 +211,7 @@ func (s *Store) SaveStep(ctx context.Context, rollout string, st Step) error {
 	return err
 }
 
-func (s *Store) FinishRollout(ctx context.Context, id, outcome, reason string, at time.Time) error {
+func (s *Store) FinishRollout(ctx context.Context, id string, outcome Outcome, reason string, at time.Time) error {
 	tag, err := s.pool.Exec(ctx, `update rollouts set finished_at = $2, outcome = $3, reason = $4 where id = $1 and finished_at is null`, id, at, outcome, reason)
 	if err == nil && tag.RowsAffected() == 0 {
 		err = fmt.Errorf("rollout %s is not active", id)
@@ -232,7 +257,7 @@ func (s *Store) steps(ctx context.Context, rollout string) ([]Step, error) {
 }
 
 func (s *Store) AbandonActive(ctx context.Context, reason string, at time.Time) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `update rollouts set finished_at = $1, outcome = 'aborted', reason = $2 where finished_at is null returning id`, at, reason)
+	rows, err := s.pool.Query(ctx, `update rollouts set finished_at = $1, outcome = $2, reason = $3 where finished_at is null returning id`, at, OutcomeAborted, reason)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +266,7 @@ func (s *Store) AbandonActive(ctx context.Context, reason string, at time.Time) 
 
 type ChaosEvent struct {
 	At     time.Time       `json:"at"`
-	Actor  string          `json:"actor"`
+	Actor  Actor           `json:"actor"`
 	Mode   string          `json:"mode"`
 	Target string          `json:"target"`
 	Action string          `json:"action"`

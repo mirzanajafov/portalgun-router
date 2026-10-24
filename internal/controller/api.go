@@ -134,7 +134,7 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 	if reason == "" {
 		reason = "edited by an admin"
 	}
-	v, err := a.cfgs.Replace(r.Context(), "admin", reason, body)
+	v, err := a.cfgs.Replace(r.Context(), store.ActorAdmin, reason, body)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -143,13 +143,13 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
-	author := "admin"
+	author := store.ActorAdmin
 	if !Authorized(r, a.token) {
 		if a.visitors == nil {
 			unauthorized(w)
 			return
 		}
-		author = "visitor"
+		author = store.ActorVisitor
 	}
 	var req struct {
 		Route  string `json:"route"`
@@ -158,7 +158,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	if err := decode(w, r, &req); err != nil {
 		return
 	}
-	if author == "visitor" {
+	if author == store.ActorVisitor {
 		if a.engine.Status().Active {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
 			return

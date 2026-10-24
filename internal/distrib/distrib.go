@@ -113,7 +113,6 @@ type Publisher struct {
 	rdb    *redis.Client
 	logger *slog.Logger
 	queue  chan proxy.Snapshot
-	drops  int64
 }
 
 func NewPublisher(rdb *redis.Client, logger *slog.Logger) *Publisher {
@@ -124,7 +123,6 @@ func (p *Publisher) Offer(s proxy.Snapshot) {
 	select {
 	case p.queue <- s:
 	default:
-		p.drops++
 	}
 }
 

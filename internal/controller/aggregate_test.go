@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 )
 
@@ -27,8 +28,8 @@ func collect() (*Aggregator, *[]Merged) {
 
 func TestMergeSumsAcrossInstances(t *testing.T) {
 	agg, out := collect()
-	agg.Add(snap("gw-1", 100, 10, 1, proxy.DimensionSnapshot{ID: "a", Attempts: 10, P99Ms: 3, Healthy: true, Outlier: "closed"}))
-	agg.Add(snap("gw-2", 100, 20, 2, proxy.DimensionSnapshot{ID: "a", Attempts: 20, P99Ms: 9, Healthy: false, Outlier: "ejected"}))
+	agg.Add(snap("gw-1", 100, 10, 1, proxy.DimensionSnapshot{ID: "a", Attempts: 10, P99Ms: 3, Healthy: true, Outlier: health.Closed}))
+	agg.Add(snap("gw-2", 100, 20, 2, proxy.DimensionSnapshot{ID: "a", Attempts: 20, P99Ms: 9, Healthy: false, Outlier: health.Ejected}))
 	agg.Flush(time.Unix(100, 0))
 	if len(*out) != 1 {
 		t.Fatalf("emitted %d seconds", len(*out))
@@ -39,7 +40,7 @@ func TestMergeSumsAcrossInstances(t *testing.T) {
 		t.Fatalf("route %+v", r)
 	}
 	d := m.Dimensions[0]
-	if d.Attempts != 30 || d.P99Ms != 9 || d.Healthy || d.Outlier != "ejected" {
+	if d.Attempts != 30 || d.P99Ms != 9 || d.Healthy || d.Outlier != health.Ejected {
 		t.Fatalf("dimension %+v", d)
 	}
 	if len(m.Instances) != 2 || m.MinConfig() != 7 {

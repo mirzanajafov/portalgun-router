@@ -15,6 +15,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 )
 
 func deadAddr(t *testing.T) string {
@@ -52,7 +53,7 @@ func send(t *testing.T, client *http.Client, method, url string, n int) tally {
 	return out
 }
 
-func resilient(t *testing.T, balancer string, mutate func(*config.Pool, *config.Route), dims ...config.Dimension) *config.Config {
+func resilient(t *testing.T, balancer config.Balancer, mutate func(*config.Pool, *config.Route), dims ...config.Dimension) *config.Config {
 	c := config.Config{
 		Routes: []config.Route{{Name: "all", PathPrefix: "/", Pool: "main"}},
 		Pools: []config.Pool{{Name: "main", Balancer: balancer, Dimensions: dims,
@@ -113,7 +114,7 @@ func TestOutlierEjectionStopsTheRetries(t *testing.T) {
 	)
 	g, srv := serve(t, cfg)
 	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 20)
-	if st := g.State(); st.Upstreams[1].Outlier != "ejected" || st.Upstreams[1].EjectedMs <= 0 {
+	if st := g.State(); st.Upstreams[1].Outlier != health.Ejected || st.Upstreams[1].EjectedMs <= 0 {
 		t.Fatalf("state %+v", st.Upstreams)
 	}
 	after := send(t, srv.Client(), http.MethodGet, srv.URL+"/", 30)
@@ -291,24 +292,25 @@ func TestAnIdleDimensionIsNotReportedEjectedAfterItsEjectionEnds(t *testing.T) {
 	)
 	g, srv := manual(t, cfg)
 	send(t, srv.Client(), http.MethodGet, srv.URL+"/", 4)
-	outlier := func(snap Snapshot) string {
+	outlier := func(snap Snapshot) health.State {
 		for _, d := range snap.Dimensions {
 			if d.ID == "b" {
 				return d.Outlier
 			}
 		}
-		return ""
+		t.Fatal("b is not in the snapshot")
+		return health.Disabled
 	}
-	if got := outlier(g.Tick(1)); got != "ejected" {
+	if got := outlier(g.Tick(1)); got != health.Ejected {
 		t.Fatalf("b is %q after failing, want ejected", got)
 	}
 	time.Sleep(80 * time.Millisecond)
 	snap := g.Tick(2)
-	if got := outlier(snap); got != "half-open" {
+	if got := outlier(snap); got != health.HalfOpen {
 		t.Fatalf("b is %q with no traffic after its ejection ended, want half-open", got)
 	}
 	for _, u := range g.State().Upstreams {
-		if u.ID == "b" && (u.Outlier != "half-open" || u.EjectedMs != 0) {
+		if u.ID == "b" && (u.Outlier != health.HalfOpen || u.EjectedMs != 0) {
 			t.Fatalf("state reports %+v", u)
 		}
 	}

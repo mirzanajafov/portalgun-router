@@ -1,7 +1,6 @@
 package balance
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"sync/atomic"
 )
@@ -14,18 +13,6 @@ type Filter[T Target] func(item T, now int64) bool
 
 type Balancer[T Target] interface {
 	Pick(items []T, now int64, ok Filter[T]) (T, bool)
-}
-
-func New[T Target](name string) (Balancer[T], error) {
-	switch name {
-	case "p2c-ewma":
-		return P2C[T]{}, nil
-	case "round-robin":
-		return &RoundRobin[T]{}, nil
-	case "least-outstanding":
-		return LeastOutstanding[T]{}, nil
-	}
-	return nil, fmt.Errorf("unknown balancer %q", name)
 }
 
 func usable[T Target](it T, now int64, ok Filter[T]) bool {

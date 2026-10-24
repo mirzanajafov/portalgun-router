@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+const decay = 10 * time.Second
+
+func balancers() map[string]Balancer[*item] {
+	return map[string]Balancer[*item]{"p2c-ewma": P2C[*item]{}, "round-robin": &RoundRobin[*item]{}, "least-outstanding": LeastOutstanding[*item]{}}
+}
+
 type item struct {
 	name string
 	load *Load
@@ -16,13 +22,13 @@ func (i *item) Load() *Load { return i.load }
 func items(names ...string) []*item {
 	out := make([]*item, len(names))
 	for i, n := range names {
-		out[i] = &item{name: n, load: NewLoad(100, 0)}
+		out[i] = &item{name: n, load: NewLoad(100, decay)}
 	}
 	return out
 }
 
 func TestPeakEWMAJumpsUpAndDecaysDown(t *testing.T) {
-	l := NewLoad(10, 0)
+	l := NewLoad(10, decay)
 	l.Observe(time.Millisecond, 0)
 	l.Observe(100*time.Millisecond, int64(time.Millisecond))
 	if got := l.Latency(); got != 100*time.Millisecond {
@@ -46,7 +52,7 @@ func TestPeakEWMAJumpsUpAndDecaysDown(t *testing.T) {
 }
 
 func TestCostDecaysWithoutSamples(t *testing.T) {
-	l := NewLoad(10, 0)
+	l := NewLoad(10, decay)
 	l.Observe(500*time.Millisecond, 0)
 	early := l.Cost(int64(time.Second))
 	late := l.Cost(int64(60 * time.Second))
@@ -56,18 +62,18 @@ func TestCostDecaysWithoutSamples(t *testing.T) {
 }
 
 func TestShorterDecayForgetsFaster(t *testing.T) {
-	short, long := NewLoad(10, time.Second), NewLoad(10, 0)
+	short, long := NewLoad(10, time.Second), NewLoad(10, decay)
 	short.Observe(100*time.Millisecond, 0)
 	long.Observe(100*time.Millisecond, 0)
 	at := int64(5 * time.Second)
 	s, l := short.Cost(at), long.Cost(at)
 	if s > float64(time.Millisecond) || l < float64(50*time.Millisecond) {
-		t.Fatalf("after 5s idle: 1s decay %.2fms, default decay %.2fms", s/1e6, l/1e6)
+		t.Fatalf("after 5s idle: 1s decay %.2fms, 10s decay %.2fms", s/1e6, l/1e6)
 	}
 }
 
 func TestCostPenalizesPendingWithoutSamples(t *testing.T) {
-	fresh, busy := NewLoad(10, 0), NewLoad(10, 0)
+	fresh, busy := NewLoad(10, decay), NewLoad(10, decay)
 	busy.Acquire()
 	if fresh.Cost(0) != 0 || busy.Cost(0) < penaltyNanos {
 		t.Fatalf("fresh %.0f busy %.0f", fresh.Cost(0), busy.Cost(0))
@@ -75,7 +81,7 @@ func TestCostPenalizesPendingWithoutSamples(t *testing.T) {
 }
 
 func TestAcquireNeverExceedsTheCap(t *testing.T) {
-	l := NewLoad(10, 0)
+	l := NewLoad(10, decay)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	peak := int64(0)
@@ -126,21 +132,17 @@ func TestP2CSpreadsOverEqualTargets(t *testing.T) {
 }
 
 func TestBalancersSkipCappedTargets(t *testing.T) {
-	for _, name := range []string{"p2c-ewma", "round-robin", "least-outstanding"} {
+	for name, b := range balancers() {
 		its := items("a", "b")
-		its[0].load = NewLoad(1, 0)
+		its[0].load = NewLoad(1, decay)
 		its[0].load.Acquire()
-		b, err := New[*item](name)
-		if err != nil {
-			t.Fatal(err)
-		}
 		for range 50 {
 			got, ok := b.Pick(its, 0, nil)
 			if !ok || got.name != "b" {
 				t.Fatalf("%s picked %v", name, got)
 			}
 		}
-		its[1].load = NewLoad(1, 0)
+		its[1].load = NewLoad(1, decay)
 		its[1].load.Acquire()
 		if _, ok := b.Pick(its, 0, nil); ok {
 			t.Fatalf("%s picked from a fully capped pool", name)
@@ -175,8 +177,7 @@ func TestLeastOutstandingPicksTheIdlest(t *testing.T) {
 
 func TestFilterExcludesTargets(t *testing.T) {
 	notA := func(it *item, _ int64) bool { return it.name != "a" }
-	for _, name := range []string{"p2c-ewma", "round-robin", "least-outstanding"} {
-		b, _ := New[*item](name)
+	for name, b := range balancers() {
 		its := items("a", "b", "c")
 		for range 60 {
 			got, ok := b.Pick(its, 0, notA)
@@ -187,11 +188,5 @@ func TestFilterExcludesTargets(t *testing.T) {
 		if _, ok := b.Pick(its, 0, func(*item, int64) bool { return false }); ok {
 			t.Fatalf("%s picked through a filter that rejects everything", name)
 		}
-	}
-}
-
-func TestUnknownBalancer(t *testing.T) {
-	if _, err := New[*item]("random"); err == nil {
-		t.Fatal("unknown balancer accepted")
 	}
 }

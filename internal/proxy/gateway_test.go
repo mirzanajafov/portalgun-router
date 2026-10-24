@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,7 +49,7 @@ func parse(t testing.TB, c config.Config) *config.Config {
 	return parsed
 }
 
-func onePool(t *testing.T, balancer string, dims ...config.Dimension) *config.Config {
+func onePool(t *testing.T, balancer config.Balancer, dims ...config.Dimension) *config.Config {
 	return parse(t, config.Config{
 		Routes: []config.Route{{Name: "all", PathPrefix: "/", Pool: "main"}},
 		Pools:  []config.Pool{{Name: "main", Balancer: balancer, Dimensions: dims}},
@@ -85,6 +86,16 @@ func get(t *testing.T, client *http.Client, url, host string) (int, http.Header)
 	return resp.StatusCode, resp.Header
 }
 
+func TestEachConfiguredBalancerGetsItsOwnAlgorithm(t *testing.T) {
+	seen := map[reflect.Type]config.Balancer{}
+	for _, kind := range config.Balancers {
+		algorithm := reflect.TypeOf(newBalancer(kind))
+		if other, ok := seen[algorithm]; ok {
+			t.Fatalf("%s and %s both run %v", other, kind, algorithm)
+		}
+		seen[algorithm] = kind
+	}
+}
 func TestRoutesByHostThenLongestPrefix(t *testing.T) {
 	a, b, c := dim(t, "a", nil), dim(t, "b", nil), dim(t, "c", nil)
 	cfg := parse(t, config.Config{

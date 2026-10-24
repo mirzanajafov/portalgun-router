@@ -13,6 +13,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/registry"
+	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
 const reconcileEvery = 10 * time.Second
@@ -131,7 +132,7 @@ func (d *Discovery) reconcile(ctx context.Context, list []registry.Instance) {
 		d.refused = ""
 		return
 	}
-	version, err := d.cfgs.Update(ctx, "registry", reason, func(c *config.Config) error {
+	version, err := d.cfgs.Update(ctx, store.ActorRegistry, reason, func(c *config.Config) error {
 		p := poolNamed(c, d.pool)
 		if p == nil {
 			return fmt.Errorf("the config has no pool %q", d.pool)

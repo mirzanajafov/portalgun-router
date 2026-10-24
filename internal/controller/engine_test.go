@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
@@ -24,11 +26,11 @@ type memStore struct {
 	configs  []store.ConfigVersion
 	rollouts []store.Rollout
 	steps    map[string]map[int]store.Step
-	outcomes map[string]string
+	outcomes map[string]store.Outcome
 }
 
 func newMemStore() *memStore {
-	return &memStore{steps: map[string]map[int]store.Step{}, outcomes: map[string]string{}}
+	return &memStore{steps: map[string]map[int]store.Step{}, outcomes: map[string]store.Outcome{}}
 }
 
 func (m *memStore) LatestConfig(context.Context) (*store.ConfigVersion, error) {
@@ -41,7 +43,7 @@ func (m *memStore) LatestConfig(context.Context) (*store.ConfigVersion, error) {
 	return &c, nil
 }
 
-func (m *memStore) SaveConfig(_ context.Context, author, reason string, body json.RawMessage) (store.ConfigVersion, error) {
+func (m *memStore) SaveConfig(_ context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	c := store.ConfigVersion{Version: int64(len(m.configs) + 1), Author: author, Reason: reason, Body: body}
@@ -72,7 +74,7 @@ func (m *memStore) SaveStep(_ context.Context, id string, st store.Step) error {
 	return nil
 }
 
-func (m *memStore) FinishRollout(_ context.Context, id, outcome, _ string, _ time.Time) error {
+func (m *memStore) FinishRollout(_ context.Context, id string, outcome store.Outcome, _ string, _ time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, done := m.outcomes[id]; done {
@@ -125,7 +127,7 @@ func (r *rig) feed(b bin, opts ...func(*Merged)) {
 				{Attempts: b.canary, Errors: b.canaryErr, Slow: b.canarySlow},
 			},
 		}},
-		Dimensions: []proxy.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: "closed"}},
+		Dimensions: []proxy.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: health.Closed}},
 	}
 	for _, o := range opts {
 		o(&m)
@@ -145,7 +147,7 @@ func (r *rig) versions(t *testing.T) config.Versions {
 
 func TestABadCanaryIsRolledBack(t *testing.T) {
 	r := newRig(t)
-	ro, err := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,14 +163,14 @@ func TestABadCanaryIsRolledBack(t *testing.T) {
 	if v := r.versions(t); v.Canary != "" || v.Weight != 0 || v.Stable != "v1" {
 		t.Fatalf("versions after rollback %+v", v)
 	}
-	if r.store.outcomes[ro.ID] != "rolled_back" || r.store.steps[ro.ID][0].Decision != "rollback" {
+	if r.store.outcomes[ro.ID] != store.OutcomeRolledBack || r.store.steps[ro.ID][0].Decision != store.DecisionRollback {
 		t.Fatalf("outcome %q, step %+v", r.store.outcomes[ro.ID], r.store.steps[ro.ID][0])
 	}
 }
 
 func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 	r := newRig(t)
-	ro, err := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +182,7 @@ func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 	if r.engine.Status().Active {
 		t.Fatalf("still running: %+v", r.engine.Status())
 	}
-	if r.store.outcomes[ro.ID] != "promoted" || len(r.store.steps[ro.ID]) != 2 {
+	if r.store.outcomes[ro.ID] != store.OutcomePromoted || len(r.store.steps[ro.ID]) != 2 {
 		t.Fatalf("outcome %q with %d steps", r.store.outcomes[ro.ID], len(r.store.steps[ro.ID]))
 	}
 	if v := r.versions(t); v.Stable != "v2" || v.Canary != "" || v.Weight != 0 {
@@ -190,7 +192,7 @@ func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 
 func TestSecondsFromAnOlderConfigDoNotCount(t *testing.T) {
 	r := newRig(t)
-	if _, err := r.engine.Start(context.Background(), "api", "v2", "admin"); err != nil {
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
 	}
 	stale := func(m *Merged) { m.ConfigVersions["gw-2"] = 1 }
@@ -204,23 +206,23 @@ func TestSecondsFromAnOlderConfigDoNotCount(t *testing.T) {
 
 func TestTheBrakeRollsBackAtOnce(t *testing.T) {
 	r := newRig(t)
-	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	r.feed(bin{stable: 900, canary: 100}, func(m *Merged) { rs := m.Routes["api"]; rs.Brake = true; m.Routes["api"] = rs })
-	if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
 		t.Fatalf("outcome %q", r.store.outcomes[ro.ID])
 	}
 }
 
 func withStable(healthy bool) func(*Merged) {
 	return func(m *Merged) {
-		m.Dimensions = append(m.Dimensions, proxy.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: "closed"})
+		m.Dimensions = append(m.Dimensions, proxy.DimensionSnapshot{ID: "s1", Version: "v1", Healthy: healthy, Outlier: health.Closed})
 	}
 }
 
 func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 	r := newRig(t)
-	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
-	dead := func(m *Merged) { m.Dimensions[0].Outlier = "ejected" }
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	dead := func(m *Merged) { m.Dimensions[0].Outlier = health.Ejected }
 	for range 9 {
 		r.feed(bin{}, dead, withStable(true))
 	}
@@ -232,7 +234,7 @@ func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 		t.Fatalf("rolled back after two 9 s spells of a dead canary with a healthy second between them: %q", r.store.outcomes[ro.ID])
 	}
 	r.feed(bin{}, dead, withStable(true))
-	if r.engine.Status().Active || r.store.outcomes[ro.ID] != "rolled_back" {
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
 		t.Fatalf("still %q after 10 s of a dead canary", r.store.outcomes[ro.ID])
 	}
 	if reason := r.store.steps[ro.ID][0].Reason; !strings.Contains(reason, "for 10 s") {
@@ -242,7 +244,7 @@ func TestADeadCanaryIsRolledBackOnlyOnceItStaysDead(t *testing.T) {
 
 func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
 	r := newRig(t)
-	ro, _ := r.engine.Start(context.Background(), "api", "v2", "admin")
+	ro, _ := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
 	down := func(m *Merged) { m.Dimensions[0].Healthy = false }
 	for range 60 {
 		r.feed(bin{}, down, withStable(false))
@@ -255,19 +257,19 @@ func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
 func TestStartChecksItsInputs(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	if _, err := r.engine.Start(ctx, "nope", "v2", "admin"); err == nil {
+	if _, err := r.engine.Start(ctx, "nope", "v2", store.ActorAdmin); err == nil {
 		t.Fatal("unknown route accepted")
 	}
-	if _, err := r.engine.Start(ctx, "api", "v1", "admin"); err == nil {
+	if _, err := r.engine.Start(ctx, "api", "v1", store.ActorAdmin); err == nil {
 		t.Fatal("the stable version accepted as a canary")
 	}
-	if _, err := r.engine.Start(ctx, "api", "v9", "admin"); err == nil {
+	if _, err := r.engine.Start(ctx, "api", "v9", store.ActorAdmin); err == nil {
 		t.Fatal("a version no dimension runs accepted")
 	}
-	if _, err := r.engine.Start(ctx, "api", "v2", "admin"); err != nil {
+	if _, err := r.engine.Start(ctx, "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.engine.Start(ctx, "api", "v2", "admin"); !errors.Is(err, ErrBusy) {
+	if _, err := r.engine.Start(ctx, "api", "v2", store.ActorAdmin); !errors.Is(err, ErrBusy) {
 		t.Fatalf("second start: %v", err)
 	}
 	if err := r.engine.Abort(ctx, "changed my mind"); err != nil {
@@ -358,13 +360,13 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	if n := counter.hits["rollout:ip:9.9.9.9"]; n != 3 {
 		t.Fatalf("counted %d visitor starts, want 3: the one refused because a rollout was running must not count", n)
 	}
-	var authors []string
+	var authors []store.Actor
 	for _, c := range r.store.configs {
 		if strings.Contains(c.Reason, "starts") {
 			authors = append(authors, c.Author)
 		}
 	}
-	if strings.Join(authors, ",") != "visitor,visitor,admin" {
+	if !slices.Equal(authors, []store.Actor{store.ActorVisitor, store.ActorVisitor, store.ActorAdmin}) {
 		t.Fatalf("rollouts started by %v", authors)
 	}
 }

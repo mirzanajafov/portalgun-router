@@ -9,13 +9,6 @@ import (
 	"time"
 )
 
-const (
-	StaticSplit = "static-split"
-	RedisExact  = "redis-exact"
-	LocalSync   = "local-sync"
-	Lease       = "lease"
-)
-
 type Rule struct {
 	Rate  float64
 	Burst float64

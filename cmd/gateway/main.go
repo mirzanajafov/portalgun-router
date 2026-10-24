@@ -103,9 +103,5 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = errors.Join(traffic.Shutdown(shutdownCtx), admin.Shutdown(shutdownCtx))
-	if errors.Is(err, http.ErrServerClosed) {
-		return nil
-	}
-	return err
+	return errors.Join(traffic.Shutdown(shutdownCtx), admin.Shutdown(shutdownCtx))
 }

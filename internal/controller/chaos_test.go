@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
+	"github.com/mirzanajafov/portalgun-router/internal/health"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
+	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
 type fakeInjector struct {
@@ -128,7 +130,7 @@ func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.Actor != "visitor" || run.Until.Sub(run.Started) != 50*time.Millisecond {
+	if run.Actor != store.ActorVisitor || run.Until.Sub(run.Started) != 50*time.Millisecond {
 		t.Fatalf("run %+v", run)
 	}
 	if _, wait, err := svc.Start(ctx, ChaosRequest{Mode: "slow", Target: "dim-b", LatencyMs: 100}, false, "5.6.7.8"); !errors.Is(err, ErrChaosBusy) || wait <= 0 {
@@ -240,19 +242,19 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 1}, true, ""); err != nil {
 		t.Fatal(err)
 	}
-	tick := func(sec int64, attemptsA int64, healthy bool, outlier string, failed int64) {
+	tick := func(sec int64, attemptsA int64, healthy bool, outlier health.State, failed int64) {
 		svc.Observe(Merged{
 			Second: sec,
 			Routes: map[string]proxy.RouteSnapshot{"api": {Failed: failed}},
 			Dimensions: []proxy.DimensionSnapshot{
 				{ID: "dim-a", Attempts: attemptsA, Healthy: healthy, Outlier: outlier},
-				{ID: "dim-b", Attempts: 900 - attemptsA, Healthy: true, Outlier: "closed"},
+				{ID: "dim-b", Attempts: 900 - attemptsA, Healthy: true, Outlier: health.Closed},
 			},
 		})
 	}
-	tick(base.Unix(), 300, true, "closed", 5)
-	tick(base.Unix()+1, 4, true, "ejected", 2)
-	tick(base.Unix()+2, 0, false, "ejected", 0)
+	tick(base.Unix(), 300, true, health.Closed, 5)
+	tick(base.Unix()+1, 4, true, health.Ejected, 2)
+	tick(base.Unix()+2, 0, false, health.Ejected, 0)
 	inc := svc.View().Incidents[0]
 	if inc.DetectedS == nil || inc.MovedS == nil || inc.Lost != 7 {
 		t.Fatalf("incident %+v", inc)
