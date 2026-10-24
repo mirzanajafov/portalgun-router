@@ -110,7 +110,7 @@ func uncounted(w http.ResponseWriter) {
 func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	reason := r.Header.Get("X-Reason")
@@ -119,7 +119,7 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := a.cfgs.Replace(r.Context(), store.ActorAdmin, reason, body)
 	if err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]int64{"version": v})
@@ -129,7 +129,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	author := store.ActorAdmin
 	if !httpx.Authorized(r, a.token) {
 		if a.visitors == nil {
-			httpx.Unauthorized(w, adminOnly)
+			httpx.WriteError(w, http.StatusUnauthorized, adminOnly)
 			return
 		}
 		author = store.ActorVisitor
@@ -143,7 +143,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	}
 	if author == store.ActorVisitor {
 		if a.engine.Status().Active {
-			httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
+			httpx.WriteError(w, http.StatusConflict, ErrBusy.Error())
 			return
 		}
 		exceeded, err := a.visitors.exceeded(r.Context(), a.visitors.client(r))
@@ -160,9 +160,9 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	ro, err := a.engine.Start(r.Context(), req.Route, req.Canary, author)
 	switch {
 	case errors.Is(err, ErrBusy):
-		httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusConflict, err.Error())
 	case err != nil:
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 	default:
 		httpx.WriteJSON(w, http.StatusCreated, ro)
 	}
@@ -179,7 +179,7 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 		req.Reason = "aborted by an admin"
 	}
 	if err := a.engine.Abort(r.Context(), req.Reason); err != nil {
-		httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusConflict, err.Error())
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, a.engine.Status())
@@ -222,7 +222,7 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 
 func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	if err := httpx.ReadJSON(w, r, v); err != nil && !errors.Is(err, io.EOF) {
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return err
 	}
 	return nil
@@ -230,7 +230,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 
 func respond(w http.ResponseWriter, v any, err error) {
 	if err != nil {
-		httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, v)

@@ -16,13 +16,9 @@ func Carries(r *http.Request, header, secret string) bool {
 func RequireBearer(token, refusal string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !Authorized(r, token) {
-			Unauthorized(w, refusal)
+			WriteError(w, http.StatusUnauthorized, refusal)
 			return
 		}
 		next(w, r)
 	}
-}
-
-func Unauthorized(w http.ResponseWriter, refusal string) {
-	WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": refusal})
 }

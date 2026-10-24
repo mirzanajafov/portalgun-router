@@ -16,3 +16,7 @@ func ReadJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	dec.DisallowUnknownFields()
 	return dec.Decode(v)
 }
+
+func WriteError(w http.ResponseWriter, status int, msg string) {
+	WriteJSON(w, status, map[string]string{"error": msg})
+}

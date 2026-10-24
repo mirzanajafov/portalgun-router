@@ -33,16 +33,26 @@ func Do(client *http.Client, req *http.Request, out any, ok ...int) error {
 	}
 	defer resp.Body.Close()
 	if !slices.Contains(ok, resp.StatusCode) {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-		return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Body: string(bytes.TrimSpace(body))}
+		return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Body: reason(resp.Body)}
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 			return fmt.Errorf("%s %s: %w", req.Method, req.URL.Redacted(), err)
 		}
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 	return nil
+}
+
+func reason(body io.Reader) string {
+	raw, _ := io.ReadAll(io.LimitReader(body, 4<<10))
+	var answer struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(raw, &answer) == nil && answer.Error != "" {
+		return answer.Error
+	}
+	return string(bytes.TrimSpace(raw))
 }
 
 func GetJSON(ctx context.Context, client *http.Client, url string, out any) error {

@@ -1,4 +1,4 @@
-package limit
+package limitbench
 
 import (
 	"math/rand/v2"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
+	"github.com/mirzanajafov/portalgun-router/internal/limit"
 )
 
 const base = int64(1_700_000_000_000_000_000)
@@ -13,8 +14,8 @@ const base = int64(1_700_000_000_000_000_000)
 func at(ms float64) int64 { return base + int64(ms*float64(time.Millisecond)) }
 
 func TestReplayAgreesWithAPerfectLimiter(t *testing.T) {
-	rule := Rule{Rate: 100, Burst: 10}
-	exact := NewBuckets(rule)
+	rule := limit.Rule{Rate: 100, Burst: 10}
+	exact := limit.NewBuckets(rule)
 	var ds []gatewayapi.Decision
 	for i := range 3000 {
 		now := at(float64(i) * 2)
@@ -35,8 +36,8 @@ func TestReplayAgreesWithAPerfectLimiter(t *testing.T) {
 }
 
 func TestReplayCountsTwoInstancesThatEachThinkTheyAreAlone(t *testing.T) {
-	rule := Rule{Rate: 100, Burst: 10}
-	a, b := NewBuckets(rule), NewBuckets(rule)
+	rule := limit.Rule{Rate: 100, Burst: 10}
+	a, b := limit.NewBuckets(rule), limit.NewBuckets(rule)
 	var ds []gatewayapi.Decision
 	for i := range 2000 {
 		now := at(float64(i) * 2.5)
@@ -63,7 +64,7 @@ func TestReplayFindsFalseRejects(t *testing.T) {
 		{UnixNano: at(2), Key: "b", Allowed: false},
 		{UnixNano: at(3), Key: "a", Allowed: false},
 	}
-	v := Replay(ds, Rule{Rate: 1, Burst: 2})
+	v := Replay(ds, limit.Rule{Rate: 1, Burst: 2})
 	if v.FalseRejects != 2 || v.FalseAdmits != 0 || v.OracleAdmitted != 3 || v.Admitted != 1 {
 		t.Fatalf("%+v", v)
 	}
@@ -78,15 +79,15 @@ func TestWorstWindowIsPerKey(t *testing.T) {
 		ds = append(ds, gatewayapi.Decision{UnixNano: at(float64(i) * 100), Key: "a", Allowed: true})
 		ds = append(ds, gatewayapi.Decision{UnixNano: at(float64(i)*100 + 50), Key: "b", Allowed: i < 3})
 	}
-	v := Replay(ds, Rule{Rate: 2, Burst: 2})
+	v := Replay(ds, limit.Rule{Rate: 2, Burst: 2})
 	if v.Worst.Key != "a" || v.Worst.Admitted != 8 || v.Worst.Allowed != 4 || v.WorstRatio != 2 {
 		t.Fatalf("%+v", v.Worst)
 	}
 }
 
 func TestJitteredTimestampsSwapDecisionsButNotTheCount(t *testing.T) {
-	rule := Rule{Rate: 1000, Burst: 100}
-	exact := NewBuckets(rule)
+	rule := limit.Rule{Rate: 1000, Burst: 100}
+	exact := limit.NewBuckets(rule)
 	rng := rand.New(rand.NewPCG(9, 9))
 	var ds []gatewayapi.Decision
 	for i := range 45000 {

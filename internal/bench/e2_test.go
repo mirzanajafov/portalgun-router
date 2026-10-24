@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
-	"github.com/mirzanajafov/portalgun-router/internal/limit"
 	"github.com/mirzanajafov/portalgun-router/internal/limitbench"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
@@ -70,7 +69,7 @@ func TestTheLimiterDefaultConfigIsLocalSyncOverTwoGateways(t *testing.T) {
 	}
 }
 
-func limiterRun(cell string, p50, p99 float64, v *limit.Verdict) LimiterRun {
+func limiterRun(cell string, p50, p99 float64, v *limitbench.Verdict) LimiterRun {
 	return LimiterRun{Cell: cell, Report: &limitbench.Report{
 		Generator: loadgen.Summary{Valid: true, LatencyUs: loadgen.Percentiles{P50: p50, P99: p99}},
 		Instances: []limitbench.Instance{{Degraded: 2, RedisCalls: 600, RedisSlow: 30, RedisTimeouts: 6, RedisDials: 4}, {Degraded: 1, RedisCalls: 400, RedisSlow: 20, RedisTimeouts: 4, RedisDials: 3}},
@@ -80,7 +79,7 @@ func limiterRun(cell string, p50, p99 float64, v *limit.Verdict) LimiterRun {
 }
 
 func TestLimiterSummaryComparesWithTheRunWithoutALimiter(t *testing.T) {
-	v := &limit.Verdict{Requests: 1000, OverAdmission: 0.12, MaxAhead: 37, WorstRatio: 1.3, FalseAdmits: 50, FalseRejects: 10}
+	v := &limitbench.Verdict{Requests: 1000, OverAdmission: 0.12, MaxAhead: 37, WorstRatio: 1.3, FalseAdmits: 50, FalseRejects: 10}
 	sums := SummarizeLimiter([]LimiterRun{
 		limiterRun("none/over-even-2gw", 300, 900, nil),
 		limiterRun("none/over-even-2gw", 320, 1000, nil),
@@ -116,7 +115,7 @@ func TestLimiterSummaryComparesWithTheRunWithoutALimiter(t *testing.T) {
 }
 
 func TestLimiterSummaryLeavesACellWithoutValidRunsBlank(t *testing.T) {
-	lagged := limiterRun("lease-5ms/over-even-2gw", 1700, 3_200_000, &limit.Verdict{Requests: 1000})
+	lagged := limiterRun("lease-5ms/over-even-2gw", 1700, 3_200_000, &limitbench.Verdict{Requests: 1000})
 	lagged.Report.Generator.Valid = false
 	sums := SummarizeLimiter([]LimiterRun{limiterRun("none/over-even-2gw", 300, 900, nil), lagged})
 	if s := sums[1]; s.InvalidRuns != 1 || s.AddedP50Us != nil || s.AddedP99Us != nil {

@@ -297,16 +297,16 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			if authorized {
 				msg = err.Error()
 			}
-			httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": msg})
+			httpx.WriteError(w, http.StatusServiceUnavailable, msg)
 		case err != nil:
-			httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		default:
 			httpx.WriteJSON(w, http.StatusCreated, run)
 		}
 	})
 	mux.HandleFunc("DELETE /api/chaos", admin(func(w http.ResponseWriter, r *http.Request) {
 		if err := c.Stop(r.Context()); err != nil {
-			httpx.WriteJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			httpx.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, c.View())

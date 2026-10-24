@@ -24,7 +24,7 @@ func AdminHandler(g *Gateway, token string) http.Handler {
 		if v := r.URL.Query().Get("since"); v != "" {
 			n, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
-				httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "since must be unix nanoseconds"})
+				httpx.WriteError(w, http.StatusBadRequest, "since must be unix nanoseconds")
 				return
 			}
 			since = n
@@ -40,7 +40,7 @@ func AdminHandler(g *Gateway, token string) http.Handler {
 	mux.HandleFunc("PUT /config", httpx.RequireBearer(token, "config writes need the admin token", func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 		if err != nil {
-			httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		cfg, err := config.Parse(body)
@@ -48,7 +48,7 @@ func AdminHandler(g *Gateway, token string) http.Handler {
 			err = g.Apply(cfg)
 		}
 		if err != nil {
-			httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]int64{"version": g.Version()})

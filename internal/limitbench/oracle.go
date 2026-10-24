@@ -1,4 +1,4 @@
-package limit
+package limitbench
 
 import (
 	"cmp"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
+	"github.com/mirzanajafov/portalgun-router/internal/limit"
 )
 
 type Window struct {
@@ -28,10 +29,10 @@ type Verdict struct {
 	WorstRatio     float64 `json:"worstRatio"`
 }
 
-func Replay(ds []gatewayapi.Decision, rule Rule) Verdict {
+func Replay(ds []gatewayapi.Decision, rule limit.Rule) Verdict {
 	sorted := slices.Clone(ds)
 	slices.SortStableFunc(sorted, func(a, b gatewayapi.Decision) int { return cmp.Compare(a.UnixNano, b.UnixNano) })
-	perfect := NewBuckets(rule)
+	perfect := limit.NewBuckets(rule)
 	admits := map[string][]int64{}
 	var v Verdict
 	for _, d := range sorted {

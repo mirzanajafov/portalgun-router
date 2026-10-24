@@ -321,19 +321,19 @@ func (s *Server) getState(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) patchState(w http.ResponseWriter, r *http.Request) {
 	var p Patch
 	if err := httpx.ReadJSON(w, r, &p); err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	b := p.apply(s.state.Load().b)
 	if err := b.Validate(); err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if p.Listening != nil {
 		if err := s.setListeningLocked(*p.Listening); err != nil {
-			httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 	}
@@ -346,7 +346,7 @@ func (s *Server) reset(w http.ResponseWriter, _ *http.Request) {
 	defer s.mu.Unlock()
 	s.state.Store(newState(s.initial))
 	if err := s.setListeningLocked(true); err != nil {
-		httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, s.view())

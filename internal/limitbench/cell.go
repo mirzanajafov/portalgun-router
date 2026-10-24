@@ -81,7 +81,7 @@ type Report struct {
 	Generator loadgen.Summary `json:"generator"`
 	Instances []Instance      `json:"instances"`
 	Redis     Redis           `json:"redis"`
-	Verdict   *limit.Verdict  `json:"verdict,omitempty"`
+	Verdict   *Verdict        `json:"verdict,omitempty"`
 }
 
 func Requests(decisions int, measured int64, warmup, window time.Duration) float64 {
@@ -195,7 +195,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	rep.Redis.CPUSeconds = after.CPUSeconds - before.CPUSeconds
 	rep.Redis.perRequest(Requests(len(all), res.Summary.Scheduled, load.Warmup, load.Duration))
 	if c.Limited {
-		v := limit.Replay(all, c.Rule)
+		v := Replay(all, c.Rule)
 		rep.Verdict = &v
 	}
 	if err := httpx.GetJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
@@ -230,7 +230,7 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET %s/metrics: %s", admin, resp.Status)
+		return nil, &httpx.StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

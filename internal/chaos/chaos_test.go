@@ -215,8 +215,8 @@ func TestPartialPatchesTheDimension(t *testing.T) {
 		t.Fatal("unknown dimension accepted")
 	}
 	stale := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control, Token: "old-token"}})
-	if err := stale.Inject(context.Background(), f); !errors.Is(err, ErrControlToken) {
-		t.Fatalf("a refused token came back as %v", err)
+	if err := stale.Inject(context.Background(), f); !errors.Is(err, ErrControlToken) || !strings.Contains(err.Error(), control+"/state") {
+		t.Fatalf("a refused token came back as %v, want ErrControlToken naming the request", err)
 	}
 }
 

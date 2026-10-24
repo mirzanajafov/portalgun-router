@@ -1,0 +1,86 @@
+{
+  "decisions": {
+    "recording": true,
+    "dropped": 1,
+    "decisions": [
+      {
+        "t": 2,
+        "k": "ip:1.2.3.4",
+        "a": true
+      }
+    ]
+  },
+  "event": {
+    "unixNano": 1,
+    "dimension": "a",
+    "state": "ejected",
+    "reason": "5 failures in a row"
+  },
+  "headers": [
+    "X-Portal-Dimension",
+    "X-Portal-Attempts"
+  ],
+  "snapshot": {
+    "instance": "gw-1",
+    "second": 1,
+    "configVersion": 2,
+    "clusterConfig": 3,
+    "routes": {
+      "api": {
+        "requests": 4,
+        "limited": 5,
+        "failed": 6,
+        "stable": "v1",
+        "canary": "v2",
+        "weight": 0.5,
+        "rollout": "ro-1",
+        "versions": [
+          {
+            "attempts": 7,
+            "errors": 8,
+            "slow": 9
+          },
+          {
+            "attempts": 0,
+            "errors": 0,
+            "slow": 0
+          }
+        ],
+        "slowThresholdMs": 10,
+        "brake": true
+      }
+    },
+    "dimensions": [
+      {
+        "id": "a",
+        "version": "v1",
+        "attempts": 11,
+        "errors": 12,
+        "p50Ms": 13,
+        "p99Ms": 14,
+        "inflight": 15,
+        "healthy": true,
+        "outlier": "ejected",
+        "ejectedForMs": 16
+      }
+    ]
+  },
+  "state": {
+    "version": 1,
+    "inflight": 2,
+    "maxInflight": 3,
+    "upstreams": [
+      {
+        "id": "a",
+        "version": "v1",
+        "address": "dim-a:8080",
+        "inflight": 4,
+        "maxInflight": 5,
+        "latencyMs": 6,
+        "healthy": true,
+        "outlier": "half-open",
+        "ejectedForMs": 7
+      }
+    ]
+  }
+}
