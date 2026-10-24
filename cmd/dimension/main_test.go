@@ -70,7 +70,6 @@ func TestADimensionThatRegistersIsReadyOnlyOnceItHoldsALease(t *testing.T) {
 		t.Fatal(err)
 	}
 	control := ln.Addr().String()
-	ln.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	reports := make(chan func(bool), 1)
@@ -80,7 +79,7 @@ func TestADimensionThatRegistersIsReadyOnlyOnceItHoldsALease(t *testing.T) {
 	}
 	stopped := make(chan error, 1)
 	go func() {
-		stopped <- run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), "e-7", "v1", "127.0.0.1:0", control, dimension.DefaultBehavior(), keep)
+		stopped <- run(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), "e-7", "v1", "127.0.0.1:0", ln, dimension.DefaultBehavior(), keep)
 	}()
 	var held func(bool)
 	select {

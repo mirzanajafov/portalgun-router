@@ -295,7 +295,7 @@ func (s *Server) view() View {
 
 func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
-	listening := s.view().Listening
+	listening := s.data != nil
 	s.mu.Unlock()
 	switch {
 	case !listening:

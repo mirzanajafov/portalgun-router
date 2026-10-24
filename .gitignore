@@ -11,3 +11,4 @@ web/tsconfig.tsbuildinfo
 /backups/
 /.deployed
 /.deploying
+/.deploy.lock

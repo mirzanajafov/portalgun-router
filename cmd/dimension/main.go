@@ -51,7 +51,12 @@ func main() {
 		}
 		keep = func(ctx context.Context, held func(bool)) { c.Keep(ctx, *service, inst, *ttl, logger, held) }
 	}
-	if err := run(ctx, logger, *id, *version, *addr, *controlAddr, b, keep); err != nil {
+	control, err := net.Listen("tcp", *controlAddr)
+	if err != nil {
+		logger.Error("dimension not started", "err", err)
+		os.Exit(1)
+	}
+	if err := run(ctx, logger, *id, *version, *addr, control, b, keep); err != nil {
 		logger.Error("dimension stopped", "err", err)
 		os.Exit(1)
 	}
@@ -97,17 +102,14 @@ func registration(f registrationFlags) (*registry.Client, registry.Instance, err
 
 const leaveDrain = time.Second
 
-func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAddr string, b dimension.Behavior, keep func(context.Context, func(bool))) error {
+func run(ctx context.Context, logger *slog.Logger, id, version, addr string, cl net.Listener, b dimension.Behavior, keep func(context.Context, func(bool))) error {
 	s, err := dimension.New(id, version, b)
 	if err != nil {
+		_ = cl.Close()
 		return err
 	}
 	if err := s.Listen(addr); err != nil {
-		return err
-	}
-	cl, err := net.Listen("tcp", controlAddr)
-	if err != nil {
-		_ = s.Shutdown(context.Background())
+		_ = cl.Close()
 		return err
 	}
 	kctx, stopKeeping := context.WithCancel(ctx)
