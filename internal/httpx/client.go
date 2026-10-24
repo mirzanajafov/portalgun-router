@@ -25,29 +25,22 @@ func (e *StatusError) Error() string {
 	return e.Status + ": " + e.Reason
 }
 
-func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...int) error {
+func Do(client *http.Client, req *http.Request, read func(io.Reader) error, want int, alsoWant ...int) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if err := CheckStatus(req, resp, want, alsoWant...); err != nil {
-		return err
+	if resp.StatusCode != want && !slices.Contains(alsoWant, resp.StatusCode) {
+		return requestError(req, &StatusError{Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)})
 	}
-	if out != nil {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if read != nil {
+		if err := read(resp.Body); err != nil {
 			return requestError(req, err)
 		}
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	return nil
-}
-
-func CheckStatus(req *http.Request, resp *http.Response, want int, alsoWant ...int) error {
-	if resp.StatusCode == want || slices.Contains(alsoWant, resp.StatusCode) {
-		return nil
-	}
-	return requestError(req, &StatusError{Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)})
 }
 
 func requestError(req *http.Request, err error) error {
@@ -71,5 +64,9 @@ func GetJSON(ctx context.Context, client *http.Client, target string, out any) e
 	if err != nil {
 		return err
 	}
-	return Do(client, req, out, http.StatusOK)
+	return Do(client, req, DecodeJSON(out), http.StatusOK)
+}
+
+func DecodeJSON(out any) func(io.Reader) error {
+	return func(r io.Reader) error { return json.NewDecoder(r).Decode(out) }
 }

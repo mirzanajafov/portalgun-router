@@ -1,9 +1,16 @@
 package limitbench
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 )
 
 func TestParseInfoSumsCommandsButNotItself(t *testing.T) {
@@ -70,5 +77,30 @@ func TestRedisCostIsPerRequestTheLimiterSaw(t *testing.T) {
 	}
 	if n := Requests(0, 30000, 5*time.Second, 30*time.Second); n != 35000 {
 		t.Fatalf("without a limiter the whole run is %v requests, want 35000", n)
+	}
+}
+
+func TestCountersReadOnlyAGoodMetricsAnswer(t *testing.T) {
+	answers := map[string]func(http.ResponseWriter){
+		"/good":    func(w http.ResponseWriter) { _, _ = w.Write([]byte("portal_rate_limit_degraded_total 3\n")) },
+		"/refused": func(w http.ResponseWriter) { http.Error(w, "starting", http.StatusServiceUnavailable) },
+		"/garbled": func(w http.ResponseWriter) { _, _ = w.Write([]byte("portal_rate_limit_degraded_total three\n")) },
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		answers[strings.TrimSuffix(r.URL.Path, "/metrics")](w)
+	}))
+	t.Cleanup(srv.Close)
+	ctx := context.Background()
+
+	if got, err := counters(ctx, srv.Client(), srv.URL+"/good"); err != nil || got[degradedMetric] != 3 {
+		t.Fatalf("a good answer: %v, %v", got, err)
+	}
+	var refused *httpx.StatusError
+	if _, err := counters(ctx, srv.Client(), srv.URL+"/refused"); !errors.As(err, &refused) || refused.Code != http.StatusServiceUnavailable {
+		t.Fatalf("a 503 came back as %v", err)
+	}
+	var named *url.Error
+	if _, err := counters(ctx, srv.Client(), srv.URL+"/garbled"); !errors.As(err, &named) || errors.As(err, &refused) {
+		t.Fatalf("an answer that isn't metrics came back as %v", err)
 	}
 }

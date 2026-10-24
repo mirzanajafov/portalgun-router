@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -211,7 +210,7 @@ func drain(ctx context.Context, client *http.Client, admin string) (gatewayapi.D
 	if err != nil {
 		return d, err
 	}
-	if err := httpx.Do(client, req, &d, http.StatusOK); err != nil {
+	if err := httpx.Do(client, req, httpx.DecodeJSON(&d), http.StatusOK); err != nil {
 		return d, err
 	}
 	if !d.Recording {
@@ -225,17 +224,13 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
+	var ss []Sample
+	read := func(r io.Reader) (err error) {
+		ss, err = Samples(r)
+		return err
 	}
-	defer resp.Body.Close()
-	if err := httpx.CheckStatus(req, resp, http.StatusOK); err != nil {
+	if err := httpx.Do(client, req, read, http.StatusOK); err != nil {
 		return nil, err
-	}
-	ss, err := Samples(resp.Body)
-	if err != nil {
-		return nil, &url.Error{Op: "Get", URL: req.URL.Redacted(), Err: err}
 	}
 	return Counters(ss), nil
 }
