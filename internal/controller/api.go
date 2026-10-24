@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -29,7 +28,7 @@ type API struct {
 	token    string
 	latest   atomic.Pointer[Merged]
 	extra    func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)
-	visitors *visitorRollouts
+	visitors *visitorLimit
 }
 
 type RolloutLimits struct {
@@ -42,17 +41,12 @@ func DefaultRolloutLimits() RolloutLimits {
 
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
-type visitorRollouts struct {
-	limit *visitorLimit
-	hops  int
-}
-
 func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string) *API {
 	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token}
 }
 
-func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, hops int, logger *slog.Logger) {
-	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), hops: hops}
+func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, proxyToken string, logger *slog.Logger) {
+	a.visitors = newVisitorLimit("rollout", limits.PerHour, counter, proxyToken, logger)
 }
 
 func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
@@ -123,10 +117,11 @@ func uncounted(w http.ResponseWriter) {
 }
 
 func Authorized(r *http.Request, token string) bool {
-	if token == "" {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) == 1
+	return token != "" && carries(r, "Authorization", "Bearer "+token)
+}
+
+func carries(r *http.Request, header, secret string) bool {
+	return secret != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(secret)) == 1
 }
 
 func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
@@ -168,7 +163,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
 			return
 		}
-		exceeded, err := a.visitors.limit.exceeded(r.Context(), proxy.ClientIP(r, a.visitors.hops))
+		exceeded, err := a.visitors.exceeded(r.Context(), a.visitors.client(r))
 		if err != nil {
 			uncounted(w)
 			return
