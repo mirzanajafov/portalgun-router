@@ -290,6 +290,9 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 			writeJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
 		case errors.Is(err, ErrLimitUnchecked):
 			uncounted(w)
+		case errors.Is(err, chaos.ErrControlToken):
+			c.logger.Error("starting a fault", "err", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "a dimension refused the controller, so the fault was not started"})
 		case err != nil:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		default:

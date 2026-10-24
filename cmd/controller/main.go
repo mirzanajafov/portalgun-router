@@ -81,25 +81,33 @@ func chaosTargets(spec, token string) ([]string, map[string]*chaos.DimensionCont
 	return names, controls, nil
 }
 
+func chaosInjector(ctx context.Context, o options, logger *slog.Logger) (*chaos.Injector, []string, error) {
+	if o.toxiproxy == "" {
+		return nil, nil, nil
+	}
+	names, controls, err := chaosTargets(o.targets, o.controlToken)
+	if err != nil {
+		return nil, nil, err
+	}
+	inj := chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
+	err = inj.ClearAll(ctx)
+	if errors.Is(err, chaos.ErrControlToken) {
+		return nil, nil, err
+	}
+	if err != nil {
+		logger.Warn("clearing faults left from before", "err", err)
+	}
+	return inj, names, nil
+}
+
 func run(ctx context.Context, logger *slog.Logger, o options) error {
 	addr, postgres, redisAddr, bootstrapPath, token := o.addr, o.postgres, o.redis, o.bootstrap, o.token
 	if postgres == "" || redisAddr == "" {
 		return errors.New("-postgres and -redis are required")
 	}
-	names, controls, err := chaosTargets(o.targets, o.controlToken)
+	inj, names, err := chaosInjector(ctx, o, logger)
 	if err != nil {
 		return err
-	}
-	var inj *chaos.Injector
-	if o.toxiproxy != "" {
-		inj = chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
-		err = inj.ClearAll(ctx)
-		if errors.Is(err, chaos.ErrControlToken) {
-			return err
-		}
-		if err != nil {
-			logger.Warn("clearing faults left from before", "err", err)
-		}
 	}
 	st, err := store.Open(ctx, postgres)
 	if err != nil {

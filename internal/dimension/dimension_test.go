@@ -310,11 +310,14 @@ func TestResetRestoresTheInitialBehavior(t *testing.T) {
 		t.Fatalf("patch got %d", status)
 	}
 	resp := callControl(t, http.MethodPost, control.URL+"/reset", "Bearer "+controlToken, "")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("reset got %d", resp.StatusCode)
+	}
 	var v View
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
 	if !v.Listening || v.Behavior != DefaultBehavior() {
 		t.Fatalf("after reset: %+v", v)
 	}

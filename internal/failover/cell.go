@@ -53,7 +53,7 @@ func (c Cell) validate() error {
 	case c.Toxiproxy == "":
 		return errors.New("needs the toxiproxy address")
 	case len(c.Controls) > 0 && c.Token == "":
-		return errors.New("needs PORTAL_CONTROL_TOKEN for the dimensions' control ports")
+		return errors.New("needs a token for the dimensions' control ports")
 	case c.Rate <= 0 || c.Before <= 0 || c.After <= 0 || c.During < 0 || c.Settle < 0:
 		return errors.New("rate and windows must be positive")
 	}

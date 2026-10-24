@@ -17,7 +17,7 @@ func TestACellThatDrivesControlPortsNeedsTheirToken(t *testing.T) {
 		Before:    time.Second,
 		After:     time.Second,
 	}
-	if _, err := Run(context.Background(), c); err == nil || !strings.Contains(err.Error(), "PORTAL_CONTROL_TOKEN") {
+	if _, err := Run(context.Background(), c); err == nil || !strings.Contains(err.Error(), "needs a token") {
 		t.Fatalf("ran without the control token: %v", err)
 	}
 }

@@ -88,7 +88,7 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("dimension control: %w", err)
+		return fmt.Errorf("dimension control %s: %w", d.BaseURL, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
@@ -96,7 +96,7 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 	}
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-		return fmt.Errorf("dimension control: %s: %s", resp.Status, bytes.TrimSpace(msg))
+		return fmt.Errorf("dimension control %s: %s: %s", d.BaseURL, resp.Status, bytes.TrimSpace(msg))
 	}
 	return nil
 }

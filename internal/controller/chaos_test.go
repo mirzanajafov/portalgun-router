@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,11 +24,15 @@ type fakeInjector struct {
 	mu       sync.Mutex
 	injected []chaos.Fault
 	cleared  []chaos.Fault
+	err      error
 }
 
 func (f *fakeInjector) Inject(_ context.Context, fault chaos.Fault) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
 	f.injected = append(f.injected, fault)
 	return nil
 }
@@ -287,5 +292,19 @@ func TestChaosEndpoints(t *testing.T) {
 	}
 	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 429 {
 		t.Fatalf("during the cooldown: %d", got)
+	}
+}
+
+func TestAFaultADimensionRefusesIsTheControllersFailure(t *testing.T) {
+	svc, inj, _ := newChaos(DefaultChaosLimits())
+	inj.err = fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken)
+	mux := http.NewServeMux()
+	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
+	req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.5}`))
+	req.Header = asAdmin("9.9.9.9")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "dim-a:8081") {
+		t.Fatalf("got %d %s, want 503 without the dimension's address", w.Code, w.Body)
 	}
 }

@@ -263,3 +263,20 @@ func TestClearAllResetsEverything(t *testing.T) {
 		t.Fatalf("enabled %v toxics %v after reset", on, names)
 	}
 }
+
+func TestClearAllReportsADimensionThatRefusesTheToken(t *testing.T) {
+	_, toxi := newFakeToxiproxy(t)
+	dims := map[string]*DimensionControl{}
+	for _, name := range []string{"dim-a", "dim-b"} {
+		s, err := dimension.New(name, "v1", dimension.DefaultBehavior())
+		if err != nil {
+			t.Fatal(err)
+		}
+		control := httptest.NewServer(s.ControlHandler("token-" + name))
+		t.Cleanup(control.Close)
+		dims[name] = &DimensionControl{BaseURL: control.URL, Token: "token-dim-a"}
+	}
+	if err := NewInjector(toxi, dims).ClearAll(context.Background()); !errors.Is(err, ErrControlToken) {
+		t.Fatalf("one refusing dimension among two came back as %v", err)
+	}
+}
