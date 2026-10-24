@@ -134,7 +134,7 @@ func (l *RateLimit) KeyHeader() string {
 	return ""
 }
 
-func (l RateLimit) validate() error {
+func (l *RateLimit) validate() error {
 	switch l.Design {
 	case LimitStaticSplit, LimitRedisExact, LimitLocalSync, LimitLease:
 	default:

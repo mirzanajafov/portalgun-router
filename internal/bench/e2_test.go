@@ -130,15 +130,15 @@ func TestLimiterSummaryLeavesACellWithoutValidRunsBlank(t *testing.T) {
 	}
 }
 
-func parse(t *testing.T, c config.Config) *config.Config {
+func parse(t testing.TB, c config.Config) *config.Config {
 	t.Helper()
 	raw, err := json.Marshal(c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.Parse(raw)
+	parsed, err := config.Parse(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return cfg
+	return parsed
 }

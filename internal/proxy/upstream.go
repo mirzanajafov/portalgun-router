@@ -135,8 +135,8 @@ func excluding(f balance.Filter[*upstream], t tried) balance.Filter[*upstream] {
 	return func(u *upstream, now int64) bool { return !slices.Contains(t.at[:t.n], u) && f(u, now) }
 }
 
-func (s *subset) acquire(now int64, t tried) (u *upstream, panicking bool) {
-	panicking = s.panicking(now)
+func (s *subset) acquire(now int64, t tried) (*upstream, bool) {
+	panicking := s.panicking(now)
 	filters := normalFilters
 	if panicking {
 		filters = panicFilters
@@ -147,12 +147,12 @@ func (s *subset) acquire(now int64, t tried) (u *upstream, panicking bool) {
 			ok = excluding(f, t)
 		}
 		for range 3 {
-			picked, found := s.balancer.Pick(s.upstreams, now, ok)
+			u, found := s.balancer.Pick(s.upstreams, now, ok)
 			if !found {
 				break
 			}
-			if picked.load.Acquire() {
-				return picked, panicking
+			if u.load.Acquire() {
+				return u, panicking
 			}
 		}
 	}
