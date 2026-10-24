@@ -10,5 +10,6 @@ web/next-env.d.ts
 web/tsconfig.tsbuildinfo
 /backups/
 /.deployed
+/.deployed.new
 /.deploying
 /.deploy.lock

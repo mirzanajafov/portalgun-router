@@ -19,21 +19,24 @@ if [ -n "$(setting PORTAL_REGISTRY)" ]; then
   network=$(setting REGISTRY_NETWORK)
   network=${network:-fivefamilies-registry}
   docker network inspect "$network" > /dev/null 2>&1 || { echo "PORTAL_REGISTRY is set but there is no network $network. Start FiveFamilies first." >&2; exit 1; }
-  IFS=, read -ra nodes <<< "$(setting PORTAL_REGISTRY)"
-  answered=false
-  for node in "${nodes[@]}"; do
-    if docker run --rm --network "$network" portalgun wget -q -T 3 -O /dev/null "$node/v1/status" > /dev/null 2>&1; then
-      answered=true
-      break
-    fi
-  done
-  [ "$answered" = true ] || { echo "No FiveFamilies node answers on $network, and a dimension is only healthy once it has registered. Start FiveFamilies first." >&2; exit 1; }
 fi
+
+registry_led() {
+  local nodes node status
+  IFS=, read -ra nodes <<< "$(setting PORTAL_REGISTRY)"
+  for node in "${nodes[@]}"; do
+    node=${node// /}
+    [ -n "$node" ] || continue
+    status=$(docker run --rm --pull=never --network "$network" portalgun wget -q -T 3 -O - "$node/v1/status") && grep -Eq '"leader":[1-9]' <<< "$status" && return 0
+  done
+  return 1
+}
 
 deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
 
 record() {
-  echo "$1" > .deployed
+  echo "$1" > .deployed.new
+  mv .deployed.new .deployed
   rm -f .deploying
 }
 
@@ -44,27 +47,27 @@ states() {
   docker inspect -f '{{index .Config.Labels "com.docker.compose.oneoff"}} {{slice .Name 1}} {{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}} {{.State.StartedAt}}' "${ids[@]}" | grep '^False ' | cut -d ' ' -f 2- | sort
 }
 
+unready() { grep -Ev '^[^ ]+ running(/healthy)? ' <<< "$1" | cut -d ' ' -f 1,2; }
+
 healthy() {
-  local now=""
+  local expected now=""
+  expected=$("${compose[@]}" config --services | wc -l)
   for _ in $(seq 1 60); do
-    now=$(states) && ! grep -Evq '^[^ ]+ running(/healthy)? ' <<< "$now" && return 0
+    now=$(states) && [ "$(wc -l <<< "$now")" -eq "$expected" ] && [ -z "$(unready "$now")" ] && return 0
     sleep 3
   done
-  if [ -n "$now" ]; then
-    grep -Ev '^[^ ]+ running(/healthy)? ' <<< "$now" | cut -d ' ' -f 1,2 >&2
-  else
-    echo "no containers to check" >&2
-  fi
+  echo "$(grep -c . <<< "$now") of $expected services have a container" >&2
+  unready "$now" >&2
   return 1
 }
 
 settled() {
   local before after
-  before=$(states) || return 1
+  before=$(states) || { echo "the containers could not be inspected" >&2; return 1; }
   sleep 15
   after=$(states) || { echo "the containers could not be inspected" >&2; return 1; }
   [ "$before" = "$after" ] && return 0
-  grep -vxF -f <(echo "$before") <<< "$after" | sed 's/ [^ ]*$/ did not stay up/' >&2
+  { grep -vxF -f <(echo "$before") <<< "$after"; grep -vxF -f <(echo "$after") <<< "$before"; } | cut -d ' ' -f 1 | sort -u | sed 's/$/ did not stay up/' >&2
   return 1
 }
 
@@ -75,11 +78,16 @@ release() {
 git fetch --quiet origin "$branch"
 target=$(git rev-parse "origin/$branch")
 last=$(cut -d ' ' -f 1 .deployed 2>/dev/null || true)
-previous=${last:-$(git rev-parse HEAD)}
+previous=$(git rev-parse -q --verify "${last:-HEAD}^{commit}" || git rev-parse HEAD)
 
 if [ "$(git rev-parse HEAD)" = "$target" ] && [ "$force" = false ] && [ ! -e .deploying ] && [ "$(deployed)" = "$(cat .deployed 2>/dev/null)" ]; then
   echo "Already at $(git log --oneline -1) with this .env. Use --force to rebuild anyway."
   exit 0
+fi
+
+if [ -n "$(setting PORTAL_REGISTRY)" ] && ! registry_led; then
+  echo "No FiveFamilies node on $network reports a leader, and a dimension is only healthy once it has registered. Start FiveFamilies first." >&2
+  exit 1
 fi
 
 dumped=false
