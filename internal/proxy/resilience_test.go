@@ -149,11 +149,11 @@ func TestTransitionsAreLoggedOnTheWallClock(t *testing.T) {
 
 func TestEventLogKeepsTheNewest(t *testing.T) {
 	g, _ := serve(t, resilient(t, config.BalancerRoundRobin, nil, config.Dimension{ID: "a", Address: deadAddr(t)}))
-	for i := range eventLog + 10 {
+	for i := range eventLogSize + 10 {
 		g.logEvent("a", int64(i), "ejected", "")
 	}
 	all := g.Events(0)
-	if len(all) != eventLog || all[0].UnixNano != g.epoch.UnixNano()+10 {
+	if len(all) != eventLogSize || all[0].UnixNano != g.epoch.UnixNano()+10 {
 		t.Fatalf("kept %d events starting at %d", len(all), all[0].UnixNano-g.epoch.UnixNano())
 	}
 }
@@ -239,7 +239,7 @@ func waitUnhealthy(t *testing.T, g *Gateway, n int) {
 }
 
 func TestSlowStartAdmitsAGrowingShare(t *testing.T) {
-	u := &upstream{slowStart: int64(10 * time.Second)}
+	u := &upstream{spec: upstreamSpec{slowStart: config.Duration(10 * time.Second)}}
 	u.readyAt.Store(0)
 	share := func(now int64) float64 {
 		n := 0

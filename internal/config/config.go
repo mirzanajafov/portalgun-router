@@ -46,13 +46,8 @@ var Balancers = []Balancer{BalancerP2C, BalancerRoundRobin, BalancerLeastOutstan
 const (
 	DefaultVersion     = "v1"
 	DefaultMaxInflight = 1024
-	DefaultGatewayCap  = 256
-	DefaultTimeout     = 30 * time.Second
-	DefaultPerTry      = 10 * time.Second
-	DefaultRetries     = 2
 	DefaultPanic       = 0.5
 	DefaultSlowStart   = 10 * time.Second
-	DefaultEwmaDecay   = 10 * time.Second
 )
 
 type Config struct {
@@ -132,6 +127,13 @@ func (l *RateLimit) applyDefaults() {
 
 func (l *RateLimit) UsesRedis() bool { return l.Design != LimitStaticSplit }
 
+func (l RateLimit) KeyHeader() string {
+	if name, ok := strings.CutPrefix(l.Key, "header:"); ok {
+		return name
+	}
+	return ""
+}
+
 func (l RateLimit) validate() error {
 	switch l.Design {
 	case LimitStaticSplit, LimitRedisExact, LimitLocalSync, LimitLease:
@@ -141,7 +143,7 @@ func (l RateLimit) validate() error {
 	if !(l.Rate > 0) || !(l.Burst >= 1) || l.Instances < 1 {
 		return errors.New("rate limit needs a positive rate, a burst of at least 1 and at least one instance")
 	}
-	if name, ok := strings.CutPrefix(l.Key, "header:"); l.Key != "ip" && (!ok || name == "") {
+	if l.Key != "ip" && l.KeyHeader() == "" {
 		return errors.New(`rate limit key must be "ip" or "header:<name>"`)
 	}
 	if l.SyncInterval <= 0 || l.LeaseTarget <= 0 || l.LeaseTTL <= 0 || l.RedisTimeout <= 0 {
@@ -214,9 +216,7 @@ func (o *Outlier) applyDefaults() {
 }
 
 func (r *Retries) applyDefaults() {
-	if r.Max == nil {
-		r.Max = new(DefaultRetries)
-	}
+	orDefault(&r.Max, new(2))
 	orDefault(&r.BudgetRatio, 0.2)
 	orDefault(&r.MinPerSecond, 10)
 }
@@ -249,26 +249,20 @@ func Parse(data []byte) (*Config, error) {
 	if err := dec.Decode(&c); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
-	c.ApplyDefaults()
-	if err := c.Validate(); err != nil {
+	c.applyDefaults()
+	if err := c.validate(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (c *Config) ApplyDefaults() {
-	if c.MaxInflight == nil {
-		c.MaxInflight = new(DefaultGatewayCap)
-	}
+func (c *Config) applyDefaults() {
+	orDefault(&c.MaxInflight, new(256))
 	for i := range c.Routes {
 		r := &c.Routes[i]
 		r.Host = strings.ToLower(r.Host)
-		if r.Timeout == 0 {
-			r.Timeout = Duration(DefaultTimeout)
-		}
-		if r.PerTryTimeout == 0 {
-			r.PerTryTimeout = Duration(min(DefaultPerTry, r.Timeout.D()))
-		}
+		orDefault(&r.Timeout, Duration(30*time.Second))
+		orDefault(&r.PerTryTimeout, min(Duration(10*time.Second), r.Timeout))
 		r.Retries.applyDefaults()
 		if r.RateLimit != nil {
 			r.RateLimit.applyDefaults()
@@ -276,31 +270,21 @@ func (c *Config) ApplyDefaults() {
 	}
 	for i := range c.Pools {
 		p := &c.Pools[i]
-		if p.Balancer == "" {
-			p.Balancer = BalancerP2C
-		}
+		orDefault(&p.Balancer, BalancerP2C)
 		p.HealthCheck.applyDefaults()
 		p.Outlier.applyDefaults()
-		if p.PanicThreshold == nil {
-			p.PanicThreshold = new(float64(DefaultPanic))
-		}
-		if p.SlowStart == nil {
-			p.SlowStart = new(Duration(DefaultSlowStart))
-		}
-		orDefault(&p.EwmaDecay, Duration(DefaultEwmaDecay))
+		orDefault(&p.PanicThreshold, new(float64(DefaultPanic)))
+		orDefault(&p.SlowStart, new(Duration(DefaultSlowStart)))
+		orDefault(&p.EwmaDecay, Duration(10*time.Second))
 		for j := range p.Dimensions {
 			d := &p.Dimensions[j]
-			if d.Version == "" {
-				d.Version = DefaultVersion
-			}
-			if d.MaxInflight == 0 {
-				d.MaxInflight = DefaultMaxInflight
-			}
+			orDefault(&d.Version, DefaultVersion)
+			orDefault(&d.MaxInflight, DefaultMaxInflight)
 		}
 	}
 }
 
-func (c *Config) Validate() error {
+func (c *Config) validate() error {
 	var errs []error
 	pools := map[string]bool{}
 	dims := map[string]string{}
@@ -357,10 +341,7 @@ func (c *Config) Validate() error {
 			errs = append(errs, fmt.Errorf("route %q: timeouts must be positive and perTryTimeout no longer than timeout", r.Name))
 		}
 		rt := r.Retries
-		switch {
-		case rt.Max == nil:
-			errs = append(errs, fmt.Errorf("route %q: retries have no defaults applied", r.Name))
-		case *rt.Max < 0 || *rt.Max > 5:
+		if *rt.Max < 0 || *rt.Max > 5 {
 			errs = append(errs, fmt.Errorf("route %q: retries.max must be between 0 and 5", r.Name))
 		}
 		if !(rt.BudgetRatio >= 0 && rt.BudgetRatio <= 1) || !(rt.MinPerSecond >= 0) {
@@ -375,7 +356,7 @@ func (c *Config) Validate() error {
 			errs = append(errs, fmt.Errorf("route %q: %w", r.Name, err))
 		}
 	}
-	if c.MaxInflight == nil || *c.MaxInflight < 0 {
+	if *c.MaxInflight < 0 {
 		errs = append(errs, errors.New("maxInflight must be 0 for no cap or a positive number of requests"))
 	}
 	if c.TrustedHops < 0 || c.TrustedHops > 10 {
@@ -391,10 +372,6 @@ func (p Pool) validateResilience() []error {
 	var errs []error
 	bad := func(format string, args ...any) {
 		errs = append(errs, fmt.Errorf("pool %q: "+format, append([]any{p.Name}, args...)...))
-	}
-	if p.PanicThreshold == nil || p.SlowStart == nil {
-		bad("panicThreshold and slowStart have no defaults applied")
-		return errs
 	}
 	if !(*p.PanicThreshold >= 0 && *p.PanicThreshold <= 1) {
 		bad("panicThreshold must be between 0 and 1")

@@ -212,15 +212,15 @@ func Analyze(lg *loadgen.Log, w Window, events []gatewayapi.DimensionEvent, opt 
 	baseline := bins(rs, start, w.InjectAt, opt.Bin)
 	res.BaselineShare = share(baseline, func(b Bin) int { return b.Target })
 
-	ejected := health.Ejected.String()
+	ejected := gatewayapi.OutlierEvent(health.Ejected)
 	for _, e := range events {
-		if e.UnixNano < start || (e.State != ejected && e.State != "unhealthy") {
+		if e.UnixNano < start || (e.State != ejected && e.State != gatewayapi.EventUnhealthy) {
 			continue
 		}
 		hit := e.Dimension == w.Target && e.UnixNano >= w.InjectAt
 		if hit && res.DetectMs == nil {
 			res.DetectMs = ms(e.UnixNano - w.InjectAt)
-			res.DetectedBy = e.State
+			res.DetectedBy = string(e.State)
 			if e.Reason != "" {
 				res.DetectedBy += ": " + e.Reason
 			}

@@ -173,10 +173,9 @@ func TestTheDefaultConfigIsTheBaseVariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := baseVariant().Config()
-	want.ApplyDefaults()
-	if !reflect.DeepEqual(*got, want) {
-		t.Fatalf("default.json\n%+v\nbase variant\n%+v", *got, want)
+	want := parsed(t, baseVariant().Config())
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("default.json\n%+v\nbase variant\n%+v", *got, *want)
 	}
 }
 

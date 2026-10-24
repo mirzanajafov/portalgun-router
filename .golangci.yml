@@ -30,11 +30,7 @@ linters:
           disabled: true
         - name: package-comments
           disabled: true
-        - name: context-as-argument
-          disabled: true
         - name: empty-block
-          disabled: true
-        - name: error-return
           disabled: true
         - name: redefines-builtin-id
           disabled: true
@@ -51,7 +47,6 @@ linters:
         - -ST1022
         - -QF1009
         - -SA4000
-        - -ST1008
 
 formatters:
   enable:

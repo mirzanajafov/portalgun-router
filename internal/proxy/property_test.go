@@ -68,7 +68,7 @@ func TestEjectionNeverPushesAPoolPastThePanicThreshold(t *testing.T) {
 		floor := int(math.Ceil(threshold * float64(n)))
 		for i := range requests {
 			g.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
-			pool := g.snap.Load().routes[0].stable
+			pool := g.routing.Load().routes[0].stable
 			now := g.now()
 			healthy := map[*upstream]bool{}
 			for _, u := range pool.upstreams {
@@ -78,7 +78,7 @@ func TestEjectionNeverPushesAPoolPastThePanicThreshold(t *testing.T) {
 			}
 			reached := map[*upstream]bool{}
 			for range 2 * n {
-				if u, ok, _ := pool.acquire(now, tried{}); ok {
+				if u, _ := pool.acquire(now, tried{}); u != nil {
 					reached[u] = true
 					u.load.Release()
 				}

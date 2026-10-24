@@ -192,7 +192,7 @@ func (rm *routeMetrics) result(u *upstream, status int) {
 	if !ok {
 		var set [6]prometheus.Counter
 		for i, name := range classes {
-			set[i] = rm.m.requests.WithLabelValues(rm.route, u.id, u.version, name)
+			set[i] = rm.m.requests.WithLabelValues(rm.route, u.id, u.spec.version, name)
 		}
 		c, _ = rm.counters.LoadOrStore(u, &set)
 	}
