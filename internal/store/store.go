@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -72,7 +73,9 @@ func Open(ctx context.Context, url string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg.ConnConfig.RuntimeParams["statement_timeout"] = strconv.FormatInt(statementTimeout.Milliseconds(), 10)
+	if _, set := cfg.ConnConfig.RuntimeParams["statement_timeout"]; !set {
+		cfg.ConnConfig.RuntimeParams["statement_timeout"] = strconv.FormatInt(statementTimeout.Milliseconds(), 10)
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -91,6 +94,9 @@ func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 
 func (s *Store) migrate(ctx context.Context) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `set local statement_timeout = 0`); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `select pg_advisory_xact_lock(4207)`); err != nil {
 			return err
 		}
@@ -148,8 +154,6 @@ type ConfigVersion struct {
 
 var ErrNoConfig = errors.New("no config is stored")
 
-var ErrRolloutNotActive = errors.New("the rollout is not active")
-
 func (s *Store) LatestConfig(ctx context.Context) (ConfigVersion, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
@@ -165,16 +169,40 @@ func (s *Store) LatestConfig(ctx context.Context) (ConfigVersion, error) {
 	return c, nil
 }
 
-func (s *Store) SaveConfig(ctx context.Context, author Actor, reason string, body json.RawMessage) (ConfigVersion, error) {
+type ConfigChange struct {
+	Author Actor
+	Reason string
+	Body   json.RawMessage
+}
+
+type RolloutEnd struct {
+	ID      string
+	Outcome Outcome
+	Reason  string
+	At      time.Time
+	Last    Step
+}
+
+type querier interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (s *Store) SaveConfig(ctx context.Context, c ConfigChange) (ConfigVersion, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	c := ConfigVersion{Author: author, Reason: reason, Body: body}
-	err := s.pool.QueryRow(ctx, `insert into config_versions (author, reason, body) values ($1, $2, $3) returning version, created_at`,
-		author, reason, body).Scan(&c.Version, &c.CreatedAt)
+	saved, err := saveConfig(ctx, s.pool, c)
 	if err != nil {
-		return c, fmt.Errorf("saving a config: %w", err)
+		return ConfigVersion{}, fmt.Errorf("saving a config: %w", err)
 	}
-	return c, nil
+	return saved, nil
+}
+
+func saveConfig(ctx context.Context, q querier, c ConfigChange) (ConfigVersion, error) {
+	saved := ConfigVersion{Author: c.Author, Reason: c.Reason, Body: c.Body}
+	err := q.QueryRow(ctx, `insert into config_versions (author, reason, body) values ($1, $2, $3) returning version, created_at`,
+		c.Author, c.Reason, c.Body).Scan(&saved.Version, &saved.CreatedAt)
+	return saved, err
 }
 
 func (s *Store) ConfigHistory(ctx context.Context, limit int) ([]ConfigVersion, error) {
@@ -222,21 +250,36 @@ type Step struct {
 	CanaryErrors   int64      `json:"canaryErrors"`
 }
 
-func (s *Store) StartRollout(ctx context.Context, r Rollout) error {
+func (s *Store) StartRollout(ctx context.Context, r Rollout, c ConfigChange) (ConfigVersion, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	_, err := s.pool.Exec(ctx, `insert into rollouts (id, route, stable, canary, started_at) values ($1, $2, $3, $4, $5)`,
-		r.ID, r.Route, r.Stable, r.Canary, r.StartedAt)
+	var saved ConfigVersion
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `insert into rollouts (id, route, stable, canary, started_at) values ($1, $2, $3, $4, $5)`,
+			r.ID, r.Route, r.Stable, r.Canary, r.StartedAt); err != nil {
+			return err
+		}
+		var err error
+		saved, err = saveConfig(ctx, tx, c)
+		return err
+	})
 	if err != nil {
-		return fmt.Errorf("starting rollout %s: %w", r.ID, err)
+		return ConfigVersion{}, fmt.Errorf("starting rollout %s: %w", r.ID, err)
 	}
-	return nil
+	return saved, nil
 }
 
 func (s *Store) SaveStep(ctx context.Context, rollout string, st Step) error {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	_, err := s.pool.Exec(ctx, `insert into rollout_steps
+	if err := saveStep(ctx, s.pool, rollout, st); err != nil {
+		return fmt.Errorf("saving step %d of rollout %s: %w", st.Step, rollout, err)
+	}
+	return nil
+}
+
+func saveStep(ctx context.Context, q querier, rollout string, st Step) error {
+	_, err := q.Exec(ctx, `insert into rollout_steps
 		(rollout_id, step, weight, started_at, ended_at, decision, reason, llr_errors, llr_slow, stable_requests, canary_requests, stable_errors, canary_errors)
 		values ($1, $2, $3, $4, $5, nullif($6, ''), nullif($7, ''), $8, $9, $10, $11, $12, $13)
 		on conflict (rollout_id, step) do update set
@@ -246,23 +289,32 @@ func (s *Store) SaveStep(ctx context.Context, rollout string, st Step) error {
 		stable_errors = excluded.stable_errors, canary_errors = excluded.canary_errors`,
 		rollout, st.Step, st.Weight, st.StartedAt, st.EndedAt, st.Decision, st.Reason, st.LLRErrors, st.LLRSlow,
 		st.StableRequests, st.CanaryRequests, st.StableErrors, st.CanaryErrors)
-	if err != nil {
-		return fmt.Errorf("saving step %d of rollout %s: %w", st.Step, rollout, err)
-	}
-	return nil
+	return err
 }
 
-func (s *Store) FinishRollout(ctx context.Context, id string, outcome Outcome, reason string, at time.Time) error {
+func (s *Store) EndRollout(ctx context.Context, end RolloutEnd, c *ConfigChange) (ConfigVersion, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	tag, err := s.pool.Exec(ctx, `update rollouts set finished_at = $2, outcome = $3, reason = $4 where id = $1 and finished_at is null`, id, at, outcome, reason)
+	var saved ConfigVersion
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `update rollouts set finished_at = $2, outcome = $3, reason = $4 where id = $1`,
+			end.ID, end.At, end.Outcome, end.Reason); err != nil {
+			return err
+		}
+		if err := saveStep(ctx, tx, end.ID, end.Last); err != nil {
+			return err
+		}
+		if c == nil {
+			return nil
+		}
+		var err error
+		saved, err = saveConfig(ctx, tx, *c)
+		return err
+	})
 	if err != nil {
-		return fmt.Errorf("finishing rollout %s: %w", id, err)
+		return ConfigVersion{}, fmt.Errorf("ending rollout %s: %w", end.ID, err)
 	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("finishing rollout %s: %w", id, ErrRolloutNotActive)
-	}
-	return nil
+	return saved, nil
 }
 
 func (s *Store) Rollouts(ctx context.Context, limit int) ([]Rollout, error) {

@@ -83,7 +83,6 @@ describe('live state', () => {
       step: { step, weight: 0.01, startedAt: '', llrErrors: llr, llrSlow: 0, stableRequests: 0, canaryRequests: 0, stableErrors: 0, canaryErrors: 0 },
       steps: [0.01],
       dataSec: 1,
-      elapsedSec: 1,
       llrErrors: llr,
       llrSlow: 0,
       lower: -3,

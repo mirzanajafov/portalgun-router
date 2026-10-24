@@ -17,8 +17,10 @@ var ErrConfigNotSaved = errors.New("the config could not be saved")
 
 type ConfigStore interface {
 	LatestConfig(ctx context.Context) (store.ConfigVersion, error)
-	SaveConfig(ctx context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error)
+	SaveConfig(ctx context.Context, c store.ConfigChange) (store.ConfigVersion, error)
 }
+
+type saver func(context.Context, store.ConfigChange) (store.ConfigVersion, error)
 
 type ConfigManager struct {
 	store   ConfigStore
@@ -46,7 +48,7 @@ func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 		if bootstrap == nil {
 			return errors.New("no config stored and no bootstrap config given")
 		}
-		return m.saveLocked(ctx, store.ActorBootstrap, "first config", bootstrap)
+		return m.saveLocked(ctx, store.ConfigChange{Author: store.ActorBootstrap, Reason: "first config", Body: bootstrap}, m.store.SaveConfig)
 	}
 	if err != nil {
 		return err
@@ -62,25 +64,24 @@ func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 	return nil
 }
 
-func (m *ConfigManager) saveLocked(ctx context.Context, author store.Actor, reason string, raw []byte) error {
-	cfg, err := config.Parse(raw)
+func (m *ConfigManager) saveLocked(ctx context.Context, c store.ConfigChange, save saver) error {
+	cfg, err := config.Parse(c.Body)
 	if err != nil {
 		return err
 	}
-	normalized, err := json.Marshal(cfg)
-	if err != nil {
+	if c.Body, err = json.Marshal(cfg); err != nil {
 		return err
 	}
-	saved, err := m.store.SaveConfig(ctx, author, reason, normalized)
+	saved, err := save(ctx, c)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrConfigNotSaved, err)
 	}
-	m.current, m.raw, m.version, m.author, m.reason = cfg, normalized, saved.Version, author, reason
+	m.current, m.raw, m.version, m.author, m.reason = cfg, c.Body, saved.Version, c.Author, c.Reason
 	if err := m.publishLocked(ctx); err != nil {
 		m.logger.Warn("the config is saved but not published yet, the next republish sends it", "err", err)
 	}
 	if m.notify != nil {
-		m.notify(Event{Type: "config", Message: fmt.Sprintf("config v%d by %s: %s", saved.Version, author, reason)})
+		m.notify(Event{Type: "config", Message: fmt.Sprintf("config v%d by %s: %s", saved.Version, c.Author, c.Reason)})
 	}
 	return nil
 }
@@ -95,45 +96,34 @@ func (m *ConfigManager) publishLocked(ctx context.Context) error {
 func (m *ConfigManager) Replace(ctx context.Context, author store.Actor, reason string, raw []byte) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.saveLocked(ctx, author, reason, raw); err != nil {
+	if err := m.saveLocked(ctx, store.ConfigChange{Author: author, Reason: reason, Body: raw}, m.store.SaveConfig); err != nil {
 		return 0, err
 	}
 	return m.version, nil
 }
 
 func (m *ConfigManager) Update(ctx context.Context, author store.Actor, reason string, change func(*config.Config) error) (int64, error) {
+	return m.commit(ctx, author, reason, change, m.store.SaveConfig)
+}
+
+func (m *ConfigManager) commit(ctx context.Context, author store.Actor, reason string, change func(*config.Config) error, save saver) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	raw, err := m.changedLocked(change)
+	next, err := clone(m.current)
 	if err != nil {
 		return 0, err
 	}
-	if err := m.saveLocked(ctx, author, reason, raw); err != nil {
+	if err := change(next); err != nil {
+		return 0, err
+	}
+	raw, err := json.Marshal(next)
+	if err != nil {
+		return 0, err
+	}
+	if err := m.saveLocked(ctx, store.ConfigChange{Author: author, Reason: reason, Body: raw}, save); err != nil {
 		return 0, err
 	}
 	return m.version, nil
-}
-
-func (m *ConfigManager) Check(change func(*config.Config) error) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	raw, err := m.changedLocked(change)
-	if err != nil {
-		return err
-	}
-	_, err = config.Parse(raw)
-	return err
-}
-
-func (m *ConfigManager) changedLocked(change func(*config.Config) error) ([]byte, error) {
-	next, err := clone(m.current)
-	if err != nil {
-		return nil, err
-	}
-	if err := change(next); err != nil {
-		return nil, err
-	}
-	return json.Marshal(next)
 }
 
 func (m *ConfigManager) Current() (*config.Config, int64) {

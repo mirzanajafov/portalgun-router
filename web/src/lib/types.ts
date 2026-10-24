@@ -71,7 +71,6 @@ export type RolloutStatus = {
   step?: Step
   steps: number[]
   dataSec: number
-  elapsedSec: number
   llrErrors: number
   llrSlow: number
   lower: number

@@ -83,7 +83,7 @@ export function CanaryPanel({
             })}
           </ol>
           <div className="mono muted flex flex-wrap gap-x-4 text-xs">
-            <span>{Math.round(active.elapsedSec)} s in step</span>
+            <span>{active.dataSec} s in step</span>
             <span>{active.step?.canaryRequests ?? 0} canary req</span>
             <span>{active.step?.canaryErrors ?? 0} canary errors</span>
             <span>{active.step?.stableErrors ?? 0} stable errors</span>

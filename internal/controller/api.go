@@ -196,7 +196,7 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 	}
 	err := a.engine.Abort(r.Context(), req.Reason)
 	switch {
-	case errors.Is(err, ErrNoRollout), errors.Is(err, ErrAlreadySettled):
+	case errors.Is(err, ErrNoRollout):
 		httpx.WriteError(w, http.StatusConflict, err.Error())
 	case err != nil:
 		unavailable(w, a.logger, true, ErrEndNotSaved, err)
@@ -270,16 +270,12 @@ func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, err error) 
 }
 
 func unavailable(w http.ResponseWriter, logger *slog.Logger, admin bool, public, err error, attrs ...any) {
-	logFailure(logger, public, err, attrs...)
-	refuse(w, admin, public, err)
-}
-
-func logFailure(logger *slog.Logger, public, err error, attrs ...any) {
 	level := slog.LevelError
 	if errors.Is(err, context.Canceled) {
 		level = slog.LevelInfo
 	}
 	logger.Log(context.Background(), level, public.Error(), append(attrs, "err", err)...)
+	refuse(w, admin, public, err)
 }
 
 func refuse(w http.ResponseWriter, admin bool, public, err error) {
