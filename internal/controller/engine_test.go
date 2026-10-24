@@ -48,7 +48,7 @@ func (m *memStore) LatestConfig(context.Context) (store.ConfigVersion, error) {
 	return m.configs[len(m.configs)-1], nil
 }
 
-func (m *memStore) write(ctx context.Context, apply func() store.ConfigVersion) (store.ConfigVersion, error) {
+func (m *memStore) write(ctx context.Context, apply func() (store.ConfigVersion, error)) (store.ConfigVersion, error) {
 	if err := ctx.Err(); err != nil {
 		return store.ConfigVersion{}, err
 	}
@@ -57,7 +57,7 @@ func (m *memStore) write(ctx context.Context, apply func() store.ConfigVersion) 
 	if m.refuseWrites.Load() {
 		return store.ConfigVersion{}, errStoreDown
 	}
-	return apply(), nil
+	return apply()
 }
 
 func (m *memStore) saveConfig(c store.ConfigChange) store.ConfigVersion {
@@ -73,8 +73,12 @@ func (m *memStore) saveStep(id string, st store.Step) {
 	m.steps[id][st.Step] = st
 }
 
+func (m *memStore) started(id string) bool {
+	return slices.ContainsFunc(m.rollouts, func(r store.Rollout) bool { return r.ID == id })
+}
+
 func (m *memStore) SaveConfig(ctx context.Context, c store.ConfigChange) (store.ConfigVersion, error) {
-	return m.write(ctx, func() store.ConfigVersion { return m.saveConfig(c) })
+	return m.write(ctx, func() (store.ConfigVersion, error) { return m.saveConfig(c), nil })
 }
 
 func (m *memStore) ConfigHistory(context.Context, int) ([]store.ConfigVersion, error) {
@@ -96,9 +100,17 @@ func (m *memStore) Rollouts(context.Context, int) ([]store.Rollout, error) {
 }
 
 func (m *memStore) StartRollout(ctx context.Context, r store.Rollout, c store.ConfigChange) (store.ConfigVersion, error) {
-	saved, err := m.write(ctx, func() store.ConfigVersion {
+	saved, err := m.write(ctx, func() (store.ConfigVersion, error) {
+		if m.started(r.ID) {
+			return store.ConfigVersion{}, errors.New("duplicate key value violates unique constraint \"rollouts_pkey\"")
+		}
+		for _, open := range m.rollouts {
+			if _, done := m.outcomes[open.ID]; !done {
+				m.outcomes[open.ID], m.finished[open.ID] = store.OutcomeAborted, r.StartedAt
+			}
+		}
 		m.rollouts = append(m.rollouts, r)
-		return m.saveConfig(c)
+		return m.saveConfig(c), nil
 	})
 	if err == nil && m.loseStartReply.CompareAndSwap(true, false) {
 		return store.ConfigVersion{}, errStoreDown
@@ -107,35 +119,24 @@ func (m *memStore) StartRollout(ctx context.Context, r store.Rollout, c store.Co
 }
 
 func (m *memStore) SaveStep(ctx context.Context, id string, st store.Step) error {
-	_, err := m.write(ctx, func() store.ConfigVersion {
+	_, err := m.write(ctx, func() (store.ConfigVersion, error) {
 		m.saveStep(id, st)
-		return store.ConfigVersion{}
+		return store.ConfigVersion{}, nil
 	})
 	return err
 }
 
-func (m *memStore) AbandonActive(ctx context.Context, _ string, at time.Time) ([]string, error) {
-	var ids []string
-	_, err := m.write(ctx, func() store.ConfigVersion {
-		for _, r := range m.rollouts {
-			if _, done := m.outcomes[r.ID]; !done {
-				m.outcomes[r.ID], m.finished[r.ID] = store.OutcomeAborted, at
-				ids = append(ids, r.ID)
-			}
-		}
-		return store.ConfigVersion{}
-	})
-	return ids, err
-}
-
 func (m *memStore) EndRollout(ctx context.Context, end store.RolloutEnd, c *store.ConfigChange) (store.ConfigVersion, error) {
-	saved, err := m.write(ctx, func() store.ConfigVersion {
+	saved, err := m.write(ctx, func() (store.ConfigVersion, error) {
+		if !m.started(end.ID) {
+			return store.ConfigVersion{}, errors.New("insert or update on table \"rollout_steps\" violates foreign key constraint")
+		}
 		m.outcomes[end.ID], m.finished[end.ID] = end.Outcome, end.At
 		m.saveStep(end.ID, end.Last)
 		if c == nil {
-			return store.ConfigVersion{}
+			return store.ConfigVersion{}, nil
 		}
-		return m.saveConfig(*c)
+		return m.saveConfig(*c), nil
 	})
 	if err == nil && m.loseEndReply.CompareAndSwap(true, false) {
 		return store.ConfigVersion{}, errStoreDown

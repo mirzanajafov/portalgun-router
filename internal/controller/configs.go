@@ -65,6 +65,7 @@ func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 }
 
 func (m *ConfigManager) saveLocked(ctx context.Context, c store.ConfigChange, save saver) error {
+	ctx = context.WithoutCancel(ctx)
 	cfg, err := config.Parse(c.Body)
 	if err != nil {
 		return err
@@ -72,7 +73,7 @@ func (m *ConfigManager) saveLocked(ctx context.Context, c store.ConfigChange, sa
 	if c.Body, err = json.Marshal(cfg); err != nil {
 		return err
 	}
-	saved, err := save(context.WithoutCancel(ctx), c)
+	saved, err := save(ctx, c)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrConfigNotSaved, err)
 	}

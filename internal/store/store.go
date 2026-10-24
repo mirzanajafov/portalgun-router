@@ -250,11 +250,16 @@ type Step struct {
 	CanaryErrors   int64      `json:"canaryErrors"`
 }
 
+const abandonOpen = `update rollouts set finished_at = $1, outcome = $2, reason = $3 where finished_at is null returning id`
+
 func (s *Store) StartRollout(ctx context.Context, r Rollout, c ConfigChange) (ConfigVersion, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	var saved ConfigVersion
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, abandonOpen, r.StartedAt, OutcomeAborted, "its start was never confirmed, so it never ran"); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `insert into rollouts (id, route, stable, canary, started_at) values ($1, $2, $3, $4, $5)`,
 			r.ID, r.Route, r.Stable, r.Canary, r.StartedAt); err != nil {
 			return err
@@ -364,7 +369,7 @@ func (s *Store) Rollouts(ctx context.Context, limit int) ([]Rollout, error) {
 func (s *Store) AbandonActive(ctx context.Context, reason string, at time.Time) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	rows, err := s.pool.Query(ctx, `update rollouts set finished_at = $1, outcome = $2, reason = $3 where finished_at is null returning id`, at, OutcomeAborted, reason)
+	rows, err := s.pool.Query(ctx, abandonOpen, at, OutcomeAborted, reason)
 	if err != nil {
 		return nil, fmt.Errorf("abandoning the active rollouts: %w", err)
 	}

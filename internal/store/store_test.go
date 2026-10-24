@@ -135,6 +135,9 @@ func TestAStartOrAnEndThatFailsLeavesNothingBehind(t *testing.T) {
 	if _, err := s.StartRollout(ctx, Rollout{ID: "ro-1", Route: "api", Stable: "v1", Canary: "v2", StartedAt: now}, change("starts")); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.StartRollout(ctx, Rollout{ID: "ro-2", Route: "api", Stable: "v1", Canary: "v2", StartedAt: now}, broken); err == nil {
+		t.Fatal("a second start with a config Postgres refuses was saved")
+	}
 	end := RolloutEnd{ID: "ro-1", Outcome: OutcomeRolledBack, Reason: "errors", At: now, Last: Step{Weight: 0.01, StartedAt: now, Decision: DecisionRollback}}
 	if _, err := s.EndRollout(ctx, end, &broken); err == nil {
 		t.Fatal("an end with a config Postgres refuses was saved")
@@ -145,6 +148,21 @@ func TestAStartOrAnEndThatFailsLeavesNothingBehind(t *testing.T) {
 	}
 	if latest, err := s.LatestConfig(ctx); err != nil || latest.Reason != "starts" {
 		t.Fatalf("latest config %+v (%v)", latest, err)
+	}
+}
+
+func TestAStartClosesARolloutLeftOpen(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for i, id := range []string{"unconfirmed", "next"} {
+		if _, err := s.StartRollout(ctx, Rollout{ID: id, Route: "api", Stable: "v1", Canary: "v2", StartedAt: now.Add(time.Duration(i) * time.Second)}, change("starts")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ros, err := s.Rollouts(ctx, 5)
+	if err != nil || len(ros) != 2 || ros[0].ID != "next" || ros[0].FinishedAt != nil || ros[1].Outcome != OutcomeAborted {
+		t.Fatalf("rollouts %+v (%v)", ros, err)
 	}
 }
 

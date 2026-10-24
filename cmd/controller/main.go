@@ -205,14 +205,15 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	go func() { errc <- srv.Serve(ln) }()
 	_, version := cfgs.Raw()
 	logger.Info("controller up", "addr", ln.Addr().String(), "config", version, "admin", token != "", "registry", o.registry != "")
+	var serveErr error
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		err = srv.Shutdown(shutdownCtx)
-	case err = <-errc:
+	case serveErr = <-errc:
 		stop()
 	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = errors.Join(serveErr, srv.Shutdown(shutdownCtx))
 	<-settled
 	return err
 }
