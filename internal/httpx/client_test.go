@@ -9,13 +9,11 @@ import (
 	"testing"
 )
 
-func TestDoDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
+func TestGetJSONDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/count":
 			WriteJSON(w, http.StatusOK, map[string]int{"n": 7})
-		case "/created":
-			w.WriteHeader(http.StatusCreated)
 		case "/garbled":
 			_, _ = w.Write([]byte("not json"))
 		case "/busy":
@@ -25,30 +23,48 @@ func TestDoDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	ctx := context.Background()
+	redacted := strings.Replace(srv.URL, "http://", "http://admin:xxxxx@", 1)
+	cases := []struct {
+		name, url, wantErr string
+		wantCode           int
+	}{
+		{name: "an accepted answer is decoded", url: srv.URL + "/count"},
+		{name: "a refused answer names the request and the reason", url: srv.URL + "/missing", wantErr: "GET " + srv.URL + "/missing: 404 Not Found: no such thing", wantCode: http.StatusNotFound},
+		{name: "a JSON error answer gives its error field as the reason", url: srv.URL + "/busy", wantErr: "GET " + srv.URL + "/busy: 503 Service Unavailable: no leader", wantCode: http.StatusServiceUnavailable},
+		{name: "an answer that isn't JSON names the request", url: srv.URL + "/garbled", wantErr: "GET " + srv.URL + "/garbled: "},
+		{name: "a password in the URL stays out of the error", url: strings.Replace(srv.URL, "http://", "http://admin:hunter2@", 1) + "/missing", wantErr: "GET " + redacted + "/missing: 404 Not Found", wantCode: http.StatusNotFound},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var got struct {
+				N int `json:"n"`
+			}
+			err := GetJSON(context.Background(), srv.Client(), c.url, &got)
+			if c.wantErr == "" {
+				if err != nil || got.N != 7 {
+					t.Fatalf("got %+v, %v", got, err)
+				}
+				return
+			}
+			if err == nil || !strings.HasPrefix(err.Error(), c.wantErr) {
+				t.Fatalf("got %v, want it to start with %s", err, c.wantErr)
+			}
+			code := 0
+			var refused *StatusError
+			if errors.As(err, &refused) {
+				code = refused.Code
+			}
+			if code != c.wantCode {
+				t.Fatalf("StatusError code %d, want %d", code, c.wantCode)
+			}
+		})
+	}
+}
 
-	var got struct {
-		N int `json:"n"`
-	}
-	if err := GetJSON(ctx, srv.Client(), srv.URL+"/count", &got); err != nil || got.N != 7 {
-		t.Fatalf("got %+v, %v", got, err)
-	}
-	err := GetJSON(ctx, srv.Client(), srv.URL+"/missing", &got)
-	var refused *StatusError
-	if !errors.As(err, &refused) || refused.Code != http.StatusNotFound || err.Error() != "GET "+srv.URL+"/missing: 404 Not Found: no such thing" {
-		t.Fatalf("a 404 came back as %v", err)
-	}
-	if err := GetJSON(ctx, srv.Client(), srv.URL+"/busy", &got); err == nil || err.Error() != "GET "+srv.URL+"/busy: 503 Service Unavailable: no leader" {
-		t.Fatalf("a JSON error answer came back as %v", err)
-	}
-	if err := GetJSON(ctx, srv.Client(), srv.URL+"/garbled", &got); err == nil || !strings.HasPrefix(err.Error(), "GET "+srv.URL+"/garbled: ") {
-		t.Fatalf("an answer that isn't JSON came back as %v", err)
-	}
-	withPassword := strings.Replace(srv.URL, "http://", "http://admin:hunter2@", 1) + "/missing"
-	if err := GetJSON(ctx, srv.Client(), withPassword, &got); err == nil || strings.Contains(err.Error(), "hunter2") {
-		t.Fatalf("a refused answer to a URL with a password came back as %v", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+"/created", nil)
+func TestDoAcceptsEveryStatusItIsGiven(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusCreated) }))
+	t.Cleanup(srv.Close)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

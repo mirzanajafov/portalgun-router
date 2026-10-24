@@ -32,7 +32,7 @@ func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...i
 		return err
 	}
 	defer resp.Body.Close()
-	if err := Check(req, resp, want, alsoWant...); err != nil {
+	if err := CheckStatus(req, resp, want, alsoWant...); err != nil {
 		return err
 	}
 	if out != nil {
@@ -44,7 +44,7 @@ func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...i
 	return nil
 }
 
-func Check(req *http.Request, resp *http.Response, want int, alsoWant ...int) error {
+func CheckStatus(req *http.Request, resp *http.Response, want int, alsoWant ...int) error {
 	if resp.StatusCode == want || slices.Contains(alsoWant, resp.StatusCode) {
 		return nil
 	}
