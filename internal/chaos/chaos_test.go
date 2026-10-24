@@ -174,15 +174,25 @@ func TestSlowSetsTheLatencyInMilliseconds(t *testing.T) {
 	}
 }
 
-func TestPartialPatchesTheDimension(t *testing.T) {
-	s, err := dimension.New("a", "v1", dimension.DefaultBehavior())
+func controlledDimension(t *testing.T, id, token string) (*dimension.Server, string) {
+	t.Helper()
+	s, err := dimension.New(id, "v1", dimension.DefaultBehavior())
 	if err != nil {
 		t.Fatal(err)
 	}
-	control := httptest.NewServer(s.ControlHandler("control-token"))
+	if err := s.Listen("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
+	control := httptest.NewServer(s.ControlHandler(token))
 	t.Cleanup(control.Close)
+	return s, control.URL
+}
+
+func TestPartialPatchesTheDimension(t *testing.T) {
+	s, control := controlledDimension(t, "dim-a", "control-token")
 	_, toxi := newFakeToxiproxy(t)
-	in := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control.URL, Token: "control-token"}})
+	in := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control, Token: "control-token"}})
 
 	f := Fault{Mode: Partial, Target: "dim-a", ErrorRate: 1}
 	if err := in.Inject(context.Background(), f); err != nil {
@@ -204,7 +214,7 @@ func TestPartialPatchesTheDimension(t *testing.T) {
 	if err := in.Inject(context.Background(), Fault{Mode: Partial, Target: "dim-z", ErrorRate: 1}); err == nil {
 		t.Fatal("unknown dimension accepted")
 	}
-	stale := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control.URL, Token: "old-token"}})
+	stale := NewInjector(toxi, map[string]*DimensionControl{"dim-a": {BaseURL: control, Token: "old-token"}})
 	if err := stale.Inject(context.Background(), f); !errors.Is(err, ErrControlToken) {
 		t.Fatalf("a refused token came back as %v", err)
 	}
@@ -270,18 +280,9 @@ func TestClearAllClearsTheDimensionsThatTakeTheTokenAndReportsOneThatRefuses(t *
 	servers := map[string]*dimension.Server{}
 	dims := map[string]*DimensionControl{}
 	for _, name := range []string{"dim-a", "dim-b"} {
-		s, err := dimension.New(name, "v1", dimension.DefaultBehavior())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := s.Listen("127.0.0.1:0"); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
-		control := httptest.NewServer(s.ControlHandler("token-" + name))
-		t.Cleanup(control.Close)
+		s, control := controlledDimension(t, name, "token-"+name)
 		servers[name] = s
-		dims[name] = &DimensionControl{BaseURL: control.URL, Token: "token-dim-a"}
+		dims[name] = &DimensionControl{BaseURL: control, Token: "token-dim-a"}
 	}
 	in := NewInjector(toxi, dims)
 	if err := in.Inject(ctx, Fault{Mode: Partial, Target: "dim-a", ErrorRate: 1}); err != nil {

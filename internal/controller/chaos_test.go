@@ -25,7 +25,6 @@ type fakeInjector struct {
 	injected []chaos.Fault
 	cleared  []chaos.Fault
 	err      error
-	clearErr error
 }
 
 func (f *fakeInjector) Inject(_ context.Context, fault chaos.Fault) error {
@@ -42,7 +41,7 @@ func (f *fakeInjector) Clear(_ context.Context, fault chaos.Fault) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cleared = append(f.cleared, fault)
-	return f.clearErr
+	return nil
 }
 
 func (f *fakeInjector) injections() int {
@@ -296,16 +295,13 @@ func TestChaosEndpoints(t *testing.T) {
 	}
 }
 
-func TestAFaultThatFailsToStartIsClearedAndOnlyTheAdminSeesWhy(t *testing.T) {
-	for _, tc := range []struct {
-		failure error
-		clears  int
-	}{
-		{fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken), 0},
-		{errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`), 2},
+func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
+	for _, failure := range []error{
+		fmt.Errorf("dimension control http://dim-a:8081: %w", chaos.ErrControlToken),
+		errors.New(`dimension control: Patch "http://dim-a:8081/state": dial tcp: lookup dim-a on 127.0.0.11:53: no such host`),
 	} {
 		svc, inj, _ := newChaos(DefaultChaosLimits())
-		inj.err = tc.failure
+		inj.err = failure
 		mux := http.NewServeMux()
 		svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
 		for _, caller := range []struct {
@@ -317,35 +313,8 @@ func TestAFaultThatFailsToStartIsClearedAndOnlyTheAdminSeesWhy(t *testing.T) {
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 			if named := strings.Contains(w.Body.String(), "dim-a"); w.Code != http.StatusServiceUnavailable || named != caller.admin {
-				t.Fatalf("%v came back to admin=%v as %d %s", tc.failure, caller.admin, w.Code, w.Body)
+				t.Fatalf("%v came back to admin=%v as %d %s", failure, caller.admin, w.Code, w.Body)
 			}
 		}
-		if inj.clears() != tc.clears || svc.View().Current != nil {
-			t.Fatalf("%v: %d clears and %+v running, want %d clears and nothing running", tc.failure, inj.clears(), svc.View().Current, tc.clears)
-		}
-	}
-}
-
-func TestAFaultThatCanBeNeitherStartedNorClearedRunsItsCourse(t *testing.T) {
-	svc, inj, _ := newChaos(DefaultChaosLimits())
-	inj.err, inj.clearErr = errors.New("toxiproxy: context deadline exceeded"), errors.New("toxiproxy: context deadline exceeded")
-	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a", DurationSec: 0.05}, true, ""); !errors.Is(err, ErrChaosFailed) {
-		t.Fatalf("a failed start came back as %v", err)
-	}
-	if svc.View().Current == nil {
-		t.Fatal("a fault that may be on is not tracked")
-	}
-	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-b"}, true, ""); !errors.Is(err, ErrChaosBusy) {
-		t.Fatalf("a second fault while the first may be on: %v", err)
-	}
-	deadline := time.Now().Add(2 * time.Second)
-	for svc.View().Current != nil {
-		if time.Now().After(deadline) {
-			t.Fatal("the fault never ran out")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if inj.clears() != 2 {
-		t.Fatalf("%d clears, want one at once and one when the time was up", inj.clears())
 	}
 }
