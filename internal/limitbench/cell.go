@@ -229,8 +229,8 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, &httpx.StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status}
+	if err := httpx.Check(req, resp, http.StatusOK); err != nil {
+		return nil, err
 	}
 	ss, err := Samples(resp.Body)
 	if err != nil {

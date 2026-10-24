@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -15,6 +16,8 @@ func TestDoDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
 			WriteJSON(w, http.StatusOK, map[string]int{"n": 7})
 		case "/created":
 			w.WriteHeader(http.StatusCreated)
+		case "/garbled":
+			_, _ = w.Write([]byte("not json"))
 		case "/busy":
 			WriteError(w, http.StatusServiceUnavailable, "no leader")
 		default:
@@ -37,6 +40,13 @@ func TestDoDecodesWhatItAcceptsAndNamesTheRequestItRefuses(t *testing.T) {
 	}
 	if err := GetJSON(ctx, srv.Client(), srv.URL+"/busy", &got); err == nil || err.Error() != "GET "+srv.URL+"/busy: 503 Service Unavailable: no leader" {
 		t.Fatalf("a JSON error answer came back as %v", err)
+	}
+	if err := GetJSON(ctx, srv.Client(), srv.URL+"/garbled", &got); err == nil || !strings.HasPrefix(err.Error(), "GET "+srv.URL+"/garbled: ") {
+		t.Fatalf("an answer that isn't JSON came back as %v", err)
+	}
+	withPassword := strings.Replace(srv.URL, "http://", "http://admin:hunter2@", 1) + "/missing"
+	if err := GetJSON(ctx, srv.Client(), withPassword, &got); err == nil || strings.Contains(err.Error(), "hunter2") {
+		t.Fatalf("a refused answer to a URL with a password came back as %v", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+"/created", nil)
 	if err != nil {

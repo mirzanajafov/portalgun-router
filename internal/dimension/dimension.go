@@ -23,6 +23,7 @@ const (
 
 	maxBodyBytes = 16 << 20
 	maxDelay     = time.Minute
+	controlOnly  = "this needs the control token"
 )
 
 var (
@@ -277,14 +278,11 @@ func sleep(ctx context.Context, d time.Duration) bool {
 }
 
 func (s *Server) ControlHandler(token string) http.Handler {
-	control := func(next http.HandlerFunc) http.HandlerFunc {
-		return httpx.RequireBearer(token, "this needs the control token", next)
-	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ready", s.ready)
-	mux.HandleFunc("GET /state", control(s.getState))
-	mux.HandleFunc("PATCH /state", control(s.patchState))
-	mux.HandleFunc("POST /reset", control(s.reset))
+	mux.HandleFunc("GET /state", httpx.RequireBearer(token, controlOnly, s.getState))
+	mux.HandleFunc("PATCH /state", httpx.RequireBearer(token, controlOnly, s.patchState))
+	mux.HandleFunc("POST /reset", httpx.RequireBearer(token, controlOnly, s.reset))
 	return mux
 }
 

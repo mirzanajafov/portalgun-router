@@ -32,8 +32,8 @@ func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...i
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != want && !slices.Contains(alsoWant, resp.StatusCode) {
-		return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)}
+	if err := Check(req, resp, want, alsoWant...); err != nil {
+		return err
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
@@ -42,6 +42,13 @@ func Do(client *http.Client, req *http.Request, out any, want int, alsoWant ...i
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	return nil
+}
+
+func Check(req *http.Request, resp *http.Response, want int, alsoWant ...int) error {
+	if resp.StatusCode == want || slices.Contains(alsoWant, resp.StatusCode) {
+		return nil
+	}
+	return &StatusError{Method: req.Method, URL: req.URL.Redacted(), Code: resp.StatusCode, Status: resp.Status, Reason: reason(resp.Body)}
 }
 
 func reason(body io.Reader) string {
