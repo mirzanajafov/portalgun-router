@@ -27,7 +27,10 @@ func (s State) String() string {
 }
 
 func (s State) MarshalText() ([]byte, error) {
-	return []byte(s.String()), nil
+	if s < 0 || int(s) >= len(states) {
+		return nil, fmt.Errorf("outlier state %d has no name", s)
+	}
+	return []byte(states[s]), nil
 }
 
 func (s *State) UnmarshalText(b []byte) error {

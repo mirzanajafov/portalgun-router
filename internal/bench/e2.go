@@ -25,8 +25,12 @@ type Design struct {
 	Lease time.Duration      `json:"lease,omitempty"`
 }
 
+func (d Design) Limited() bool { return d.Kind != "" }
+
 func (d Design) Name() string {
 	switch {
+	case !d.Limited():
+		return NoLimiter
 	case d.Sync > 0:
 		return string(d.Kind) + "-" + shortDuration(d.Sync)
 	case d.Lease > 0:
@@ -36,7 +40,7 @@ func (d Design) Name() string {
 }
 
 var Designs = []Design{
-	{Kind: NoLimiter},
+	{},
 	{Kind: config.LimitStaticSplit},
 	{Kind: config.LimitRedisExact},
 	{Kind: config.LimitLocalSync, Sync: 10 * time.Millisecond},
@@ -102,7 +106,7 @@ func (c LimiterCell) Config() config.Config {
 		Timeout:       config.Duration(10 * time.Second),
 		PerTryTimeout: config.Duration(2 * time.Second),
 	}
-	if c.Design.Kind != NoLimiter {
+	if c.Design.Limited() {
 		route.RateLimit = &config.RateLimit{
 			Design:       c.Design.Kind,
 			Rate:         c.Rule.Rate,
@@ -316,7 +320,7 @@ func (r *Runner) limiterCell(ctx context.Context, compose Compose, c LimiterCell
 		"-rate", strconv.FormatFloat(c.Offered, 'f', -1, 64),
 		"-rule-rate", strconv.FormatFloat(c.Rule.Rate, 'f', -1, 64),
 		"-rule-burst", strconv.FormatFloat(c.Rule.Burst, 'f', -1, 64),
-		"-limited=" + strconv.FormatBool(c.Design.Kind != NoLimiter),
+		"-limited=" + strconv.FormatBool(c.Design.Limited()),
 		"-seed", strconv.Itoa(rep + 1),
 		"-warmup", c.Warmup.String(),
 		"-duration", c.Duration.String(),

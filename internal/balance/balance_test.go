@@ -68,7 +68,7 @@ func TestShorterDecayForgetsFaster(t *testing.T) {
 	at := int64(5 * time.Second)
 	s, l := short.Cost(at), long.Cost(at)
 	if s > float64(time.Millisecond) || l < float64(50*time.Millisecond) {
-		t.Fatalf("after 5s idle: 1s decay %.2fms, default decay %.2fms", s/1e6, l/1e6)
+		t.Fatalf("after 5s idle: 1s decay %.2fms, 10s decay %.2fms", s/1e6, l/1e6)
 	}
 }
 

@@ -275,4 +275,7 @@ func TestStatesTravelAsTheirNames(t *testing.T) {
 	if err := json.Unmarshal([]byte(`"open"`), &s); err == nil {
 		t.Fatal("an unknown state was accepted")
 	}
+	if _, err := json.Marshal(State(9)); err == nil {
+		t.Fatal("a state without a name was written")
+	}
 }
