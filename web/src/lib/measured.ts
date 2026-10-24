@@ -178,6 +178,67 @@ export function failoverMatrix(sums: FailoverSummary[]): FailoverRow[] {
   }))
 }
 
+type RegistryTimes = {
+  registerMs?: Stat
+  joinMs?: Stat
+  gatewaysMs?: Stat
+  leaveGatewaysMs?: Stat
+  killToFirstMs?: Stat
+}
+
+export type RegistrySummary = RegistryTimes & {
+  cell: string
+  runs: number
+  failed: number
+  invalid: number
+  requests: number
+  dropped: number
+  lost: number
+  registryVersions: number
+  lostRegistrations: number
+}
+
+const REGISTRY_CASES: { key: string; label: string }[] = [
+  { key: 'join', label: 'A fifth dimension joins, then leaves' },
+  { key: 'leader', label: "The registry's leader killed, back after 10 s" },
+  { key: 'failover', label: 'A dimension joins while the leader is dead' },
+  { key: 'down', label: 'Every registry node down for 30 s' },
+]
+
+const REGISTRY_TIMES: { cell: string; key: keyof RegistryTimes; label: string }[] = [
+  { cell: 'join', key: 'registerMs', label: 'Registering' },
+  { cell: 'join', key: 'joinMs', label: 'Registered to its first request' },
+  { cell: 'join', key: 'gatewaysMs', label: 'Registered to both gateways on the new config' },
+  { cell: 'join', key: 'leaveGatewaysMs', label: 'Deregistering to both gateways without it' },
+  { cell: 'failover', key: 'registerMs', label: 'Registering while the leader is dead' },
+  { cell: 'failover', key: 'killToFirstMs', label: 'Leader killed to the new dimension serving' },
+]
+
+export type RegistryCase = { key: string; label: string; sum: RegistrySummary }
+
+export function registryCases(sums: RegistrySummary[]): RegistryCase[] {
+  const by = new Map(sums.map((s) => [s.cell, s]))
+  return REGISTRY_CASES.flatMap((c) => {
+    const sum = by.get(c.key)
+    return sum ? [{ ...c, sum }] : []
+  })
+}
+
+export function registryTimes(sums: RegistrySummary[]): { label: string; time: Stat }[] {
+  const by = new Map(sums.map((s) => [s.cell, s]))
+  return REGISTRY_TIMES.flatMap(({ cell, key, label }) => {
+    const time = by.get(cell)?.[key]
+    return time ? [{ label, time }] : []
+  })
+}
+
+export function registryTotals(cases: RegistryCase[]): { runs: number; failed: number; sent: number; lost: number } {
+  return cases.reduce(
+    (t, { sum: s }) => ({ runs: t.runs + s.runs, failed: t.failed + s.failed + s.invalid, sent: t.sent + s.requests - s.dropped, lost: t.lost + s.lost }),
+    { runs: 0, failed: 0, sent: 0, lost: 0 },
+  )
+}
+
 export function us(v: number): string {
   if (!Number.isFinite(v)) return '-'
   const a = Math.abs(v)

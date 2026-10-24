@@ -2,7 +2,8 @@ import { CanarySim } from '@/components/CanarySim'
 import { FailoverResults } from '@/components/FailoverResults'
 import { LimiterResults } from '@/components/LimiterResults'
 import { ProxyResults } from '@/components/ProxyResults'
-import type { FailoverSummary, LimiterSummary, ProxyReport } from '@/lib/measured'
+import { RegistryResults } from '@/components/RegistryResults'
+import type { FailoverSummary, LimiterSummary, ProxyReport, RegistrySummary } from '@/lib/measured'
 import { latestRun, latestSim } from '@/lib/results'
 
 export default function Results() {
@@ -13,8 +14,9 @@ export default function Results() {
   const before = latestRun<LimiterSummary[]>('e2-breaker/before')
   const after = latestRun<LimiterSummary[]>('e2-breaker/after')
   const failover = latestRun<FailoverSummary[]>('e3')
+  const registry = latestRun<RegistrySummary[]>('e5')
   const sim = latestSim()
-  if (!proxy && !limiter && !failover && !sim) {
+  if (!proxy && !limiter && !failover && !registry && !sim) {
     return <p className="muted mt-8">No results in this build.</p>
   }
   return (
@@ -22,15 +24,16 @@ export default function Results() {
       <section className="flex max-w-3xl flex-col gap-2">
         <h1 className="text-xl font-semibold">Results</h1>
         <p className="muted text-sm">
-          Measured on one laptop, a 16-vCPU WSL2 VM, with CPU limits on every container and the proxy comparison on separate CPU sets. At least three
-          repetitions per cell, medians shown. A laptop is noisier than a server, so small differences here mean little. The dimensions are containers behind
-          fault injection: the failures and latencies are real, the geography is not.
+          Measured on one laptop, a 16-vCPU WSL2 VM, with CPU limits on every container (except Redis and Postgres in the registry run) and the proxy comparison
+          on separate CPU sets. At least three repetitions per cell, medians shown unless a table says otherwise. A laptop is noisier than a server, so small
+          differences here mean little. The dimensions are containers behind fault injection: the failures and latencies are real, the geography is not.
         </p>
       </section>
       {proxy && <ProxyResults run={proxy.name} report={proxy.summary} step={step} overload={overload} />}
       {limiter && <LimiterResults run={limiter.name} sums={limiter.summary} breaker={before && after ? { before, after } : undefined} />}
       {failover && <FailoverResults run={failover.name} sums={failover.summary} />}
       {sim && <CanarySim sim={sim} />}
+      {registry && <RegistryResults run={registry.name} sums={registry.summary} />}
     </div>
   )
 }

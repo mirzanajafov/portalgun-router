@@ -1,5 +1,5 @@
 import { DETECTION, failoverMatrix, valid, type FailoverSummary } from '@/lib/measured'
-import { ms } from '@/lib/format'
+import { count, ms } from '@/lib/format'
 
 const STUDIES: { cell: string; label: string }[] = [
   { cell: 'blackhole/both-retries-try100ms', label: 'Blackhole, 100 ms per try' },
@@ -14,10 +14,6 @@ const STUDIES: { cell: string; label: string }[] = [
   { cell: 'partial-all/both-retries-panic0', label: '20% errors everywhere, no panic mode' },
   { cell: 'partial-all/both-retries', label: '20% errors everywhere, panic below 50% healthy' },
 ]
-
-function count(v: number): string {
-  return Math.round(v).toLocaleString('en-US')
-}
 
 function moved(s: FailoverSummary): string {
   if (s.moved === 0) return 'never'
