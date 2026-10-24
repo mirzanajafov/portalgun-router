@@ -8,6 +8,7 @@ const visitor = new Request('http://web/api/chaos', { headers: { 'X-Forwarded-Fo
 describe('forwarded', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.restoreAllMocks()
   })
 
   it('vouches for the visitor address with the proxy token', () => {
@@ -15,13 +16,14 @@ describe('forwarded', () => {
     expect(forwarded(visitor)).toEqual({ 'X-Forwarded-For': '203.0.113.7', 'X-Portal-Proxy-Token': 'proxy-secret' })
   })
 
-  it('sends nothing without a token, since the controller would not believe the address, and says so once', () => {
+  it('sends nothing without a token, since the controller would not believe the address, and says so once', async () => {
+    vi.resetModules()
+    const fresh = await import('./server')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.stubEnv('PORTAL_PROXY_TOKEN', '')
-    expect(forwarded(visitor)).toEqual({})
-    expect(forwarded(visitor)).toEqual({})
+    expect(fresh.forwarded(visitor)).toEqual({})
+    expect(fresh.forwarded(visitor)).toEqual({})
     expect(warn).toHaveBeenCalledOnce()
-    warn.mockRestore()
   })
 
   it('sends nothing without an address', () => {

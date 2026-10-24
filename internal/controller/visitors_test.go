@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -52,6 +51,8 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 		{"a token sent while none is configured", "6.6.6.6, 9.9.9.9", "", proxyToken, "192.0.2.1"},
 		{"the proxy token", "6.6.6.6, 9.9.9.9", proxyToken, proxyToken, "9.9.9.9"},
 		{"the proxy token without an address", "", proxyToken, proxyToken, "192.0.2.1"},
+		{"the proxy token with something that isn't an address", "6.6.6.6, rotate-me", proxyToken, proxyToken, "192.0.2.1"},
+		{"the proxy token with an IPv6 address spelled long", "2001:DB8:0:0::1", proxyToken, proxyToken, "2001:db8::1"},
 		{"a wrong token", "6.6.6.6, 9.9.9.9", proxyToken, "proxy-tokem", "192.0.2.1"},
 		{"no token sent", "6.6.6.6, 9.9.9.9", proxyToken, "", "192.0.2.1"},
 	}
@@ -130,8 +131,8 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 	if got := send(t, http.MethodPost, url, start, http.Header{"X-Forwarded-For": {"9.9.9.2"}}).StatusCode; got != http.StatusTooManyRequests {
 		t.Fatalf("second start under a new X-Forwarded-For: %d, want the limit", got)
 	}
-	if n := counter.hits["rollout:ip:"+serverHost(t, srv)]; n != 2 {
-		t.Fatalf("counts %v, want both starts on the caller's own loopback address", counter.hits)
+	if len(counter.hits) != 1 || counter.hits["rollout:ip:9.9.9.1"] != 0 || counter.hits["rollout:ip:9.9.9.2"] != 0 {
+		t.Fatalf("counts %v, want both starts on one key, the caller's own address", counter.hits)
 	}
 }
 
@@ -146,16 +147,7 @@ func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) 
 	if got := send(t, http.MethodPost, srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`, http.Header{"X-Forwarded-For": {"9.9.9.1"}}).StatusCode; got != http.StatusCreated {
 		t.Fatalf("visitor fault: %d", got)
 	}
-	if n := counter.hits["chaos:ip:"+serverHost(t, srv)]; n != 1 || len(counter.hits) != 1 {
-		t.Fatalf("counts %v, want the fault on the caller's own loopback address", counter.hits)
+	if len(counter.hits) != 1 || counter.hits["chaos:ip:9.9.9.1"] != 0 {
+		t.Fatalf("counts %v, want the fault on the caller's own address", counter.hits)
 	}
-}
-
-func serverHost(t *testing.T, srv *httptest.Server) string {
-	t.Helper()
-	host, _, err := net.SplitHostPort(srv.Listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return host
 }

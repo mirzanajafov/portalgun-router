@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -63,9 +64,10 @@ func newVisitorLimit(name string, perHour int64, counter Counter, proxyToken str
 
 func (l *visitorLimit) client(r *http.Request) string {
 	if carries(r, proxyTokenHeader, l.proxyToken) {
-		return proxy.ClientIP(r, 1)
-	}
-	if r.Header.Get(proxyTokenHeader) != "" {
+		if addr, err := netip.ParseAddr(proxy.ClientIP(r, 1)); err == nil {
+			return addr.Unmap().String()
+		}
+	} else if r.Header.Get(proxyTokenHeader) != "" {
 		l.mismatch()
 	}
 	return proxy.ClientIP(r, 0)
