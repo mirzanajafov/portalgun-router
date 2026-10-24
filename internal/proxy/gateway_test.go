@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/balance"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
 )
@@ -85,6 +87,17 @@ func get(t *testing.T, client *http.Client, url, host string) (int, http.Header)
 	return resp.StatusCode, resp.Header
 }
 
+func TestEachConfiguredBalancerGetsItsOwnAlgorithm(t *testing.T) {
+	for kind, want := range map[config.Balancer]balance.Balancer[*upstream]{
+		config.BalancerP2C:              balance.P2C[*upstream]{},
+		config.BalancerRoundRobin:       &balance.RoundRobin[*upstream]{},
+		config.BalancerLeastOutstanding: balance.LeastOutstanding[*upstream]{},
+	} {
+		if got := newBalancer(kind); reflect.TypeOf(got) != reflect.TypeOf(want) {
+			t.Errorf("%s got %T, want %T", kind, got, want)
+		}
+	}
+}
 func TestRoutesByHostThenLongestPrefix(t *testing.T) {
 	a, b, c := dim(t, "a", nil), dim(t, "b", nil), dim(t, "c", nil)
 	cfg := parse(t, config.Config{

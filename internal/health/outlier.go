@@ -19,18 +19,26 @@ const (
 
 var states = [...]string{Closed: "closed", Ejected: "ejected", HalfOpen: "half-open", Disabled: "disabled"}
 
+func (s State) name() (string, bool) {
+	if s < 0 || int(s) >= len(states) {
+		return "", false
+	}
+	return states[s], true
+}
+
 func (s State) String() string {
-	if s >= 0 && int(s) < len(states) {
-		return states[s]
+	if n, ok := s.name(); ok {
+		return n
 	}
 	return "unknown"
 }
 
 func (s State) MarshalText() ([]byte, error) {
-	if s < 0 || int(s) >= len(states) {
+	n, ok := s.name()
+	if !ok {
 		return nil, fmt.Errorf("outlier state %d has no name", s)
 	}
-	return []byte(states[s]), nil
+	return []byte(n), nil
 }
 
 func (s *State) UnmarshalText(b []byte) error {

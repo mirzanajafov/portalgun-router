@@ -33,9 +33,9 @@ func TestEveryLimiterCellBuildsAValidConfig(t *testing.T) {
 		}
 		rl := cfg.Routes[0].RateLimit
 		switch {
-		case !c.Design.Limited() && rl != nil:
+		case !c.Design.HasLimiter() && rl != nil:
 			t.Fatalf("%s has a limiter", c.Name)
-		case c.Design.Limited() && (rl == nil || rl.Design != c.Design.Kind || rl.Instances != c.Instances || rl.Rate != c.Rule.Rate):
+		case c.Design.HasLimiter() && (rl == nil || rl.Design != c.Design.Kind || rl.Instances != c.Instances || rl.Rate != c.Rule.Rate):
 			t.Fatalf("%s: limiter %+v", c.Name, rl)
 		case c.Design.Sync > 0 && rl.SyncInterval.D() != c.Design.Sync, c.Design.Lease > 0 && rl.LeaseTarget.D() != c.Design.Lease:
 			t.Fatalf("%s: intervals %+v", c.Name, rl)

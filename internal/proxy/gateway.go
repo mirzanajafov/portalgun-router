@@ -454,6 +454,8 @@ func (g *Gateway) Close() {
 
 func newBalancer(kind config.Balancer) balance.Balancer[*upstream] {
 	switch kind {
+	case config.BalancerP2C:
+		return balance.P2C[*upstream]{}
 	case config.BalancerRoundRobin:
 		return &balance.RoundRobin[*upstream]{}
 	case config.BalancerLeastOutstanding:
