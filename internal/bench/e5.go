@@ -268,7 +268,7 @@ type load struct {
 	err           error
 	file          string
 	duration      time.Duration
-	log           *loadgen.Log
+	records       *loadgen.Log
 	progress      *log.Logger
 	counted, read bool
 }
@@ -295,7 +295,7 @@ func (l *load) finish(ctx context.Context, compose Compose, run *RegistryRun) er
 			return err
 		}
 	}
-	if l.log == nil || l.read {
+	if l.records == nil || l.read {
 		return nil
 	}
 	_, err := l.readWindow(ctx, compose, run)
@@ -303,7 +303,7 @@ func (l *load) finish(ctx context.Context, compose Compose, run *RegistryRun) er
 }
 
 func (l *load) started() time.Time {
-	return time.Unix(0, l.log.StartUnixNano)
+	return time.Unix(0, l.records.StartUnixNano)
 }
 
 func (l *load) windowEnd() time.Time {
@@ -344,7 +344,7 @@ func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*l
 		return nil, err
 	}
 	tally(run, lg)
-	l.log = lg
+	l.records = lg
 	return lg, nil
 }
 
