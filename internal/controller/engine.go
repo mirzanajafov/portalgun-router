@@ -61,13 +61,14 @@ type active struct {
 }
 
 type settlement struct {
-	outcome     store.Outcome
-	reason      string
-	versions    config.Versions
-	decided     time.Time
-	configSaved bool
-	logged      time.Time
-	err         error
+	outcome    store.Outcome
+	reason     string
+	versions   config.Versions
+	decided    time.Time
+	configDone bool
+	applied    bool
+	logged     time.Time
+	err        error
 }
 
 const settleEvery = 5 * time.Second
@@ -150,6 +151,7 @@ func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author 
 	ctx = context.WithoutCancel(ctx)
 	ro := store.Rollout{ID: id, Route: route, Stable: stable, Canary: canaryVersion, StartedAt: now}
 	if err := e.store.StartRollout(ctx, ro); err != nil {
+		e.unclosed = append(e.unclosed, unclosed{id: id, reason: "its row may not have been saved", at: now})
 		return store.Rollout{}, fmt.Errorf("%w: %w", ErrRolloutFailed, err)
 	}
 	version, err := e.cfgs.Update(ctx, author, fmt.Sprintf("rollout %s starts: %s at %s on %s", id, canaryVersion, pct(weight), route), begin)
@@ -202,7 +204,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	rs, ok := m.Routes[a.rollout.Route]
 	current := ok && rs.Rollout == a.rollout.ID && m.MinConfig() >= a.stepVersion
 	if s := a.settling; s != nil {
-		if current && s.outcome == store.OutcomePromoted && !s.configSaved {
+		if current && s.outcome == store.OutcomePromoted && !s.configDone {
 			if reason := e.broken(a, m, rs); reason != "" {
 				e.finish(ctx, store.OutcomeRolledBack, reason)
 			}
@@ -299,7 +301,11 @@ func (e *Engine) advance(ctx context.Context, reason string) {
 	})
 	if err != nil {
 		e.logger.Error("raising the canary weight", "rollout", a.rollout.ID, "err", err)
-		e.finish(ctx, store.OutcomeAborted, "the next step's config could not be saved")
+		reason := "the next step's config was refused"
+		if errors.Is(err, ErrConfigNotSaved) {
+			reason = "the next step's config could not be saved"
+		}
+		e.finish(ctx, store.OutcomeAborted, reason)
 		return
 	}
 	e.beginStep(ctx, next, version)
@@ -334,13 +340,13 @@ func (e *Engine) Run(ctx context.Context) {
 func (e *Engine) retry(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	kept := e.unclosed[:0]
-	for _, u := range e.unclosed {
+	for len(e.unclosed) > 0 {
+		u := e.unclosed[0]
 		if err := e.store.FinishRollout(ctx, u.id, store.OutcomeAborted, u.reason, u.at); err != nil && !errors.Is(err, store.ErrRolloutNotActive) {
-			kept = append(kept, u)
+			break
 		}
+		e.unclosed = e.unclosed[1:]
 	}
-	e.unclosed = kept
 	if e.active != nil && e.active.settling != nil {
 		e.trySettle(ctx)
 	}
@@ -362,7 +368,7 @@ func (e *Engine) trySettle(ctx context.Context) {
 }
 
 func (e *Engine) saveSettlement(ctx context.Context, a *active, s *settlement) error {
-	if !s.configSaved {
+	if !s.configDone {
 		_, err := e.cfgs.Update(ctx, store.ActorController, fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, s.outcome, s.reason), func(c *config.Config) error {
 			r, _, err := findRoute(c, a.rollout.Route)
 			if err != nil {
@@ -377,7 +383,7 @@ func (e *Engine) saveSettlement(ctx context.Context, a *active, s *settlement) e
 		if err != nil {
 			e.logger.Error("the rollout ended without changing the config", "rollout", a.rollout.ID, "outcome", s.outcome, "err", err)
 		}
-		s.configSaved = true
+		s.configDone, s.applied = true, err == nil
 	}
 	if err := e.store.SaveStep(ctx, a.rollout.ID, a.record()); err != nil {
 		return err
@@ -397,7 +403,7 @@ func (e *Engine) Abort(ctx context.Context, reason string) error {
 	}
 	ctx = context.WithoutCancel(ctx)
 	switch s := a.settling; {
-	case s == nil, s.outcome == store.OutcomePromoted && !s.configSaved:
+	case s == nil, s.outcome == store.OutcomePromoted && !s.configDone:
 		e.finish(ctx, store.OutcomeAborted, reason)
 	case s.outcome == store.OutcomePromoted:
 		return ErrPromoted
@@ -439,7 +445,7 @@ func (e *Engine) Status() Status {
 	st.LLRErrors, st.LLRSlow = seq.Errors().LLR(), seq.Slow().LLR()
 	st.Lower, st.Upper = seq.Errors().Bounds()
 	if a.settling != nil {
-		st.Pending, st.Applied = a.settling.outcome, a.settling.configSaved
+		st.Pending, st.Applied = a.settling.outcome, a.settling.applied
 	}
 	return st
 }

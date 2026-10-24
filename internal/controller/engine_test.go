@@ -30,7 +30,7 @@ type memStore struct {
 	outcomes map[string]store.Outcome
 	finished map[string]time.Time
 
-	refuseConfigs, refuseRollouts, refuseReads, refuseFinishes, refuseSteps, loseFinishReply atomic.Bool
+	refuseConfigs, refuseRollouts, refuseReads, refuseFinishes, refuseSteps, loseFinishReply, loseStartReply atomic.Bool
 }
 
 var errStoreDown = errors.New("dial tcp postgres:5432: connect: connection refused")
@@ -48,7 +48,10 @@ func (m *memStore) LatestConfig(context.Context) (store.ConfigVersion, error) {
 	return m.configs[len(m.configs)-1], nil
 }
 
-func (m *memStore) SaveConfig(_ context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error) {
+func (m *memStore) SaveConfig(ctx context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error) {
+	if err := ctx.Err(); err != nil {
+		return store.ConfigVersion{}, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.refuseConfigs.Load() {
@@ -77,17 +80,26 @@ func (m *memStore) Rollouts(context.Context, int) ([]store.Rollout, error) {
 	return m.rollouts, nil
 }
 
-func (m *memStore) StartRollout(_ context.Context, r store.Rollout) error {
+func (m *memStore) StartRollout(ctx context.Context, r store.Rollout) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.refuseRollouts.Load() {
 		return errStoreDown
 	}
 	m.rollouts = append(m.rollouts, r)
+	if m.loseStartReply.Load() {
+		return errStoreDown
+	}
 	return nil
 }
 
-func (m *memStore) SaveStep(_ context.Context, id string, st store.Step) error {
+func (m *memStore) SaveStep(ctx context.Context, id string, st store.Step) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.refuseSteps.Load() {
@@ -100,13 +112,16 @@ func (m *memStore) SaveStep(_ context.Context, id string, st store.Step) error {
 	return nil
 }
 
-func (m *memStore) FinishRollout(_ context.Context, id string, outcome store.Outcome, _ string, at time.Time) error {
+func (m *memStore) FinishRollout(ctx context.Context, id string, outcome store.Outcome, _ string, at time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.refuseFinishes.Load() {
 		return errStoreDown
 	}
-	if _, done := m.outcomes[id]; done {
+	if _, done := m.outcomes[id]; done || !slices.ContainsFunc(m.rollouts, func(r store.Rollout) bool { return r.ID == id }) {
 		return store.ErrRolloutNotActive
 	}
 	m.outcomes[id], m.finished[id] = outcome, at
@@ -467,7 +482,7 @@ func TestARollbackTheStoreRefusesIsTriedAgainUntilItIsSaved(t *testing.T) {
 	}
 	r.store.refuseConfigs.Store(true)
 	r.failCanary()
-	if st := r.engine.Status(); !st.Active || st.Pending != store.OutcomeRolledBack || r.versions(t).Canary != "v2" {
+	if st := r.engine.Status(); !st.Active || st.Pending != store.OutcomeRolledBack || st.Applied || r.versions(t).Canary != "v2" {
 		t.Fatalf("a rollback that couldn't be saved left the rollout %+v and the config %+v", st, r.versions(t))
 	}
 	r.store.refuseConfigs.Store(false)
@@ -859,7 +874,81 @@ func TestAStartThatCannotCloseItsRowClosesItLater(t *testing.T) {
 	r.store.refuseConfigs.Store(false)
 	r.store.refuseFinishes.Store(false)
 	r.engine.retry(context.Background())
-	if id := r.store.rollouts[0].ID; r.store.outcomes[id] != store.OutcomeAborted || r.engine.Status().Active {
+	if id := r.store.rollouts[0].ID; r.store.outcomes[id] != store.OutcomeAborted || r.engine.Status().Active || len(r.engine.unclosed) != 0 {
 		t.Fatalf("outcomes %v, active %v", r.store.outcomes, r.engine.Status().Active)
+	}
+}
+
+func TestAStartWhoseRowWasSavedButNotAnsweredIsClosedLater(t *testing.T) {
+	r := newRig(t)
+	r.store.loseStartReply.Store(true)
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); !errors.Is(err, ErrRolloutFailed) {
+		t.Fatalf("start: %v", err)
+	}
+	r.store.loseStartReply.Store(false)
+	r.engine.retry(context.Background())
+	if id := r.store.rollouts[0].ID; r.store.outcomes[id] != store.OutcomeAborted || r.versions(t).Canary != "" {
+		t.Fatalf("outcomes %v, versions %+v", r.store.outcomes, r.versions(t))
+	}
+}
+
+func TestAStartAndAnAbortFinishEvenIfTheirCallerLeaves(t *testing.T) {
+	r := newRig(t)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	ro, err := r.engine.Start(gone, "api", "v2", store.ActorAdmin)
+	if err != nil || r.versions(t).Canary != "v2" {
+		t.Fatalf("a start whose caller left: %v, versions %+v", err, r.versions(t))
+	}
+	if err := r.engine.Abort(gone, "the caller left"); err != nil || r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeAborted {
+		t.Fatalf("an abort whose caller left: %v, outcome %q", err, r.store.outcomes[ro.ID])
+	}
+}
+
+func TestSecondsFromAnOlderConfigCannotTurnAPendingPromotion(t *testing.T) {
+	r := newRig(t)
+	r.pendingPromotion(t, &r.store.refuseConfigs)
+	stale := func(m *Merged) {
+		m.ConfigVersions["gw-2"] = 1
+		rs := m.Routes["api"]
+		rs.Brake = true
+		m.Routes["api"] = rs
+	}
+	r.feed(bin{stable: 500, canary: 500, canaryErr: 500}, stale)
+	if st := r.engine.Status(); st.Pending != store.OutcomePromoted {
+		t.Fatalf("a braked second from an older config turned the promotion into %q", st.Pending)
+	}
+}
+
+func TestTheLastAttemptRunsOnShutdown(t *testing.T) {
+	r := newRig(t)
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.store.refuseConfigs.Store(true)
+	r.failCanary()
+	r.store.refuseConfigs.Store(false)
+	stopped, cancel := context.WithCancel(context.Background())
+	cancel()
+	r.engine.Run(stopped)
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
+		t.Fatalf("after shutdown: active %v, outcome %q", r.engine.Status().Active, r.store.outcomes[ro.ID])
+	}
+}
+
+func TestARefusedConfigEndsTheRolloutInsteadOfRetrying(t *testing.T) {
+	r := newRig(t)
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed := strings.Replace(baseConfig, `"name":"api"`, `"name":"web"`, 1)
+	if _, err := r.cfgs.Replace(context.Background(), store.ActorAdmin, "the route was renamed", []byte(renamed)); err != nil {
+		t.Fatal(err)
+	}
+	r.failCanary()
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
+		t.Fatalf("a rollback the config refused: active %v, outcome %q", r.engine.Status().Active, r.store.outcomes[ro.ID])
 	}
 }

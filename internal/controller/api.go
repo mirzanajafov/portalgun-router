@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
@@ -22,15 +23,16 @@ type History interface {
 }
 
 type API struct {
-	cfgs     *ConfigManager
-	engine   *Engine
-	history  History
-	hub      *Hub
-	token    string
-	latest   atomic.Pointer[Merged]
-	extra    func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)
-	visitors *visitorLimit
-	logger   *slog.Logger
+	cfgs       *ConfigManager
+	engine     *Engine
+	history    History
+	hub        *Hub
+	token      string
+	latest     atomic.Pointer[Merged]
+	extra      func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)
+	visitors   *visitorLimit
+	logger     *slog.Logger
+	historyLog everyMinute
 }
 
 type RolloutLimits struct {
@@ -258,7 +260,10 @@ var errHistory = errors.New("the history could not be read")
 
 func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, err error) {
 	if err != nil {
-		unavailable(w, a.logger, httpx.Authorized(r, a.token), errHistory, err)
+		if a.historyLog.allow(time.Now()) {
+			a.logger.Error(errHistory.Error(), "err", err)
+		}
+		refuse(w, httpx.Authorized(r, a.token), errHistory, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, v)
@@ -270,9 +275,28 @@ func unavailable(w http.ResponseWriter, logger *slog.Logger, admin bool, public,
 		level = slog.LevelInfo
 	}
 	logger.Log(context.Background(), level, public.Error(), append(attrs, "err", err)...)
+	refuse(w, admin, public, err)
+}
+
+func refuse(w http.ResponseWriter, admin bool, public, err error) {
 	msg := public.Error()
 	if admin {
 		msg = err.Error()
 	}
 	httpx.WriteError(w, http.StatusServiceUnavailable, msg)
+}
+
+type everyMinute struct {
+	mu   sync.Mutex
+	last time.Time
+}
+
+func (g *everyMinute) allow(now time.Time) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.last.IsZero() && now.Sub(g.last) < time.Minute {
+		return false
+	}
+	g.last = now
+	return true
 }

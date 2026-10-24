@@ -92,7 +92,7 @@ export function CanaryPanel({
             <p className="text-xs text-[var(--color-warn)]">
               Decided: {outcomeLabel[active.pending]}.{' '}
               {active.applied
-                ? 'The gateways already run it, and its record waits for the database.'
+                ? 'Its config is out to the gateways, and its record waits for the database.'
                 : 'The database has not saved it yet, and the controller keeps trying.'}
             </p>
           ) : null}

@@ -12,6 +12,7 @@ const recentEvents = 50
 
 type Hub struct {
 	logger    *slog.Logger
+	brokenLog everyMinute
 	closed    chan struct{}
 	closeOnce sync.Once
 
@@ -69,7 +70,9 @@ func (h *Hub) Viewers() int {
 func (h *Hub) Broadcast(kind string, v any) {
 	f, err := frame(kind, v)
 	if err != nil {
-		h.logger.Error("an update for the dashboards could not be sent", "err", err)
+		if h.brokenLog.allow(time.Now()) {
+			h.logger.Error("an update for the dashboards could not be sent", "err", err)
+		}
 		return
 	}
 	h.mu.Lock()

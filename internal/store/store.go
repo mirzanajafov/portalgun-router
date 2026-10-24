@@ -272,6 +272,9 @@ func (s *Store) Rollouts(ctx context.Context, limit int) ([]Rollout, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing rollouts: %w", err)
 	}
+	if len(out) == 0 {
+		return out, nil
+	}
 	index := make(map[string]int, len(out))
 	ids := make([]string, len(out))
 	for i, ro := range out {
