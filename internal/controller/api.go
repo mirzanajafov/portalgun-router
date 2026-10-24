@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -43,16 +42,16 @@ func DefaultRolloutLimits() RolloutLimits {
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
 type visitorRollouts struct {
-	limit *visitorLimit
-	hops  int
+	limit   *visitorLimit
+	clients TrustedProxy
 }
 
 func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string) *API {
 	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token}
 }
 
-func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, hops int, logger *slog.Logger) {
-	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), hops: hops}
+func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, clients TrustedProxy, logger *slog.Logger) {
+	a.visitors = &visitorRollouts{limit: newVisitorLimit("rollout", limits.PerHour, counter, logger), clients: clients}
 }
 
 func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
@@ -168,7 +167,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrBusy.Error()})
 			return
 		}
-		exceeded, err := a.visitors.limit.exceeded(r.Context(), proxy.ClientIP(r, a.visitors.hops))
+		exceeded, err := a.visitors.limit.exceeded(r.Context(), a.visitors.clients.Client(r))
 		if err != nil {
 			uncounted(w)
 			return
