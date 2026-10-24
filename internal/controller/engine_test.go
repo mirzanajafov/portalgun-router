@@ -338,48 +338,36 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, behindLoopback(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, behindDashboard(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
-	post := func(path, auth, body string) int {
-		req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(body))
-		req.Header.Set("X-Forwarded-For", "9.9.9.9")
-		if auth != "" {
-			req.Header.Set("Authorization", auth)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		return resp.StatusCode
-	}
+	visitor, admin := viaDashboard("9.9.9.9"), http.Header{"Authorization": {"Bearer s3cret"}}
 	start := `{"route":"api","canary":"v2"}`
 	abort := func() {
 		t.Helper()
-		if got := post("/api/rollouts/abort", "", `{}`); got != 401 {
+		if got := postAs(t, srv.URL+"/api/rollouts/abort", `{}`, visitor); got != 401 {
 			t.Fatalf("visitor abort: %d", got)
 		}
-		if got := post("/api/rollouts/abort", "Bearer s3cret", `{}`); got != 200 {
+		if got := postAs(t, srv.URL+"/api/rollouts/abort", `{}`, admin); got != 200 {
 			t.Fatalf("admin abort: %d", got)
 		}
 		r.now = r.now.Add(time.Minute)
 	}
-	if got := post("/api/rollouts", "", start); got != 201 {
+	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 201 {
 		t.Fatalf("visitor start: %d", got)
 	}
-	if got := post("/api/rollouts", "", start); got != 409 {
+	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 409 {
 		t.Fatalf("visitor start while one runs: %d", got)
 	}
 	abort()
-	if got := post("/api/rollouts", "", start); got != 201 {
+	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 201 {
 		t.Fatalf("second visitor start: %d", got)
 	}
 	abort()
-	if got := post("/api/rollouts", "", start); got != 429 {
+	if got := postAs(t, srv.URL+"/api/rollouts", start, visitor); got != 429 {
 		t.Fatalf("third visitor start in the hour: %d", got)
 	}
-	if got := post("/api/rollouts", "Bearer s3cret", start); got != 201 {
+	if got := postAs(t, srv.URL+"/api/rollouts", start, admin); got != 201 {
 		t.Fatalf("admin start after the visitor limit: %d", got)
 	}
 	if n := counter.hits["rollout:ip:9.9.9.9"]; n != 3 {
@@ -400,12 +388,12 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), behindLoopback(), slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), behindDashboard(), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	post := func(auth string) *http.Response {
 		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rollouts", strings.NewReader(`{"route":"api","canary":"v2"}`))
-		req.Header.Set("X-Forwarded-For", "9.9.9.9")
+		req.Header = viaDashboard("9.9.9.9")
 		if auth != "" {
 			req.Header.Set("Authorization", auth)
 		}
@@ -444,7 +432,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), "s3cret")
-	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), behindLoopback(), slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), behindDashboard(), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup

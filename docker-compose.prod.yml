@@ -11,10 +11,13 @@ services:
     environment:
       PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/portal?sslmode=disable
       PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:?set PORTAL_ADMIN_TOKEN}
+      PORTAL_PROXY_TOKEN: ${PORTAL_PROXY_TOKEN:?set PORTAL_PROXY_TOKEN}
 
   web:
     container_name: portalgun-web
     ports: !reset []
+    environment:
+      PORTAL_PROXY_TOKEN: ${PORTAL_PROXY_TOKEN:?set PORTAL_PROXY_TOKEN}
     networks:
       - default
       - edge

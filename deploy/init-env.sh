@@ -14,6 +14,7 @@ add() {
 
 add POSTGRES_PASSWORD "$(secret)"
 add PORTAL_ADMIN_TOKEN "$(secret)"
+add PORTAL_PROXY_TOKEN "$(secret)"
 add EDGE_NETWORK edge
 add BACKUP_UID "$(id -u)"
 add BACKUP_GID "$(id -g)"

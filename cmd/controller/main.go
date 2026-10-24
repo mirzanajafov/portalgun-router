@@ -32,8 +32,7 @@ func main() {
 	bootstrap := flag.String("bootstrap", "", "config used when Postgres has none yet")
 	toxiproxy := flag.String("toxiproxy", "", "Toxiproxy API URL for the chaos controls")
 	targets := flag.String("targets", "", "comma-separated name=controlURL for every dimension chaos may touch")
-	trustedProxy := flag.String("trusted-proxy", "", "host whose X-Forwarded-For the visitor limits believe (the dashboard's server), while any other caller is counted by its own address")
-	hops := flag.Int("trusted-hops", 1, "X-Forwarded-For entries the trusted proxy vouches for")
+	hops := flag.Int("trusted-hops", 1, "X-Forwarded-For entries the visitor limits believe when the dashboard's server vouches for a request with PORTAL_PROXY_TOKEN, while any other caller is counted by its own address")
 	visitorRollouts := flag.Bool("visitor-rollouts", false, "let anyone start a rollout, a few an hour per address, while aborting still needs the admin token")
 	registryURLs := flag.String("registry", os.Getenv("PORTAL_REGISTRY"), "comma-separated FiveFamilies HTTP endpoints to take a pool's dimensions from (off by default, when the config is the whole truth)")
 	registryPool := flag.String("registry-pool", "dimensions", "the pool fed from the registry service of the same name")
@@ -42,7 +41,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, trustedProxy: *trustedProxy, hops: *hops, visitorRollouts: *visitorRollouts, registry: *registryURLs, registryPool: *registryPool, token: os.Getenv("PORTAL_ADMIN_TOKEN")}
+	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, hops: *hops, visitorRollouts: *visitorRollouts, registry: *registryURLs, registryPool: *registryPool, token: os.Getenv("PORTAL_ADMIN_TOKEN"), proxyToken: os.Getenv("PORTAL_PROXY_TOKEN")}
 	if err := run(ctx, logger, o); err != nil {
 		logger.Error("controller stopped", "err", err)
 		os.Exit(1)
@@ -51,7 +50,7 @@ func main() {
 
 type options struct {
 	addr, postgres, redis, bootstrap, toxiproxy, targets, token string
-	registry, registryPool, trustedProxy                        string
+	registry, registryPool, proxyToken                          string
 	hops                                                        int
 	visitorRollouts                                             bool
 }
@@ -122,11 +121,11 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		}
 	}
 
-	clients := controller.TrustedProxy{Host: o.trustedProxy, Hops: o.hops, Logger: logger}
+	trusted := controller.TrustedProxy{Token: o.proxyToken, Hops: o.hops}
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	api := controller.NewAPI(cfgs, engine, st, hub, token)
 	if o.visitorRollouts {
-		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), clients, logger)
+		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), trusted, logger)
 	}
 	var chaosSvc *controller.ChaosService
 	if o.toxiproxy != "" {
@@ -135,7 +134,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 			return err
 		}
 		inj := chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
-		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, clients, logger)
+		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, trusted, logger)
 		if err := chaosSvc.Reset(ctx); err != nil {
 			logger.Warn("clearing faults left from before", "err", err)
 		}

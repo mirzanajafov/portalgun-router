@@ -2,13 +2,11 @@ package controller
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/netip"
-	"slices"
 	"sync"
 	"time"
 
@@ -35,36 +33,18 @@ func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration)
 	return incr.Val(), nil
 }
 
+const ProxyTokenHeader = "X-Portal-Proxy-Token"
+
 type TrustedProxy struct {
-	Host   string
-	Hops   int
-	Logger *slog.Logger
+	Token string
+	Hops  int
 }
 
-func (p TrustedProxy) Client(r *http.Request) string {
-	if p.Host != "" && p.sent(r) {
+func (p TrustedProxy) ClientIP(r *http.Request) string {
+	if p.Token != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(ProxyTokenHeader)), []byte(p.Token)) == 1 {
 		return proxy.ClientIP(r, p.Hops)
 	}
 	return proxy.ClientIP(r, 0)
-}
-
-func (p TrustedProxy) sent(r *http.Request) bool {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return false
-	}
-	peer, err := netip.ParseAddr(host)
-	if err != nil {
-		return false
-	}
-	addrs, err := net.DefaultResolver.LookupNetIP(r.Context(), "ip", p.Host)
-	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			p.Logger.Warn("ignoring X-Forwarded-For, the trusted proxy does not resolve", "host", p.Host, "err", err)
-		}
-		return false
-	}
-	return slices.ContainsFunc(addrs, func(a netip.Addr) bool { return a.Unmap() == peer.Unmap() })
 }
 
 var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right now, so try again in a minute")

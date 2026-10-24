@@ -12,7 +12,9 @@ export async function adminToken(): Promise<string | undefined> {
 
 export function forwarded(req: Request): Record<string, string> {
   const xff = req.headers.get('x-forwarded-for')
-  return xff ? { 'X-Forwarded-For': xff } : {}
+  const token = process.env.PORTAL_PROXY_TOKEN
+  if (!xff) return {}
+  return token ? { 'X-Forwarded-For': xff, 'X-Portal-Proxy-Token': token } : { 'X-Forwarded-For': xff }
 }
 
 export async function toController(path: string, init: RequestInit & { admin?: boolean; req?: Request } = {}): Promise<Response> {
