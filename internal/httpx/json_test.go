@@ -25,6 +25,14 @@ func TestReadJSONRefusesWhatItCannotTrust(t *testing.T) {
 	if err := read(`{"rate": 1, "burst": 2}`); err == nil {
 		t.Fatal("an unknown field was accepted")
 	}
+	for _, trailing := range []string{`{"rate": 1} {"rate": 2}`, `{"rate": 1}garbage`, `{"rate": 1}}`} {
+		if err := read(trailing); !errors.Is(err, ErrTrailingData) {
+			t.Fatalf("%s came back as %v", trailing, err)
+		}
+	}
+	if err := read(`{"rate": 1}` + "\n"); err != nil {
+		t.Fatalf("a body that ends in a newline: %v", err)
+	}
 	var tooBig *http.MaxBytesError
 	if err := read(`{"rate": 1` + strings.Repeat(" ", 64<<10) + `}`); !errors.As(err, &tooBig) {
 		t.Fatalf("a body over 64 KiB came back as %v", err)

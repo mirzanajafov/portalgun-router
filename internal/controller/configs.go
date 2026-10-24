@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
@@ -12,8 +13,10 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
+var ErrConfigNotSaved = errors.New("the config could not be saved")
+
 type ConfigStore interface {
-	LatestConfig(ctx context.Context) (*store.ConfigVersion, error)
+	LatestConfig(ctx context.Context) (store.ConfigVersion, error)
 	SaveConfig(ctx context.Context, author store.Actor, reason string, body json.RawMessage) (store.ConfigVersion, error)
 }
 
@@ -21,6 +24,7 @@ type ConfigManager struct {
 	store   ConfigStore
 	publish func(context.Context, distrib.Envelope) error
 	notify  func(Event)
+	logger  *slog.Logger
 
 	mu      sync.Mutex
 	current *config.Config
@@ -30,22 +34,22 @@ type ConfigManager struct {
 	reason  string
 }
 
-func NewConfigManager(s ConfigStore, publish func(context.Context, distrib.Envelope) error, notify func(Event)) *ConfigManager {
-	return &ConfigManager{store: s, publish: publish, notify: notify}
+func NewConfigManager(s ConfigStore, publish func(context.Context, distrib.Envelope) error, notify func(Event), logger *slog.Logger) *ConfigManager {
+	return &ConfigManager{store: s, publish: publish, notify: notify, logger: logger}
 }
 
 func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	latest, err := m.store.LatestConfig(ctx)
-	if err != nil {
-		return err
-	}
-	if latest == nil {
+	if errors.Is(err, store.ErrNoConfig) {
 		if bootstrap == nil {
 			return errors.New("no config stored and no bootstrap config given")
 		}
 		return m.saveLocked(ctx, store.ActorBootstrap, "first config", bootstrap)
+	}
+	if err != nil {
+		return err
 	}
 	cfg, err := config.Parse(latest.Body)
 	if err != nil {
@@ -66,11 +70,11 @@ func (m *ConfigManager) saveLocked(ctx context.Context, author store.Actor, reas
 	}
 	saved, err := m.store.SaveConfig(ctx, author, reason, normalized)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrConfigNotSaved, err)
 	}
 	m.current, m.raw, m.version, m.author, m.reason = cfg, normalized, saved.Version, author, reason
 	if err := m.publishLocked(ctx); err != nil {
-		return err
+		m.logger.Warn("the config is saved but not published yet, the next republish sends it", "err", err)
 	}
 	if m.notify != nil {
 		m.notify(Event{Type: "config", Message: fmt.Sprintf("config v%d by %s: %s", saved.Version, author, reason)})
@@ -79,7 +83,10 @@ func (m *ConfigManager) saveLocked(ctx context.Context, author store.Actor, reas
 }
 
 func (m *ConfigManager) publishLocked(ctx context.Context) error {
-	return m.publish(ctx, distrib.Envelope{Version: m.version, Config: m.raw, Author: string(m.author), Reason: m.reason})
+	if err := m.publish(ctx, distrib.Envelope{Version: m.version, Config: m.raw, Author: string(m.author), Reason: m.reason}); err != nil {
+		return fmt.Errorf("publishing config %d: %w", m.version, err)
+	}
+	return nil
 }
 
 func (m *ConfigManager) Replace(ctx context.Context, author store.Actor, reason string, raw []byte) (int64, error) {

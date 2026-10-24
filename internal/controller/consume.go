@@ -12,6 +12,8 @@ import (
 
 func Consume(ctx context.Context, rdb *redis.Client, agg *Aggregator, logger *slog.Logger) {
 	last := "$"
+	var skipped int
+	var warned time.Time
 	for ctx.Err() == nil {
 		streams, err := rdb.XRead(ctx, &redis.XReadArgs{Streams: []string{distrib.SnapshotStream, last}, Count: 200, Block: time.Second}).Result()
 		if errors.Is(err, redis.Nil) {
@@ -29,6 +31,11 @@ func Consume(ctx context.Context, rdb *redis.Client, agg *Aggregator, logger *sl
 				last = msg.ID
 				snap, err := distrib.DecodeSnapshot(msg)
 				if err != nil {
+					skipped++
+					if time.Since(warned) >= time.Minute {
+						logger.Warn("snapshots that can't be decoded are skipped", "skipped", skipped, "entry", msg.ID, "err", err)
+						skipped, warned = 0, time.Now()
+					}
 					continue
 				}
 				agg.Add(snap)

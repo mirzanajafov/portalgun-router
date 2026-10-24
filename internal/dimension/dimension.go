@@ -301,9 +301,9 @@ func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Unlock()
 	switch {
 	case !listening:
-		http.Error(w, "not listening", http.StatusServiceUnavailable)
+		httpx.WriteError(w, http.StatusServiceUnavailable, "not listening")
 	case s.awaitingLease.Load():
-		http.Error(w, "not registered", http.StatusServiceUnavailable)
+		httpx.WriteError(w, http.StatusServiceUnavailable, "not registered")
 	default:
 		_, _ = io.WriteString(w, "ready\n")
 	}

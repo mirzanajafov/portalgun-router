@@ -72,10 +72,15 @@ func NewWatcher(rdb *redis.Client, target Applier, logger *slog.Logger, poll tim
 	return &Watcher{rdb: rdb, target: target, logger: logger, poll: poll}
 }
 
+var ErrConfigRejected = errors.New("the cluster config was rejected")
+
 func (w *Watcher) Sync(ctx context.Context) error {
 	env, err := FetchConfig(ctx, w.rdb)
-	if err != nil || env == nil || env.Version <= w.target.ClusterVersion() {
-		return err
+	if err != nil {
+		return fmt.Errorf("reading the cluster config: %w", err)
+	}
+	if env == nil || env.Version <= w.target.ClusterVersion() {
+		return nil
 	}
 	cfg, err := config.Parse(env.Config)
 	if err == nil {
@@ -84,7 +89,7 @@ func (w *Watcher) Sync(ctx context.Context) error {
 	if err != nil {
 		w.logger.Error("cluster config rejected", "version", env.Version, "err", err)
 		w.target.SetClusterVersion(env.Version)
-		return err
+		return fmt.Errorf("%w: version %d: %w", ErrConfigRejected, env.Version, err)
 	}
 	w.target.SetClusterVersion(env.Version)
 	w.logger.Info("cluster config applied", "version", env.Version, "author", env.Author, "reason", env.Reason)
@@ -97,7 +102,21 @@ func (w *Watcher) Run(ctx context.Context) {
 	changes := sub.Channel()
 	t := time.NewTicker(w.poll)
 	defer t.Stop()
-	_ = w.Sync(ctx)
+	unreadable := false
+	check := func() {
+		err := w.Sync(ctx)
+		if errors.Is(err, ErrConfigRejected) || ctx.Err() != nil {
+			return
+		}
+		switch {
+		case err != nil && !unreadable:
+			w.logger.Warn("the cluster config can't be read, keeping the one applied", "err", err)
+		case err == nil && unreadable:
+			w.logger.Info("the cluster config can be read again")
+		}
+		unreadable = err != nil
+	}
+	check()
 	for {
 		select {
 		case <-ctx.Done():
@@ -105,7 +124,7 @@ func (w *Watcher) Run(ctx context.Context) {
 		case <-changes:
 		case <-t.C:
 		}
-		_ = w.Sync(ctx)
+		check()
 	}
 }
 
@@ -134,6 +153,7 @@ func (p *Publisher) Run(ctx context.Context) {
 		case s := <-p.queue:
 			b, err := json.Marshal(s)
 			if err != nil {
+				p.logger.Error("a snapshot could not be encoded", "second", s.Second, "err", err)
 				continue
 			}
 			wctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)

@@ -1,11 +1,14 @@
 package distrib
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -124,5 +127,31 @@ func TestPublisherWritesSnapshots(t *testing.T) {
 	s, err := DecodeSnapshot(msgs[0])
 	if err != nil || s.Instance != "gw-1" || s.Second != 42 || s.Routes["all"].Requests != 7 {
 		t.Fatalf("decoded %+v, %v", s, err)
+	}
+}
+
+func TestAnUnreadableConfigIsLoggedOnceNotOnEveryPoll(t *testing.T) {
+	var logs bytes.Buffer
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	rdb := redis.NewClient(&redis.Options{Addr: ln.Addr().String(), MaxRetries: -1})
+	t.Cleanup(func() { _ = rdb.Close() })
+	NewWatcher(rdb, &fakeTarget{}, slog.New(slog.NewTextHandler(&logs, nil)), 10*time.Millisecond).Run(ctx)
+	if n := strings.Count(logs.String(), "can't be read"); n != 1 {
+		t.Fatalf("%d warnings over about 30 polls of a Redis that hangs up, want 1:\n%s", n, logs.String())
 	}
 }

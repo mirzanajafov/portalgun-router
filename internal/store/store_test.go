@@ -3,7 +3,10 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"maps"
 	"os"
+	"slices"
 	"testing"
 	"time"
 )
@@ -40,7 +43,7 @@ func TestMigrationsRunOnce(t *testing.T) {
 func TestConfigVersions(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
-	if c, err := s.LatestConfig(ctx); err != nil || c != nil {
+	if c, err := s.LatestConfig(ctx); !errors.Is(err, ErrNoConfig) {
 		t.Fatalf("empty store: %+v %v", c, err)
 	}
 	first, err := s.SaveConfig(ctx, ActorBootstrap, "first", json.RawMessage(`{"a":1}`))
@@ -115,5 +118,42 @@ func TestChaosEvents(t *testing.T) {
 	evs, err := s.ChaosEvents(ctx, 10)
 	if err != nil || len(evs) != 1 || evs[0].Mode != "crash" || string(evs[0].Detail) != "{}" {
 		t.Fatalf("events %+v %v", evs, err)
+	}
+}
+
+func TestEveryListedRolloutGetsItsOwnSteps(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	start := time.Now().UTC().Truncate(time.Millisecond)
+	for i, id := range []string{"ro-a", "ro-b", "ro-c"} {
+		if err := s.StartRollout(ctx, Rollout{ID: id, Route: "api", Stable: "v1", Canary: "v2", StartedAt: start.Add(time.Duration(i) * time.Second)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, saved := range []struct {
+		id   string
+		step int
+	}{{"ro-a", 0}, {"ro-c", 0}, {"ro-c", 1}, {"ro-a", 1}, {"ro-c", 2}} {
+		if err := s.SaveStep(ctx, saved.id, Step{Step: saved.step, Weight: 0.01, StartedAt: start}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ros, err := s.Rollouts(ctx, 10)
+	if err != nil || len(ros) != 3 {
+		t.Fatalf("rollouts %+v, %v", ros, err)
+	}
+	got := map[string][]int{}
+	for _, ro := range ros {
+		got[ro.ID] = []int{}
+		for _, st := range ro.Steps {
+			got[ro.ID] = append(got[ro.ID], st.Step)
+		}
+		if ro.Steps == nil {
+			t.Fatalf("%s has nil steps, which the dashboard would read as null", ro.ID)
+		}
+	}
+	want := map[string][]int{"ro-c": {0, 1, 2}, "ro-b": {}, "ro-a": {0, 1}}
+	if ros[0].ID != "ro-c" || !maps.EqualFunc(got, want, slices.Equal) {
+		t.Fatalf("rollouts %v in order %s, %s, %s", got, ros[0].ID, ros[1].ID, ros[2].ID)
 	}
 }

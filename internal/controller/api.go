@@ -28,6 +28,7 @@ type API struct {
 	latest   atomic.Pointer[Merged]
 	extra    func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)
 	visitors *visitorLimit
+	logger   *slog.Logger
 }
 
 type RolloutLimits struct {
@@ -40,8 +41,8 @@ func DefaultRolloutLimits() RolloutLimits {
 
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
-func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string) *API {
-	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token}
+func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string, logger *slog.Logger) *API {
+	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token, logger: logger}
 }
 
 func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, proxyToken string, logger *slog.Logger) {
@@ -79,11 +80,11 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/config", a.admin(a.putConfig))
 	mux.HandleFunc("GET /api/config/history", func(w http.ResponseWriter, r *http.Request) {
 		h, err := a.history.ConfigHistory(r.Context(), 50)
-		respond(w, h, err)
+		a.respond(w, h, err)
 	})
 	mux.HandleFunc("GET /api/rollouts", func(w http.ResponseWriter, r *http.Request) {
 		h, err := a.history.Rollouts(r.Context(), 20)
-		respond(w, h, err)
+		a.respond(w, h, err)
 	})
 	mux.HandleFunc("GET /api/admin", a.admin(func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]bool{"admin": true})
@@ -118,11 +119,14 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 		reason = "edited by an admin"
 	}
 	v, err := a.cfgs.Replace(r.Context(), store.ActorAdmin, reason, body)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrConfigNotSaved):
+		unavailable(w, a.logger, true, ErrConfigNotSaved, err)
+	case err != nil:
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	default:
+		httpx.WriteJSON(w, http.StatusOK, map[string]int64{"version": v})
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]int64{"version": v})
 }
 
 func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +165,8 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrBusy):
 		httpx.WriteError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, ErrRolloutFailed):
+		unavailable(w, a.logger, author == store.ActorAdmin, ErrRolloutFailed, err)
 	case err != nil:
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 	default:
@@ -178,17 +184,27 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 	if req.Reason == "" {
 		req.Reason = "aborted by an admin"
 	}
-	if err := a.engine.Abort(r.Context(), req.Reason); err != nil {
+	err := a.engine.Abort(r.Context(), req.Reason)
+	switch {
+	case errors.Is(err, ErrNoRollout):
 		httpx.WriteError(w, http.StatusConflict, err.Error())
-		return
+	case err != nil:
+		unavailable(w, a.logger, true, ErrConfigNotSaved, err)
+	default:
+		httpx.WriteJSON(w, http.StatusOK, a.engine.Status())
 	}
-	httpx.WriteJSON(w, http.StatusOK, a.engine.Status())
 }
 
 func (a *API) events(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		httpx.WriteError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	first, err := frame("state", a.State())
+	if err != nil {
+		a.logger.Error("the state for a new dashboard could not be sent", "err", err)
+		httpx.WriteError(w, http.StatusInternalServerError, "the state could not be encoded")
 		return
 	}
 	h := w.Header()
@@ -196,7 +212,7 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(frame("state", a.State()))
+	_, _ = w.Write(first)
 	flusher.Flush()
 	ch, done := a.hub.Subscribe()
 	defer done()
@@ -205,6 +221,8 @@ func (a *API) events(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-a.hub.Closed():
 			return
 		case f := <-ch:
 			if _, err := w.Write(f); err != nil {
@@ -228,10 +246,25 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 
-func respond(w http.ResponseWriter, v any, err error) {
+var errHistory = errors.New("the history could not be read")
+
+func (a *API) respond(w http.ResponseWriter, v any, err error) {
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		unavailable(w, a.logger, false, errHistory, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, v)
+}
+
+func unavailable(w http.ResponseWriter, logger *slog.Logger, admin bool, public, err error) {
+	level := slog.LevelError
+	if errors.Is(err, context.Canceled) {
+		level = slog.LevelInfo
+	}
+	logger.Log(context.Background(), level, public.Error(), "err", err)
+	msg := public.Error()
+	if admin {
+		msg = err.Error()
+	}
+	httpx.WriteError(w, http.StatusServiceUnavailable, msg)
 }

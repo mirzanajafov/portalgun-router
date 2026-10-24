@@ -67,7 +67,7 @@ func (g *Gateway) newReverseProxy(r *route, first *subset) *httputil.ReverseProx
 		Transport:    &attempt{g: g, r: r, first: first},
 		BufferPool:   g.buffers,
 		ErrorHandler: g.errorHandler(r),
-		ErrorLog:     log.New(io.Discard, "", 0),
+		ErrorLog:     log.New(countedLog{r.metrics.cutOff}, "", 0),
 	}
 }
 

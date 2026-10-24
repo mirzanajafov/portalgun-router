@@ -126,9 +126,9 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 			return err
 		}
 	}
-	hub := controller.NewHub()
+	hub := controller.NewHub(logger)
 	publish := func(ctx context.Context, env distrib.Envelope) error { return distrib.PublishConfig(ctx, rdb, env) }
-	cfgs := controller.NewConfigManager(st, publish, hub.Event)
+	cfgs := controller.NewConfigManager(st, publish, hub.Event, logger)
 	if err := cfgs.Load(ctx, boot); err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
-	api := controller.NewAPI(cfgs, engine, st, hub, token)
+	api := controller.NewAPI(cfgs, engine, st, hub, token, logger)
 	if o.visitorRollouts {
 		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.proxyToken, logger)
 	}
@@ -193,6 +193,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}()
 
 	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	srv.RegisterOnShutdown(hub.Close)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	_, version := cfgs.Raw()

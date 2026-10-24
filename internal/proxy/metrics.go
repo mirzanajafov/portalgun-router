@@ -29,6 +29,7 @@ type Metrics struct {
 	duration   *prometheus.HistogramVec
 	noUpstream *prometheus.CounterVec
 	clientGone *prometheus.CounterVec
+	cutOff     *prometheus.CounterVec
 	retries    *prometheus.CounterVec
 	exhausted  *prometheus.CounterVec
 	panics     *prometheus.CounterVec
@@ -65,6 +66,10 @@ func NewMetrics() *Metrics {
 		clientGone: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "portal_client_gone_total",
 			Help: "Requests the client abandoned before the upstream answered.",
+		}, []string{"route"}),
+		cutOff: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "portal_response_cut_off_total",
+			Help: "Responses whose body broke off while it was copied from the dimension, after the status had gone out.",
 		}, []string{"route"}),
 		retries: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "portal_retries_total",
@@ -116,7 +121,7 @@ func NewMetrics() *Metrics {
 		latency:  prometheus.NewDesc("portal_dimension_latency_seconds", "Peak EWMA latency the balancer sees for a dimension.", []string{"dimension", "version"}, nil),
 		held:     prometheus.NewDesc("portal_inflight", "Requests the gateway holds right now, across all routes.", nil, nil),
 	}
-	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.shed, m.redisTrips, m.redisCalls, m.redisDials, m,
+	m.Registry.MustRegister(m.requests, m.duration, m.noUpstream, m.clientGone, m.cutOff, m.retries, m.exhausted, m.panics, m.changes, m.limited, m.degraded, m.unrouted, m.shed, m.redisTrips, m.redisCalls, m.redisDials, m,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -157,6 +162,7 @@ type routeMetrics struct {
 	duration        prometheus.Observer
 	noUpstream      prometheus.Counter
 	clientGone      prometheus.Counter
+	cutOff          prometheus.Counter
 	retries         prometheus.Counter
 	budgetExhausted prometheus.Counter
 	panics          prometheus.Counter
@@ -172,6 +178,7 @@ func (m *Metrics) forRoute(route string) *routeMetrics {
 		duration:        m.duration.WithLabelValues(route),
 		noUpstream:      m.noUpstream.WithLabelValues(route),
 		clientGone:      m.clientGone.WithLabelValues(route),
+		cutOff:          m.cutOff.WithLabelValues(route),
 		retries:         m.retries.WithLabelValues(route),
 		budgetExhausted: m.exhausted.WithLabelValues(route),
 		panics:          m.panics.WithLabelValues(route),
@@ -240,3 +247,10 @@ func (h redisHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.Pro
 }
 
 func (m *Metrics) RedisHook() redis.Hook { return redisHook{m.redisTrips, m.redisCalls, m.redisDials} }
+
+type countedLog struct{ c prometheus.Counter }
+
+func (l countedLog) Write(p []byte) (int, error) {
+	l.c.Inc()
+	return len(p), nil
+}

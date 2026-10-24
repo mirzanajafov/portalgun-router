@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -11,24 +11,30 @@ import (
 const recentEvents = 50
 
 type Hub struct {
+	logger    *slog.Logger
+	closed    chan struct{}
+	closeOnce sync.Once
+
 	mu     sync.Mutex
 	subs   map[chan []byte]struct{}
 	events []Event
 }
 
-func NewHub() *Hub {
-	return &Hub{subs: map[chan []byte]struct{}{}}
+func NewHub(logger *slog.Logger) *Hub {
+	return &Hub{logger: logger, closed: make(chan struct{}), subs: map[chan []byte]struct{}{}}
 }
 
-func frame(kind string, v any) []byte {
+func frame(kind string, v any) ([]byte, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("encoding a %s frame: %w", kind, err)
 	}
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "event: %s\ndata: %s\n\n", kind, b)
-	return buf.Bytes()
+	return fmt.Appendf(nil, "event: %s\ndata: %s\n\n", kind, b), nil
 }
+
+func (h *Hub) Close() { h.closeOnce.Do(func() { close(h.closed) }) }
+
+func (h *Hub) Closed() <-chan struct{} { return h.closed }
 
 func (h *Hub) Subscribe() (<-chan []byte, func()) {
 	ch := make(chan []byte, 16)
@@ -37,8 +43,13 @@ func (h *Hub) Subscribe() (<-chan []byte, func()) {
 	backlog := append([]Event(nil), h.events...)
 	h.mu.Unlock()
 	for _, e := range backlog {
+		f, err := frame("event", e)
+		if err != nil {
+			h.logger.Error("an event for the dashboards could not be sent", "err", err)
+			continue
+		}
 		select {
-		case ch <- frame("event", e):
+		case ch <- f:
 		default:
 		}
 	}
@@ -56,8 +67,9 @@ func (h *Hub) Viewers() int {
 }
 
 func (h *Hub) Broadcast(kind string, v any) {
-	f := frame(kind, v)
-	if f == nil {
+	f, err := frame(kind, v)
+	if err != nil {
+		h.logger.Error("an update for the dashboards could not be sent", "err", err)
 		return
 	}
 	h.mu.Lock()

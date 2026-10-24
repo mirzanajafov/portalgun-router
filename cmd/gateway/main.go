@@ -57,7 +57,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 	cfg, err := config.Parse(raw)
 	if err != nil {
-		return err
+		return fmt.Errorf("config %s: %w", o.config, err)
 	}
 	popts := proxy.Options{Logger: logger, Instance: o.instance, Decisions: o.decisions, Metrics: proxy.NewMetrics()}
 	var rdb *redis.Client

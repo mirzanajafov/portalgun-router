@@ -150,7 +150,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	defer rdb.Close()
 	before, err := redisUsage(ctx, rdb)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading Redis' usage before the load: %w", err)
 	}
 	countersBefore := make([]map[string]int64, len(c.Admins))
 	for i, a := range c.Admins {
@@ -164,7 +164,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	load.Label = c.Label
 	res, err := loadgen.Run(ctx, load)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating the load: %w", err)
 	}
 
 	rep := &Report{Label: c.Label, Generator: res.Summary}
@@ -189,7 +189,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	}
 	after, err := redisUsage(ctx, rdb)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading Redis' usage after the load: %w", err)
 	}
 	rep.Redis.Commands = after.Calls - before.Calls
 	rep.Redis.CPUSeconds = after.CPUSeconds - before.CPUSeconds

@@ -57,6 +57,13 @@ type active struct {
 	policy      *canary.Hybrid
 	seconds     int
 	dead        int
+	settling    *settlement
+}
+
+type settlement struct {
+	outcome  store.Outcome
+	reason   string
+	versions config.Versions
 }
 
 type Engine struct {
@@ -75,7 +82,11 @@ func NewEngine(opts EngineOptions, cfgs *ConfigManager, s RolloutStore, logger *
 	return &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now}
 }
 
-var ErrBusy = errors.New("a rollout is already running")
+var (
+	ErrBusy          = errors.New("a rollout is already running")
+	ErrNoRollout     = errors.New("no rollout is running")
+	ErrRolloutFailed = errors.New("the rollout could not be started")
+)
 
 func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
 	e.mu.Lock()
@@ -85,7 +96,7 @@ func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author 
 	}
 	cfg, _ := e.cfgs.Current()
 	if cfg == nil {
-		return store.Rollout{}, errors.New("no config loaded")
+		return store.Rollout{}, fmt.Errorf("%w: no config loaded", ErrRolloutFailed)
 	}
 	rc, pc, err := findRoute(cfg, route)
 	if err != nil {
@@ -107,9 +118,16 @@ func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author 
 	if canaryVersion == stable {
 		return store.Rollout{}, fmt.Errorf("%s is already the stable version", canaryVersion)
 	}
+	if !slices.ContainsFunc(pc.Dimensions, func(d config.Dimension) bool { return d.Version == canaryVersion }) {
+		return store.Rollout{}, fmt.Errorf("no dimension in the pool of route %q runs %s", route, canaryVersion)
+	}
 	now := e.now().UTC()
 	id := "ro-" + now.Format("20060102-150405")
 	weight := e.opts.Steps[0]
+	ro := store.Rollout{ID: id, Route: route, Stable: stable, Canary: canaryVersion, StartedAt: now}
+	if err := e.store.StartRollout(ctx, ro); err != nil {
+		return store.Rollout{}, fmt.Errorf("%w: %w", ErrRolloutFailed, err)
+	}
 	version, err := e.cfgs.Update(ctx, author, fmt.Sprintf("rollout %s starts: %s at %s on %s", id, canaryVersion, pct(weight), route), func(c *config.Config) error {
 		r, _, err := findRoute(c, route)
 		if err != nil {
@@ -119,11 +137,10 @@ func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author 
 		return nil
 	})
 	if err != nil {
-		return store.Rollout{}, err
-	}
-	ro := store.Rollout{ID: id, Route: route, Stable: stable, Canary: canaryVersion, StartedAt: now}
-	if err := e.store.StartRollout(ctx, ro); err != nil {
-		return store.Rollout{}, err
+		if ferr := e.store.FinishRollout(ctx, id, store.OutcomeAborted, "its config could not be saved", e.now().UTC()); ferr != nil {
+			e.logger.Error("closing a rollout whose config was not saved", "rollout", id, "err", ferr)
+		}
+		return store.Rollout{}, fmt.Errorf("%w: %w", ErrRolloutFailed, err)
 	}
 	e.active = &active{rollout: ro}
 	e.beginStep(ctx, 0, version)
@@ -154,6 +171,10 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 	defer e.mu.Unlock()
 	a := e.active
 	if a == nil {
+		return
+	}
+	if a.settling != nil {
+		e.trySettle(ctx)
 		return
 	}
 	rs, ok := m.Routes[a.rollout.Route]
@@ -241,7 +262,7 @@ func (e *Engine) advance(ctx context.Context, reason string) {
 	})
 	if err != nil {
 		e.logger.Error("raising the canary weight", "err", err)
-		e.finish(ctx, store.OutcomeAborted, "the next step's config could not be published: "+err.Error())
+		e.finish(ctx, store.OutcomeAborted, "the next step's config could not be saved: "+err.Error())
 		return
 	}
 	e.beginStep(ctx, next, version)
@@ -255,32 +276,45 @@ func (e *Engine) finish(ctx context.Context, outcome store.Outcome, reason strin
 }
 
 func (e *Engine) settle(ctx context.Context, outcome store.Outcome, reason string, v config.Versions) {
+	e.active.settling = &settlement{outcome: outcome, reason: reason, versions: v}
+	e.trySettle(ctx)
+}
+
+func (e *Engine) trySettle(ctx context.Context) {
 	a := e.active
-	e.active = nil
-	_, err := e.cfgs.Update(ctx, store.ActorController, fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, outcome, reason), func(c *config.Config) error {
+	s := a.settling
+	_, err := e.cfgs.Update(ctx, store.ActorController, fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, s.outcome, s.reason), func(c *config.Config) error {
 		r, _, err := findRoute(c, a.rollout.Route)
 		if err != nil {
 			return err
 		}
-		r.Versions = v
+		r.Versions = s.versions
 		return nil
 	})
+	if errors.Is(err, ErrConfigNotSaved) {
+		e.logger.Error("the rollout's end could not be saved, trying again with the next second", "rollout", a.rollout.ID, "outcome", s.outcome, "err", err)
+		return
+	}
 	if err != nil {
-		e.logger.Error("settling a rollout", "err", err)
+		e.logger.Error("the rollout ended without changing the config", "rollout", a.rollout.ID, "outcome", s.outcome, "err", err)
 	}
-	if err := e.store.FinishRollout(ctx, a.rollout.ID, outcome, reason, e.now().UTC()); err != nil {
-		e.logger.Error("recording the rollout outcome", "err", err)
+	e.active = nil
+	if err := e.store.FinishRollout(ctx, a.rollout.ID, s.outcome, s.reason, e.now().UTC()); err != nil {
+		e.logger.Error("recording the rollout outcome", "rollout", a.rollout.ID, "err", err)
 	}
-	e.emit(fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, outcome, reason))
+	e.emit(fmt.Sprintf("rollout %s %s: %s", a.rollout.ID, s.outcome, s.reason))
 }
 
 func (e *Engine) Abort(ctx context.Context, reason string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.active == nil {
-		return errors.New("no rollout is running")
+		return ErrNoRollout
 	}
 	e.finish(ctx, store.OutcomeAborted, reason)
+	if e.active != nil {
+		return fmt.Errorf("%w, so the abort is kept and tried again every second", ErrConfigNotSaved)
+	}
 	return nil
 }
 
