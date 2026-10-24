@@ -18,25 +18,10 @@ if [ -n "$(setting PORTAL_REGISTRY)" ]; then
   docker network inspect "$network" > /dev/null 2>&1 || { echo "PORTAL_REGISTRY is set but there is no network $network. Start FiveFamilies first." >&2; exit 1; }
 fi
 
-healthy() {
-  for _ in $(seq 1 60); do
-    local bad=0
-    for service in $("${compose[@]}" config --services); do
-      id=$("${compose[@]}" ps -q "$service")
-      status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$id" 2>/dev/null || echo missing)
-      case $status in healthy | running) ;; *) bad=1 ;; esac
-    done
-    [ "$bad" = 0 ] && return 0
-    sleep 3
-  done
-  return 1
-}
-
 deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
 
 release() {
-  "${compose[@]}" build
-  "${compose[@]}" up -d --remove-orphans
+  "${compose[@]}" build && "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180
 }
 
 previous=$(git rev-parse HEAD)
@@ -55,25 +40,30 @@ fi
 
 say "Deploying $(git log --oneline -1 "$target")"
 git merge --ff-only --quiet "$target"
-bash deploy/init-env.sh
-"${compose[@]}" config --quiet || { git reset --hard --quiet "$previous"; say "The compose config is not valid, back at $(git log --oneline -1)"; exit 1; }
-release
+if ! bash deploy/init-env.sh || ! "${compose[@]}" config --quiet; then
+  git reset --hard --quiet "$previous"
+  say "The release's settings are not valid, back at $(git log --oneline -1)"
+  exit 1
+fi
+stamp=$(deployed)
 
-say "Waiting for every container to be up and healthy"
-if healthy; then
-  deployed > .deployed
+say "Starting it and waiting for every container to run and pass its health check"
+if release; then
+  echo "$stamp" > .deployed
   docker image prune -f --filter "label=com.docker.compose.project=portalgun" > /dev/null
   say "Live: $(git log --oneline -1)"
   exit 0
 fi
 
+if [ "$previous" = "$target" ]; then
+  say "Not healthy, and this commit is the one already deployed, so there is nothing to roll back to. Check .env and run this again."
+  exit 1
+fi
 say "Not healthy, rolling back to $(git log --oneline -1 "$previous")"
 git reset --hard --quiet "$previous"
-release
-if healthy; then
-  echo "Rolled back. Schema migrations from the failed release stay applied;"
-  echo "the dump taken above is in backups/db if one has to be undone."
+if release; then
+  echo "Rolled back. Schema migrations from the failed release stay applied, and the dump taken above is in backups/db if one has to be undone."
 else
-  echo "Rollback is not healthy either. Check: ${compose[*]} logs controller gateway-1 web" >&2
+  echo "Rollback is not healthy either. Check: ${compose[*]} ps" >&2
 fi
 exit 1

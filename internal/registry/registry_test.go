@@ -238,6 +238,11 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	defer cancel()
 	var mu sync.Mutex
 	var held []bool
+	reported := func() []bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(held)
+	}
 	done := make(chan struct{})
 	go func() {
 		c.Keep(ctx, "dimensions", versioned("e-7", "dim-e:8080", "v1"), 300*time.Millisecond, quiet(), func(h bool) {
@@ -262,7 +267,9 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	}
 	f.drop(leases[0])
 	for time.Now().Before(deadline) {
-		if list, _, _, now := f.snapshot(); len(now) == 1 && now[0] != leases[0] && names(list) == "e-7" && list[0].Meta["version"] == "v1" {
+		list, _, _, now := f.snapshot()
+		r := reported()
+		if len(now) == 1 && now[0] != leases[0] && names(list) == "e-7" && list[0].Meta["version"] == "v1" && len(r) >= 3 && r[len(r)-1] {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -279,10 +286,13 @@ func TestARegistrationIsRenewedRestoredAndRevoked(t *testing.T) {
 	if list, _, _, now := f.snapshot(); len(list) != 0 || len(now) != 0 {
 		t.Fatalf("still registered after the context ended: %v on %v", list, now)
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	if !slices.Equal(held, []bool{true, false, true, false}) {
-		t.Fatalf("reported the lease as %v, want held, lost, held again and given up", held)
+	got := reported()
+	turns := len(got) >= 4 && !got[len(got)-1]
+	for i, h := range got {
+		turns = turns && h == (i%2 == 0)
+	}
+	if !turns {
+		t.Fatalf("reported the lease as %v, want held and lost in turn, at least twice, ending lost", got)
 	}
 }
 

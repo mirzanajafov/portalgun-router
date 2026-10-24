@@ -236,23 +236,27 @@ func TestReadyOnlyWhileListeningAndHoldingTheLeaseItNeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	held := s.RequireLease()
+	s.RequireLease()
 	control := serve(t, s)
 	if got := ready(control); got != http.StatusServiceUnavailable {
 		t.Fatalf("before the first registration: %d", got)
 	}
-	held(true)
+	s.SetLeased(true)
 	if got := ready(control); got != http.StatusOK {
 		t.Fatalf("registered: %d", got)
 	}
-	patch(t, control, `{"listening": false}`)
+	if status, _ := patch(t, control, `{"listening": false}`); status != http.StatusOK {
+		t.Fatalf("stop listening: %d", status)
+	}
 	if got := ready(control); got != http.StatusServiceUnavailable {
 		t.Fatalf("registered but not listening: %d", got)
 	}
-	patch(t, control, `{"listening": true}`)
-	held(false)
-	if got := ready(control); got != http.StatusServiceUnavailable {
-		t.Fatalf("listening after the lease was lost: %d", got)
+	if status, _ := patch(t, control, `{"listening": true}`); status != http.StatusOK {
+		t.Fatalf("listen again: %d", status)
+	}
+	s.SetLeased(false)
+	if status, _, body := get(t, control.URL+"/ready"); status != http.StatusServiceUnavailable || !strings.Contains(string(body), "not registered") {
+		t.Fatalf("listening after the lease was lost: %d %q", status, body)
 	}
 }
 
