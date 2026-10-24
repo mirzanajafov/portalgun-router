@@ -63,10 +63,19 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 			if c.sent != "" {
 				req.Header.Set(proxyTokenHeader, c.sent)
 			}
-			if got := ProxyToken(c.configured).ClientIP(req); got != c.want {
+			if got := newVisitorLimit("chaos", 3, nil, c.configured, slog.New(slog.NewTextHandler(io.Discard, nil))).client(req); got != c.want {
 				t.Fatalf("counted as %s, want %s", got, c.want)
 			}
 		})
+	}
+}
+
+func TestALimitWithoutTheProxyTokenSaysSoAtStart(t *testing.T) {
+	logs := &logSink{}
+	newVisitorLimit("chaos", 3, nil, "", slog.New(slog.NewTextHandler(logs, nil)))
+	newVisitorLimit("rollout", 3, nil, proxySecret, slog.New(slog.NewTextHandler(logs, nil)))
+	if strings.Count(logs.String(), "PORTAL_PROXY_TOKEN") != 1 || !strings.Contains(logs.String(), "limit=chaos") {
+		t.Fatalf("want one warning, for the chaos limit: %q", logs.String())
 	}
 }
 
@@ -74,7 +83,7 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, proxySecret, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -95,7 +104,7 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 
 func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) {
 	counter := &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, ProxyToken(proxySecret), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, proxySecret, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	mux := http.NewServeMux()
 	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
 	srv := httptest.NewServer(mux)

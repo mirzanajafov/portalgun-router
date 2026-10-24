@@ -119,14 +119,10 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		}
 	}
 
-	proxyToken := controller.ProxyToken(o.proxyToken)
-	if proxyToken == "" && (o.visitorRollouts || o.toxiproxy != "") {
-		logger.Warn("PORTAL_PROXY_TOKEN is not set, so the visitor limits ignore X-Forwarded-For and count every caller by its own address")
-	}
 	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	api := controller.NewAPI(cfgs, engine, st, hub, token)
 	if o.visitorRollouts {
-		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), proxyToken, logger)
+		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.proxyToken, logger)
 	}
 	var chaosSvc *controller.ChaosService
 	if o.toxiproxy != "" {
@@ -135,7 +131,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 			return err
 		}
 		inj := chaos.NewInjector(chaos.NewToxiproxy(o.toxiproxy), controls)
-		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, proxyToken, logger)
+		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, o.proxyToken, logger)
 		if err := chaosSvc.Reset(ctx); err != nil {
 			logger.Warn("clearing faults left from before", "err", err)
 		}

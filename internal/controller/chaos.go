@@ -79,15 +79,14 @@ var (
 )
 
 type ChaosService struct {
-	inj        Injector
-	log        ChaosLog
-	visitors   *visitorLimit
-	hub        *Hub
-	limits     ChaosLimits
-	targets    []string
-	logger     *slog.Logger
-	now        func() time.Time
-	proxyToken ProxyToken
+	inj      Injector
+	log      ChaosLog
+	visitors *visitorLimit
+	hub      *Hub
+	limits   ChaosLimits
+	targets  []string
+	logger   *slog.Logger
+	now      func() time.Time
 
 	mu        sync.Mutex
 	current   *Running
@@ -96,8 +95,8 @@ type ChaosService struct {
 	incidents []*Incident
 }
 
-func NewChaosService(inj Injector, log ChaosLog, counter Counter, hub *Hub, limits ChaosLimits, targets []string, proxyToken ProxyToken, logger *slog.Logger) *ChaosService {
-	return &ChaosService{inj: inj, log: log, visitors: newVisitorLimit("chaos", limits.PerHour, counter, logger), hub: hub, limits: limits, targets: targets, proxyToken: proxyToken, logger: logger, now: time.Now}
+func NewChaosService(inj Injector, log ChaosLog, counter Counter, hub *Hub, limits ChaosLimits, targets []string, proxyToken string, logger *slog.Logger) *ChaosService {
+	return &ChaosService{inj: inj, log: log, visitors: newVisitorLimit("chaos", limits.PerHour, counter, proxyToken, logger), hub: hub, limits: limits, targets: targets, logger: logger, now: time.Now}
 }
 
 func (c *ChaosService) fault(req ChaosRequest, admin bool) (chaos.Fault, time.Duration, error) {
@@ -279,7 +278,7 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 		if err := decode(w, r, &req); err != nil {
 			return
 		}
-		run, wait, err := c.Start(r.Context(), req, Authorized(r, token), c.proxyToken.ClientIP(r))
+		run, wait, err := c.Start(r.Context(), req, Authorized(r, token), c.visitors.client(r))
 		switch {
 		case errors.Is(err, ErrChaosBusy), errors.Is(err, ErrChaosCooldown), errors.Is(err, ErrChaosLimit):
 			w.Header().Set("Retry-After", fmt.Sprint(max(1, int(wait.Seconds()+0.5))))

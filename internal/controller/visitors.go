@@ -34,32 +34,34 @@ func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration)
 
 const proxyTokenHeader = "X-Portal-Proxy-Token"
 
-type ProxyToken string
-
-func (t ProxyToken) ClientIP(r *http.Request) string {
-	if t != "" && carries(r, proxyTokenHeader, string(t)) {
-		return proxy.ClientIP(r, 1)
-	}
-	return proxy.ClientIP(r, 0)
-}
-
 var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right now, so try again in a minute")
 
 const recountAfter = time.Minute
 
 type visitorLimit struct {
-	name    string
-	perHour int64
-	counter Counter
-	logger  *slog.Logger
-	now     func() time.Time
+	name       string
+	perHour    int64
+	counter    Counter
+	proxyToken string
+	logger     *slog.Logger
+	now        func() time.Time
 
 	mu       sync.Mutex
 	failedAt time.Time
 }
 
-func newVisitorLimit(name string, perHour int64, counter Counter, logger *slog.Logger) *visitorLimit {
-	return &visitorLimit{name: name, perHour: perHour, counter: counter, logger: logger, now: time.Now}
+func newVisitorLimit(name string, perHour int64, counter Counter, proxyToken string, logger *slog.Logger) *visitorLimit {
+	if proxyToken == "" {
+		logger.Warn("PORTAL_PROXY_TOKEN is not set, so the limit ignores X-Forwarded-For and counts every caller by its own address", "limit", name)
+	}
+	return &visitorLimit{name: name, perHour: perHour, counter: counter, proxyToken: proxyToken, logger: logger, now: time.Now}
+}
+
+func (l *visitorLimit) client(r *http.Request) string {
+	if carries(r, proxyTokenHeader, l.proxyToken) {
+		return proxy.ClientIP(r, 1)
+	}
+	return proxy.ClientIP(r, 0)
 }
 
 func (l *visitorLimit) exceeded(ctx context.Context, client string) (bool, error) {
