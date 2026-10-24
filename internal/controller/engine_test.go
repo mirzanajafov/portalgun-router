@@ -29,7 +29,7 @@ type memStore struct {
 	steps    map[string]map[int]store.Step
 	outcomes map[string]store.Outcome
 
-	refuseConfigs, refuseRollouts, refuseReads atomic.Bool
+	refuseConfigs, refuseRollouts, refuseReads, refuseFinishes atomic.Bool
 }
 
 var errStoreDown = errors.New("dial tcp postgres:5432: connect: connection refused")
@@ -67,7 +67,14 @@ func (m *memStore) ConfigHistory(context.Context, int) ([]store.ConfigVersion, e
 	return nil, nil
 }
 
-func (m *memStore) Rollouts(context.Context, int) ([]store.Rollout, error) { return m.rollouts, nil }
+func (m *memStore) Rollouts(context.Context, int) ([]store.Rollout, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.refuseReads.Load() {
+		return nil, errStoreDown
+	}
+	return m.rollouts, nil
+}
 
 func (m *memStore) StartRollout(_ context.Context, r store.Rollout) error {
 	m.mu.Lock()
@@ -92,8 +99,11 @@ func (m *memStore) SaveStep(_ context.Context, id string, st store.Step) error {
 func (m *memStore) FinishRollout(_ context.Context, id string, outcome store.Outcome, _ string, _ time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.refuseFinishes.Load() {
+		return errStoreDown
+	}
 	if _, done := m.outcomes[id]; done {
-		return errors.New("already finished")
+		return store.ErrRolloutNotActive
 	}
 	m.outcomes[id] = outcome
 	return nil
@@ -192,9 +202,7 @@ func TestAGoodCanaryWalksEveryStepAndBecomesStable(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 600 && r.engine.Status().Active; i++ {
-		w := r.versions(t).Weight
-		canary := int64(1000 * w)
-		r.feed(bin{stable: 1000 - canary, canary: canary, stableErr: 10 - canary/100, canaryErr: canary / 100, stableSlow: 50 - canary/20, canarySlow: canary / 20})
+		r.feed(goodBin(r.versions(t).Weight))
 	}
 	if r.engine.Status().Active {
 		t.Fatalf("still running: %+v", r.engine.Status())
@@ -454,8 +462,8 @@ func TestARollbackTheStoreRefusesIsTriedAgainUntilItIsSaved(t *testing.T) {
 	for range 15 {
 		r.feed(bin{stable: 900, canary: 100, stableErr: 2, canaryErr: 40})
 	}
-	if !r.engine.Status().Active || r.versions(t).Canary != "v2" {
-		t.Fatalf("a rollback that couldn't be saved left the rollout %+v and the config %+v", r.engine.Status(), r.versions(t))
+	if st := r.engine.Status(); !st.Active || st.Pending != store.OutcomeRolledBack || r.versions(t).Canary != "v2" {
+		t.Fatalf("a rollback that couldn't be saved left the rollout %+v and the config %+v", st, r.versions(t))
 	}
 	r.store.refuseConfigs.Store(false)
 	r.feed(bin{})
@@ -517,6 +525,8 @@ func TestAStoreFailureIsA503AndOnlyTheAdminSeesWhy(t *testing.T) {
 		{"a visitor's rollout", http.MethodPost, "/api/rollouts", `{"route":"api","canary":"v2"}`, viaProxy("9.9.9.9"), false},
 		{"an admin's rollout", http.MethodPost, "/api/rollouts", `{"route":"api","canary":"v2"}`, admin, true},
 		{"the config history", http.MethodGet, "/api/config/history", "", http.Header{}, false},
+		{"the rollout history", http.MethodGet, "/api/rollouts", "", http.Header{}, false},
+		{"the history for the admin", http.MethodGet, "/api/rollouts", "", admin, true},
 		{"an admin's config", http.MethodPut, "/api/config", baseConfig, admin, true},
 	} {
 		status, body := call(c.method, c.path, c.body, c.header)
@@ -537,15 +547,98 @@ func TestAStoreFailureIsA503AndOnlyTheAdminSeesWhy(t *testing.T) {
 }
 
 func TestAConfigThatIsSavedButNotPublishedStaysSaved(t *testing.T) {
-	ms := newMemStore()
+	var redisDown atomic.Bool
 	var logs logSink
-	cfgs := NewConfigManager(ms, func(context.Context, distrib.Envelope) error { return errors.New("redis: connection refused") }, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+	publish := func(context.Context, distrib.Envelope) error {
+		if redisDown.Load() {
+			return errors.New("redis: connection refused")
+		}
+		return nil
+	}
+	cfgs := NewConfigManager(newMemStore(), publish, nil, slog.New(slog.NewTextHandler(&logs, nil)))
 	if err := cfgs.Load(context.Background(), []byte(baseConfig)); err != nil {
 		t.Fatal(err)
 	}
+	redisDown.Store(true)
 	v, err := cfgs.Replace(context.Background(), store.ActorAdmin, "edited", []byte(baseConfig))
 	if _, current := cfgs.Raw(); err != nil || v != 2 || current != 2 || !strings.Contains(logs.String(), "next republish") {
 		t.Fatalf("version %d, current %d, err %v, logs %s", v, current, err, logs.String())
+	}
+}
+
+func goodBin(weight float64) bin {
+	canary := int64(1000 * weight)
+	return bin{stable: 1000 - canary, canary: canary, stableErr: 10 - canary/100, canaryErr: canary / 100, stableSlow: 50 - canary/20, canarySlow: canary / 20}
+}
+
+func TestAPendingPromotionBecomesARollbackWhenTheCanaryBreaksMeanwhile(t *testing.T) {
+	r := newRig(t)
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 600 && r.engine.Status().Step.Step == 0; i++ {
+		r.feed(goodBin(r.versions(t).Weight))
+	}
+	r.store.refuseConfigs.Store(true)
+	for i := 0; i < 600 && r.engine.Status().Pending == ""; i++ {
+		r.feed(goodBin(r.versions(t).Weight))
+	}
+	if st := r.engine.Status(); st.Pending != store.OutcomePromoted {
+		t.Fatalf("no promotion pending: %+v", st)
+	}
+	r.feed(bin{stable: 500, canary: 500, canaryErr: 500}, func(m *Merged) { rs := m.Routes["api"]; rs.Brake = true; m.Routes["api"] = rs })
+	if st := r.engine.Status(); st.Pending != store.OutcomeRolledBack {
+		t.Fatalf("the brake fired on a pending promotion and left it %q", st.Pending)
+	}
+	r.store.refuseConfigs.Store(false)
+	r.feed(bin{})
+	if v := r.versions(t); v.Stable != "v1" || v.Canary != "" || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
+		t.Fatalf("versions %+v, outcome %q", v, r.store.outcomes[ro.ID])
+	}
+}
+
+func TestAnAbortKeepsARollbackThatIsAlreadyDecided(t *testing.T) {
+	r := newRig(t)
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.store.refuseConfigs.Store(true)
+	for range 15 {
+		r.feed(bin{stable: 900, canary: 100, stableErr: 2, canaryErr: 40})
+	}
+	decided := r.engine.Status().Step.Reason
+	if err := r.engine.Abort(context.Background(), "aborted from the dashboard"); err == nil || !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("an abort during the outage came back as %v, want the store's cause", err)
+	}
+	if st := r.engine.Status(); st.Pending != store.OutcomeRolledBack || st.Step.Reason != decided {
+		t.Fatalf("the abort replaced the decided rollback: pending %q, step reason %q, was %q", st.Pending, st.Step.Reason, decided)
+	}
+	r.store.refuseConfigs.Store(false)
+	r.feed(bin{})
+	if r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
+		t.Fatalf("outcome %q", r.store.outcomes[ro.ID])
+	}
+}
+
+func TestTheOutcomeIsRecordedOnceTheStoreTakesIt(t *testing.T) {
+	r := newRig(t)
+	ro, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.store.refuseFinishes.Store(true)
+	for range 15 {
+		r.feed(bin{stable: 900, canary: 100, stableErr: 2, canaryErr: 40})
+	}
+	if v := r.versions(t); v.Canary != "" || !r.engine.Status().Active {
+		t.Fatalf("the config should be back on v1 while the outcome waits: versions %+v, status %+v", v, r.engine.Status())
+	}
+	r.store.refuseFinishes.Store(false)
+	r.feed(bin{})
+	if r.engine.Status().Active || r.store.outcomes[ro.ID] != store.OutcomeRolledBack {
+		t.Fatalf("active %v, outcome %q", r.engine.Status().Active, r.store.outcomes[ro.ID])
 	}
 }
 

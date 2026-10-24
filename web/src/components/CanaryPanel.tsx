@@ -86,6 +86,11 @@ export function CanaryPanel({
             <span>{active.step?.canaryErrors ?? 0} canary errors</span>
             <span>{active.step?.stableErrors ?? 0} stable errors</span>
           </div>
+          {active.pending ? (
+            <p className="text-xs text-[var(--color-warn)]">
+              Decided: {active.pending.replace('_', ' ')}. It takes effect as soon as the database can save it.
+            </p>
+          ) : null}
         </>
       ) : (
         <p className="text-sm">

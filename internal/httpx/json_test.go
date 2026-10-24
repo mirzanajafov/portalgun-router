@@ -37,4 +37,7 @@ func TestReadJSONRefusesWhatItCannotTrust(t *testing.T) {
 	if err := read(`{"rate": 1` + strings.Repeat(" ", 64<<10) + `}`); !errors.As(err, &tooBig) {
 		t.Fatalf("a body over 64 KiB came back as %v", err)
 	}
+	if err := read(`{"rate": 1}` + strings.Repeat(" ", 64<<10)); !errors.As(err, &tooBig) {
+		t.Fatalf("a body that crosses 64 KiB after its value came back as %v", err)
+	}
 }

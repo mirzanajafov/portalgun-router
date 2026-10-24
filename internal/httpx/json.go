@@ -21,10 +21,16 @@ func ReadJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return err
 	}
-	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+	_, err := dec.Token()
+	var syntax *json.SyntaxError
+	switch {
+	case errors.Is(err, io.EOF):
+		return nil
+	case err == nil, errors.As(err, &syntax):
 		return ErrTrailingData
+	default:
+		return err
 	}
-	return nil
 }
 
 func WriteError(w http.ResponseWriter, status int, msg string) {

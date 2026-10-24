@@ -74,6 +74,7 @@ export type RolloutStatus = {
   llrSlow: number
   lower: number
   upper: number
+  pending?: string
 }
 
 export type Fault = { mode: string; target: string; latency?: number; errorRate?: number; period?: number }

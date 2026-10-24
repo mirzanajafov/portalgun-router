@@ -56,7 +56,10 @@ func (m *ConfigManager) Load(ctx context.Context, bootstrap []byte) error {
 		return fmt.Errorf("stored config %d: %w", latest.Version, err)
 	}
 	m.current, m.raw, m.version, m.author, m.reason = cfg, latest.Body, latest.Version, latest.Author, latest.Reason
-	return m.publishLocked(ctx)
+	if err := m.publishLocked(ctx); err != nil {
+		m.logger.Warn("the stored config is not published yet, the next republish sends it", "err", err)
+	}
+	return nil
 }
 
 func (m *ConfigManager) saveLocked(ctx context.Context, author store.Actor, reason string, raw []byte) error {
@@ -101,14 +104,7 @@ func (m *ConfigManager) Replace(ctx context.Context, author store.Actor, reason 
 func (m *ConfigManager) Update(ctx context.Context, author store.Actor, reason string, change func(*config.Config) error) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	next, err := clone(m.current)
-	if err != nil {
-		return 0, err
-	}
-	if err := change(next); err != nil {
-		return 0, err
-	}
-	raw, err := json.Marshal(next)
+	raw, err := m.changedLocked(change)
 	if err != nil {
 		return 0, err
 	}
@@ -116,6 +112,28 @@ func (m *ConfigManager) Update(ctx context.Context, author store.Actor, reason s
 		return 0, err
 	}
 	return m.version, nil
+}
+
+func (m *ConfigManager) Check(change func(*config.Config) error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	raw, err := m.changedLocked(change)
+	if err != nil {
+		return err
+	}
+	_, err = config.Parse(raw)
+	return err
+}
+
+func (m *ConfigManager) changedLocked(change func(*config.Config) error) ([]byte, error) {
+	next, err := clone(m.current)
+	if err != nil {
+		return nil, err
+	}
+	if err := change(next); err != nil {
+		return nil, err
+	}
+	return json.Marshal(next)
 }
 
 func (m *ConfigManager) Current() (*config.Config, int64) {

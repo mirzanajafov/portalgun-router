@@ -72,7 +72,7 @@ func NewWatcher(rdb *redis.Client, target Applier, logger *slog.Logger, poll tim
 	return &Watcher{rdb: rdb, target: target, logger: logger, poll: poll}
 }
 
-var ErrConfigRejected = errors.New("the cluster config was rejected")
+var errConfigRejected = errors.New("the cluster config was rejected")
 
 func (w *Watcher) Sync(ctx context.Context) error {
 	env, err := FetchConfig(ctx, w.rdb)
@@ -89,7 +89,7 @@ func (w *Watcher) Sync(ctx context.Context) error {
 	if err != nil {
 		w.logger.Error("cluster config rejected", "version", env.Version, "err", err)
 		w.target.SetClusterVersion(env.Version)
-		return fmt.Errorf("%w: version %d: %w", ErrConfigRejected, env.Version, err)
+		return fmt.Errorf("%w: version %d: %w", errConfigRejected, env.Version, err)
 	}
 	w.target.SetClusterVersion(env.Version)
 	w.logger.Info("cluster config applied", "version", env.Version, "author", env.Author, "reason", env.Reason)
@@ -105,7 +105,7 @@ func (w *Watcher) Run(ctx context.Context) {
 	unreadable := false
 	check := func() {
 		err := w.Sync(ctx)
-		if errors.Is(err, ErrConfigRejected) || ctx.Err() != nil {
+		if errors.Is(err, errConfigRejected) || ctx.Err() != nil {
 			return
 		}
 		switch {

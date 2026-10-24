@@ -80,11 +80,11 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/config", a.admin(a.putConfig))
 	mux.HandleFunc("GET /api/config/history", func(w http.ResponseWriter, r *http.Request) {
 		h, err := a.history.ConfigHistory(r.Context(), 50)
-		a.respond(w, h, err)
+		a.respond(w, r, h, err)
 	})
 	mux.HandleFunc("GET /api/rollouts", func(w http.ResponseWriter, r *http.Request) {
 		h, err := a.history.Rollouts(r.Context(), 20)
-		a.respond(w, h, err)
+		a.respond(w, r, h, err)
 	})
 	mux.HandleFunc("GET /api/admin", a.admin(func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]bool{"admin": true})
@@ -248,20 +248,20 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 
 var errHistory = errors.New("the history could not be read")
 
-func (a *API) respond(w http.ResponseWriter, v any, err error) {
+func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, err error) {
 	if err != nil {
-		unavailable(w, a.logger, false, errHistory, err)
+		unavailable(w, a.logger, httpx.Authorized(r, a.token), errHistory, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, v)
 }
 
-func unavailable(w http.ResponseWriter, logger *slog.Logger, admin bool, public, err error) {
+func unavailable(w http.ResponseWriter, logger *slog.Logger, admin bool, public, err error, attrs ...any) {
 	level := slog.LevelError
 	if errors.Is(err, context.Canceled) {
 		level = slog.LevelInfo
 	}
-	logger.Log(context.Background(), level, public.Error(), "err", err)
+	logger.Log(context.Background(), level, public.Error(), append(attrs, "err", err)...)
 	msg := public.Error()
 	if admin {
 		msg = err.Error()

@@ -137,6 +137,8 @@ type ConfigVersion struct {
 
 var ErrNoConfig = errors.New("no config is stored")
 
+var ErrRolloutNotActive = errors.New("the rollout is not active")
+
 func (s *Store) LatestConfig(ctx context.Context) (ConfigVersion, error) {
 	var c ConfigVersion
 	err := s.pool.QueryRow(ctx, `select version, created_at, author, reason, body from config_versions order by version desc limit 1`).
@@ -235,7 +237,7 @@ func (s *Store) FinishRollout(ctx context.Context, id string, outcome Outcome, r
 		return fmt.Errorf("finishing rollout %s: %w", id, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("rollout %s is not active", id)
+		return fmt.Errorf("finishing rollout %s: %w", id, ErrRolloutNotActive)
 	}
 	return nil
 }
