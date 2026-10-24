@@ -7,6 +7,15 @@ const (
 	AttemptsHeader  = "X-Portal-Attempts"
 )
 
+const (
+	PathHealthz = "/healthz"
+	PathMetrics = "/metrics"
+	PathState   = "/state"
+	PathEvents  = "/events"
+	PathDrain   = "/decisions/drain"
+	PathConfig  = "/config"
+)
+
 type VersionSnapshot struct {
 	Attempts int64 `json:"attempts"`
 	Errors   int64 `json:"errors"`
@@ -67,11 +76,20 @@ type State struct {
 	Upstreams   []Upstream `json:"upstreams"`
 }
 
+type EventState string
+
+const (
+	EventHealthy   EventState = "healthy"
+	EventUnhealthy EventState = "unhealthy"
+)
+
+func OutlierEvent(s health.State) EventState { return EventState(s.String()) }
+
 type DimensionEvent struct {
-	UnixNano  int64  `json:"unixNano"`
-	Dimension string `json:"dimension"`
-	State     string `json:"state"`
-	Reason    string `json:"reason,omitempty"`
+	UnixNano  int64      `json:"unixNano"`
+	Dimension string     `json:"dimension"`
+	State     EventState `json:"state"`
+	Reason    string     `json:"reason,omitempty"`
 }
 
 type Decision struct {

@@ -100,7 +100,7 @@ const (
 	failOther
 )
 
-func classify(err error, status int, timedOut bool, client context.Context) failure {
+func classify(client context.Context, err error, status int, timedOut bool) failure {
 	if err == nil {
 		switch status {
 		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
@@ -182,11 +182,11 @@ func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
 		if t.n > 0 {
 			from = r.stable
 		}
-		u, ok, panicking := from.acquire(g.now(), t)
+		u, panicking := from.acquire(g.now(), t)
 		if panicking {
 			r.metrics.panics.Inc()
 		}
-		if !ok {
+		if u == nil {
 			if t.n == 0 {
 				r.metrics.noUpstream.Inc()
 				return nil, errNoUpstream
@@ -199,7 +199,7 @@ func (a *attempt) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		t.add(u)
 		var f failure
-		resp, err, f = a.try(req, u, body)
+		resp, f, err = a.try(req, u, body)
 		if f == failNone || t.n >= limit || !f.retryable(safe) {
 			return a.finish(resp, err, t.n)
 		}
@@ -228,7 +228,7 @@ func discard(resp *http.Response) {
 	}
 }
 
-func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Response, error, failure) {
+func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Response, failure, error) {
 	g, r := a.g, a.r
 	started := g.now()
 	trial := u.outlier != nil && u.outlier.Begin()
@@ -238,7 +238,7 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 	timer := time.AfterFunc(r.perTry, t.expire)
 	out := req.WithContext(ctx)
 	t.url.Scheme = "http"
-	t.url.Host = u.address
+	t.url.Host = u.spec.address
 	out.URL = &t.url
 	if body != nil {
 		out.Body = io.NopCloser(bytes.NewReader(body))
@@ -256,13 +256,13 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 	if resp != nil {
 		status = resp.StatusCode
 	}
-	f := classify(err, status, t.timedOut.Load(), req.Context())
+	f := classify(req.Context(), err, status, t.timedOut.Load())
 	if f != failCanceled {
 		if u.outlier != nil {
 			u.outlier.Record(finished, f != failNone, errors.Is(err, syscall.ECONNREFUSED), trial)
 		}
 		slot := stableSlot
-		if r.canary != nil && u.version == r.canaryVersion {
+		if r.canary != nil && u.spec.version == r.canaryVersion {
 			slot = canarySlot
 		}
 		latency := time.Duration(finished - started)
@@ -280,7 +280,7 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 			err = errPerTryTimeout
 		}
 		r.metrics.result(u, 0)
-		return nil, err, f
+		return nil, f, err
 	}
 
 	if f == failNone {
@@ -290,11 +290,11 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 	r.metrics.result(u, resp.StatusCode)
 	if resp.StatusCode == http.StatusSwitchingProtocols {
 		u.load.Release()
-		return resp, nil, f
+		return resp, f, nil
 	}
 	t.ReadCloser = resp.Body
 	resp.Body = t
-	return resp, nil, f
+	return resp, f, nil
 }
 
 type tracked struct {

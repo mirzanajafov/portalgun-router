@@ -114,7 +114,7 @@ func (rs *routeStats) tick() gatewayapi.RouteSnapshot {
 		threshold = sum.Quantile(0.95)
 	}
 	rs.threshold.Store(int64(threshold))
-	snap.SlowThresholdMs = float64(threshold.Microseconds()) / 1000
+	snap.SlowThresholdMs = ms(threshold)
 	return snap
 }
 

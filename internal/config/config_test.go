@@ -20,7 +20,7 @@ func TestParseAppliesDefaults(t *testing.T) {
 	if r.Host != "portal.example" || r.Timeout.D() != 5*time.Second || r.PerTryTimeout.D() != 5*time.Second {
 		t.Fatalf("route %+v", r)
 	}
-	if p.Balancer != BalancerP2C || d.Version != DefaultVersion || d.MaxInflight != DefaultMaxInflight || *c.MaxInflight != DefaultGatewayCap {
+	if p.Balancer != BalancerP2C || d.Version != DefaultVersion || d.MaxInflight != DefaultMaxInflight || *c.MaxInflight != 256 {
 		t.Fatalf("pool %+v dimension %+v", p, d)
 	}
 	if *r.Retries.Max != 2 || r.Retries.BudgetRatio != 0.2 || *p.PanicThreshold != 0.5 || p.SlowStart.D() != 10*time.Second {

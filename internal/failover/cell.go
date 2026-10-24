@@ -149,12 +149,12 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	rep := &Report{Label: c.Label, Window: w, Generator: out.res.Summary}
 	for _, admin := range c.Admins {
 		var evs []gatewayapi.DimensionEvent
-		if err := httpx.GetJSON(ctx, client, fmt.Sprintf("%s/events?since=%d", admin, start.UnixNano()), &evs); err != nil {
+		if err := httpx.GetJSON(ctx, client, fmt.Sprintf("%s%s?since=%d", admin, gatewayapi.PathEvents, start.UnixNano()), &evs); err != nil {
 			return nil, fmt.Errorf("gateway events: %w", err)
 		}
 		rep.Events = append(rep.Events, evs...)
 	}
-	if err := httpx.GetJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
+	if err := httpx.GetJSON(ctx, client, c.Admins[0]+gatewayapi.PathConfig, &rep.Config); err != nil {
 		return nil, fmt.Errorf("gateway config: %w", err)
 	}
 	rep.Result = Analyze(out.res.Log, w, rep.Events, c.Options)
@@ -214,7 +214,7 @@ func waitReady(ctx context.Context, client *http.Client, admins []string, limit 
 		var why string
 		for _, admin := range admins {
 			var st gatewayapi.State
-			if err := httpx.GetJSON(ctx, client, admin+"/state", &st); err != nil {
+			if err := httpx.GetJSON(ctx, client, admin+gatewayapi.PathState, &st); err != nil {
 				ready, why = false, err.Error()
 				break
 			}

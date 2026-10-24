@@ -198,7 +198,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 		v := Replay(all, c.Rule)
 		rep.Verdict = &v
 	}
-	if err := httpx.GetJSON(ctx, client, c.Admins[0]+"/config", &rep.Config); err != nil {
+	if err := httpx.GetJSON(ctx, client, c.Admins[0]+gatewayapi.PathConfig, &rep.Config); err != nil {
 		return nil, err
 	}
 	return rep, nil
@@ -206,7 +206,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 
 func drain(ctx context.Context, client *http.Client, admin string) (gatewayapi.Decisions, error) {
 	var d gatewayapi.Decisions
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, admin+"/decisions/drain", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, admin+gatewayapi.PathDrain, nil)
 	if err != nil {
 		return d, err
 	}
@@ -220,7 +220,7 @@ func drain(ctx context.Context, client *http.Client, admin string) (gatewayapi.D
 }
 
 func counters(ctx context.Context, client *http.Client, admin string) (map[string]int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, admin+"/metrics", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, admin+gatewayapi.PathMetrics, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +345,7 @@ func ParseInfo(info string) (usage, error) {
 func waitUp(ctx context.Context, client *http.Client, admin string, patience time.Duration) error {
 	deadline := time.Now().Add(patience)
 	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, admin+"/healthz", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, admin+gatewayapi.PathHealthz, nil)
 		if err != nil {
 			return err
 		}

@@ -62,10 +62,9 @@ func TestTheLimiterDefaultConfigIsLocalSyncOverTwoGateways(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := limiterCell(Design{Kind: config.LimitLocalSync, Sync: 100 * time.Millisecond}, 2, LoadOver, SplitEven).Config()
-	want.ApplyDefaults()
-	if !reflect.DeepEqual(*got, want) {
-		t.Fatalf("default.json\n%+v\nwant\n%+v", *got, want)
+	want := parse(t, limiterCell(Design{Kind: config.LimitLocalSync, Sync: 100 * time.Millisecond}, 2, LoadOver, SplitEven).Config())
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("default.json\n%+v\nwant\n%+v", *got, *want)
 	}
 }
 
@@ -129,4 +128,17 @@ func TestLimiterSummaryLeavesACellWithoutValidRunsBlank(t *testing.T) {
 	if strings.Join(line[1:], " ") != "1 (1 invalid) "+strings.TrimSpace(strings.Repeat("- ", 17)) {
 		t.Fatalf("row %q", line)
 	}
+}
+
+func parse(t testing.TB, c config.Config) *config.Config {
+	t.Helper()
+	raw, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := config.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
 }

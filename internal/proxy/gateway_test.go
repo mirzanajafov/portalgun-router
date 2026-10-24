@@ -477,14 +477,21 @@ func TestApplyUnderLoad(t *testing.T) {
 	waitIdle(t, g)
 }
 
-func TestApplyRejectsInvalidConfigAndKeepsTheOldOne(t *testing.T) {
-	g, _ := serve(t, onePool(t, "", config.Dimension{ID: "a", Address: dim(t, "a", nil)}))
-	bad := &config.Config{Routes: []config.Route{{Name: "x", PathPrefix: "/", Pool: "missing"}}}
-	if err := g.Apply(bad); err == nil {
-		t.Fatal("invalid config applied")
+func TestApplyRefusesALimiterItCannotRunAndKeepsTheOldConfig(t *testing.T) {
+	addr := dim(t, "a", nil)
+	g, srv := serve(t, onePool(t, "", config.Dimension{ID: "a", Address: addr}))
+	needsRedis := parse(t, config.Config{
+		Routes: []config.Route{{Name: "all", PathPrefix: "/", Pool: "main", RateLimit: &config.RateLimit{Design: config.LimitRedisExact, Rate: 10, Burst: 10}}},
+		Pools:  []config.Pool{{Name: "main", Dimensions: []config.Dimension{{ID: "a", Address: addr}}}},
+	})
+	if err := g.Apply(needsRedis); err == nil {
+		t.Fatal("a Redis limiter applied without Redis")
 	}
 	if g.Version() != 1 {
 		t.Fatalf("version moved to %d", g.Version())
+	}
+	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusOK {
+		t.Fatalf("the old config stopped serving: %d", status)
 	}
 }
 
