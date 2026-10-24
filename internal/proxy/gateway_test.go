@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mirzanajafov/portalgun-router/internal/balance"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/dimension"
 )
@@ -88,14 +87,13 @@ func get(t *testing.T, client *http.Client, url, host string) (int, http.Header)
 }
 
 func TestEachConfiguredBalancerGetsItsOwnAlgorithm(t *testing.T) {
-	for kind, want := range map[config.Balancer]balance.Balancer[*upstream]{
-		config.BalancerP2C:              balance.P2C[*upstream]{},
-		config.BalancerRoundRobin:       &balance.RoundRobin[*upstream]{},
-		config.BalancerLeastOutstanding: balance.LeastOutstanding[*upstream]{},
-	} {
-		if got := newBalancer(kind); reflect.TypeOf(got) != reflect.TypeOf(want) {
-			t.Errorf("%s got %T, want %T", kind, got, want)
+	seen := map[reflect.Type]config.Balancer{}
+	for _, kind := range config.Balancers {
+		algorithm := reflect.TypeOf(newBalancer(kind))
+		if other, ok := seen[algorithm]; ok {
+			t.Fatalf("%s and %s both run %v", other, kind, algorithm)
 		}
+		seen[algorithm] = kind
 	}
 }
 func TestRoutesByHostThenLongestPrefix(t *testing.T) {

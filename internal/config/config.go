@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +40,8 @@ const (
 	BalancerRoundRobin       Balancer = "round-robin"
 	BalancerLeastOutstanding Balancer = "least-outstanding"
 )
+
+var Balancers = []Balancer{BalancerP2C, BalancerRoundRobin, BalancerLeastOutstanding}
 
 const (
 	DefaultVersion     = "v1"
@@ -314,9 +317,7 @@ func (c *Config) Validate() error {
 			errs = append(errs, fmt.Errorf("pool %q defined twice", p.Name))
 		}
 		pools[p.Name] = true
-		switch p.Balancer {
-		case BalancerP2C, BalancerRoundRobin, BalancerLeastOutstanding:
-		default:
+		if !slices.Contains(Balancers, p.Balancer) {
 			errs = append(errs, fmt.Errorf("pool %q: unknown balancer %q", p.Name, p.Balancer))
 		}
 		if len(p.Dimensions) == 0 {
