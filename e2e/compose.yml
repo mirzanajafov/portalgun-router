@@ -106,6 +106,7 @@ services:
       PORTAL_POSTGRES: postgres://portal:e2e@postgres:5432/portal?sslmode=disable
       PORTAL_REDIS: redis:6379
       PORTAL_ADMIN_TOKEN: e2e-token
+      PORTAL_PROXY_TOKEN: e2e-proxy-token
     volumes:
       - ./cluster.json:/etc/portalgun/cluster.json:ro
     ports:

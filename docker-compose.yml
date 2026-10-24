@@ -16,6 +16,8 @@ x-gateway-health: &gateway-health
   retries: 3
   start_period: 5s
 
+x-proxy-token: &proxy-token ${PORTAL_PROXY_TOKEN:-dev-proxy-token}
+
 x-dimension: &dimension
   <<: *go
   cpus: 0.2
@@ -109,7 +111,7 @@ services:
       PORTAL_POSTGRES: postgres://portal:${POSTGRES_PASSWORD:-portal}@postgres:5432/portal?sslmode=disable
       PORTAL_REDIS: redis:6379
       PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:-dev-token}
-      PORTAL_PROXY_TOKEN: ${PORTAL_PROXY_TOKEN:-dev-proxy-token}
+      PORTAL_PROXY_TOKEN: *proxy-token
     volumes:
       - ./deploy/cluster.json:/etc/portalgun/cluster.json:ro
     ports:
@@ -136,7 +138,7 @@ services:
     environment:
       CONTROLLER_URL: http://controller:9100
       GATEWAY_URL: http://gateway-1:8080
-      PORTAL_PROXY_TOKEN: ${PORTAL_PROXY_TOKEN:-dev-proxy-token}
+      PORTAL_PROXY_TOKEN: *proxy-token
     ports:
       - "127.0.0.1:${WEB_PORT:-3123}:3000"
     depends_on: [controller, gateway-1]
