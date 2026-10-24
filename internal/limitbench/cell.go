@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -234,7 +235,7 @@ func counters(ctx context.Context, client *http.Client, admin string) (map[strin
 	}
 	ss, err := Samples(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", req.URL, err)
+		return nil, &url.Error{Op: "Get", URL: req.URL.Redacted(), Err: err}
 	}
 	return Counters(ss), nil
 }
