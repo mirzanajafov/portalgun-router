@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -99,7 +99,7 @@ func (a *API) Handler() http.Handler {
 
 func (a *API) admin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !Authorized(r, a.token) {
+		if !httpx.Authorized(r, a.token) {
 			unauthorized(w)
 			return
 		}
@@ -114,14 +114,6 @@ func unauthorized(w http.ResponseWriter) {
 func uncounted(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
 	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
-}
-
-func Authorized(r *http.Request, token string) bool {
-	return token != "" && carries(r, "Authorization", "Bearer "+token)
-}
-
-func carries(r *http.Request, header, secret string) bool {
-	return secret != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(secret)) == 1
 }
 
 func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +136,7 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	author := store.ActorAdmin
-	if !Authorized(r, a.token) {
+	if !httpx.Authorized(r, a.token) {
 		if a.visitors == nil {
 			unauthorized(w)
 			return

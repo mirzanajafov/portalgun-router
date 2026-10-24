@@ -18,8 +18,12 @@ x-gateway-health: &gateway-health
 
 x-proxy-token: &proxy-token ${PORTAL_PROXY_TOKEN:-dev-proxy-token}
 
+x-control-token: &control-token ${PORTAL_CONTROL_TOKEN:-dev-control-token}
+
 x-dimension: &dimension
   <<: *go
+  environment:
+    PORTAL_CONTROL_TOKEN: *control-token
   healthcheck:
     test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/ready"]
     interval: 30s
@@ -119,6 +123,7 @@ services:
       PORTAL_REDIS: redis:6379
       PORTAL_ADMIN_TOKEN: ${PORTAL_ADMIN_TOKEN:-dev-token}
       PORTAL_PROXY_TOKEN: *proxy-token
+      PORTAL_CONTROL_TOKEN: *control-token
     volumes:
       - ./deploy/cluster.json:/etc/portalgun/cluster.json:ro
     ports:

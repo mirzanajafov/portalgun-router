@@ -23,6 +23,7 @@ type Cell struct {
 	Admins     []string
 	Toxiproxy  string
 	Controls   map[string]string
+	Token      string
 	Fault      chaos.Fault
 	Background map[string]any
 	Rate       float64
@@ -51,6 +52,8 @@ func (c Cell) validate() error {
 		return errors.New("needs at least one gateway and its admin address")
 	case c.Toxiproxy == "":
 		return errors.New("needs the toxiproxy address")
+	case len(c.Controls) > 0 && c.Token == "":
+		return errors.New("needs PORTAL_CONTROL_TOKEN for the dimensions' control ports")
 	case c.Rate <= 0 || c.Before <= 0 || c.After <= 0 || c.During < 0 || c.Settle < 0:
 		return errors.New("rate and windows must be positive")
 	}
@@ -67,7 +70,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	dims := map[string]*chaos.DimensionControl{}
 	for name, u := range c.Controls {
-		dims[name] = &chaos.DimensionControl{BaseURL: u, Client: client}
+		dims[name] = &chaos.DimensionControl{BaseURL: u, Token: c.Token, Client: client}
 	}
 	inj := chaos.NewInjector(chaos.NewToxiproxy(c.Toxiproxy), dims)
 	reset := func(ctx context.Context) error {

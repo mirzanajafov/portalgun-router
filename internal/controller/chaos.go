@@ -13,6 +13,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
@@ -279,7 +280,7 @@ func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) h
 		if err := decode(w, r, &req); err != nil {
 			return
 		}
-		authorized, client := Authorized(r, token), ""
+		authorized, client := httpx.Authorized(r, token), ""
 		if !authorized {
 			client = c.visitors.client(r)
 		}

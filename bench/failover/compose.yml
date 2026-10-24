@@ -8,6 +8,8 @@ x-go: &go
 
 x-dimension: &dimension
   <<: *go
+  environment:
+    PORTAL_CONTROL_TOKEN: e3-control-token
   cpus: 0.5
   mem_limit: 64m
 
@@ -50,5 +52,7 @@ services:
   loadgen:
     <<: *go
     entrypoint: ["sleep", "infinity"]
+    environment:
+      PORTAL_CONTROL_TOKEN: e3-control-token
     cpus: 3
     mem_limit: 512m

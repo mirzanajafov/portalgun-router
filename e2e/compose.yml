@@ -12,6 +12,8 @@ x-go: &go
 
 x-dimension: &dimension
   <<: *go
+  environment:
+    PORTAL_CONTROL_TOKEN: e2e-control-token
   cpus: 0.25
   mem_limit: 32m
 
@@ -106,6 +108,7 @@ services:
       PORTAL_POSTGRES: postgres://portal:e2e@postgres:5432/portal?sslmode=disable
       PORTAL_REDIS: redis:6379
       PORTAL_ADMIN_TOKEN: e2e-token
+      PORTAL_CONTROL_TOKEN: e2e-control-token
     volumes:
       - ./cluster.json:/etc/portalgun/cluster.json:ro
     ports:

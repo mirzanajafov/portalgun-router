@@ -57,6 +57,7 @@ func (f Fault) Validate() error {
 
 type DimensionControl struct {
 	BaseURL string
+	Token   string
 	Client  *http.Client
 }
 
@@ -78,6 +79,7 @@ func (d *DimensionControl) send(ctx context.Context, method, path string, b []by
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+d.Token)
 	client := d.Client
 	if client == nil {
 		client = http.DefaultClient

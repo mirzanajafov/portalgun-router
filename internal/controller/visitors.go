@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/proxy"
 	"github.com/redis/go-redis/v9"
 )
@@ -63,7 +64,7 @@ func newVisitorLimit(name string, perHour int64, counter Counter, proxyToken str
 }
 
 func (l *visitorLimit) client(r *http.Request) string {
-	if carries(r, proxyTokenHeader, l.proxyToken) {
+	if httpx.Carries(r, proxyTokenHeader, l.proxyToken) {
 		if addr, err := netip.ParseAddr(proxy.ClientIP(r, 1)); err == nil {
 			return addr.Unmap().String()
 		}

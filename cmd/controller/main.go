@@ -40,7 +40,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, visitorRollouts: *visitorRollouts, registry: *registryURLs, registryPool: *registryPool, token: os.Getenv("PORTAL_ADMIN_TOKEN"), proxyToken: os.Getenv("PORTAL_PROXY_TOKEN")}
+	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, visitorRollouts: *visitorRollouts, registry: *registryURLs, registryPool: *registryPool, token: os.Getenv("PORTAL_ADMIN_TOKEN"), proxyToken: os.Getenv("PORTAL_PROXY_TOKEN"), controlToken: os.Getenv("PORTAL_CONTROL_TOKEN")}
 	if err := run(ctx, logger, o); err != nil {
 		logger.Error("controller stopped", "err", err)
 		os.Exit(1)
@@ -49,7 +49,7 @@ func main() {
 
 type options struct {
 	addr, postgres, redis, bootstrap, toxiproxy, targets, token string
-	registry, registryPool, proxyToken                          string
+	registry, registryPool, proxyToken, controlToken            string
 	visitorRollouts                                             bool
 }
 
@@ -63,16 +63,20 @@ func splitList(spec string) []string {
 	return items
 }
 
-func chaosTargets(spec string) ([]string, map[string]*chaos.DimensionControl, error) {
+func chaosTargets(spec, token string) ([]string, map[string]*chaos.DimensionControl, error) {
+	items := splitList(spec)
+	if len(items) > 0 && token == "" {
+		return nil, nil, errors.New("-targets needs PORTAL_CONTROL_TOKEN, which the dimensions' control ports ask for")
+	}
 	var names []string
 	controls := map[string]*chaos.DimensionControl{}
-	for _, item := range splitList(spec) {
+	for _, item := range items {
 		name, url, ok := strings.Cut(item, "=")
 		if !ok || name == "" || url == "" {
 			return nil, nil, fmt.Errorf("target %q is not name=controlURL", item)
 		}
 		names = append(names, name)
-		controls[name] = &chaos.DimensionControl{BaseURL: url, Client: &http.Client{Timeout: 2 * time.Second}}
+		controls[name] = &chaos.DimensionControl{BaseURL: url, Token: token, Client: &http.Client{Timeout: 2 * time.Second}}
 	}
 	return names, controls, nil
 }
@@ -126,7 +130,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 	var chaosSvc *controller.ChaosService
 	if o.toxiproxy != "" {
-		names, controls, err := chaosTargets(o.targets)
+		names, controls, err := chaosTargets(o.targets, o.controlToken)
 		if err != nil {
 			return err
 		}
