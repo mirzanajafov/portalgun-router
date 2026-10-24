@@ -21,16 +21,18 @@ fi
 healthy() {
   for _ in $(seq 1 60); do
     local bad=0
-    for service in controller gateway-1 gateway-2 web; do
+    for service in $("${compose[@]}" config --services); do
       id=$("${compose[@]}" ps -q "$service")
-      status=$(docker inspect -f '{{.State.Health.Status}}' "$id" 2>/dev/null || echo missing)
-      [ "$status" = healthy ] || bad=1
+      status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$id" 2>/dev/null || echo missing)
+      case $status in healthy | running) ;; *) bad=1 ;; esac
     done
     [ "$bad" = 0 ] && return 0
     sleep 3
   done
   return 1
 }
+
+deployed() { printf '%s %s\n' "$(git rev-parse HEAD)" "$(sha256sum .env | cut -d ' ' -f 1)"; }
 
 release() {
   "${compose[@]}" build
@@ -41,8 +43,8 @@ previous=$(git rev-parse HEAD)
 git fetch --quiet origin "$branch"
 target=$(git rev-parse "origin/$branch")
 
-if [ "$previous" = "$target" ] && [ "$force" = false ]; then
-  echo "Already at $(git log --oneline -1). Use --force to rebuild anyway."
+if [ "$previous" = "$target" ] && [ "$force" = false ] && [ "$(deployed)" = "$(cat .deployed 2>/dev/null)" ]; then
+  echo "Already at $(git log --oneline -1) with this .env. Use --force to rebuild anyway."
   exit 0
 fi
 
@@ -53,11 +55,13 @@ fi
 
 say "Deploying $(git log --oneline -1 "$target")"
 git merge --ff-only --quiet "$target"
+bash deploy/init-env.sh
 "${compose[@]}" config --quiet || { git reset --hard --quiet "$previous"; say "The compose config is not valid, back at $(git log --oneline -1)"; exit 1; }
 release
 
-say "Waiting for the controller, both gateways and the web app"
+say "Waiting for every container to be up and healthy"
 if healthy; then
+  deployed > .deployed
   docker image prune -f --filter "label=com.docker.compose.project=portalgun" > /dev/null
   say "Live: $(git log --oneline -1)"
   exit 0

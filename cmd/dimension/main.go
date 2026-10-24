@@ -42,14 +42,14 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	var keep func(context.Context)
+	var keep func(context.Context, func(bool))
 	if *endpoints != "" {
 		c, inst, err := registration(registrationFlags{endpoints: *endpoints, service: *service, id: *id, version: *version, advertise: *advertise, maxInflight: *maxInflight, ttl: *ttl})
 		if err != nil {
 			logger.Error("dimension not started", "err", err)
 			os.Exit(2)
 		}
-		keep = func(ctx context.Context) { c.Keep(ctx, *service, inst, *ttl, logger) }
+		keep = func(ctx context.Context, held func(bool)) { c.Keep(ctx, *service, inst, *ttl, logger, held) }
 	}
 	if err := run(ctx, logger, *id, *version, *addr, *controlAddr, b, keep); err != nil {
 		logger.Error("dimension stopped", "err", err)
@@ -97,7 +97,7 @@ func registration(f registrationFlags) (*registry.Client, registry.Instance, err
 
 const leaveDrain = time.Second
 
-func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAddr string, b dimension.Behavior, keep func(context.Context)) error {
+func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAddr string, b dimension.Behavior, keep func(context.Context, func(bool))) error {
 	s, err := dimension.New(id, version, b)
 	if err != nil {
 		return err
@@ -116,8 +116,9 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr, controlAdd
 	if keep == nil {
 		close(kept)
 	} else {
+		held := s.RequireLease()
 		go func() {
-			keep(kctx)
+			keep(kctx, held)
 			close(kept)
 		}()
 	}

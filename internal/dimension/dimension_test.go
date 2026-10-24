@@ -19,6 +19,11 @@ func start(t *testing.T, b Behavior) (*Server, *httptest.Server) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return s, serve(t, s)
+}
+
+func serve(t *testing.T, s *Server) *httptest.Server {
+	t.Helper()
 	if err := s.Listen("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +34,7 @@ func start(t *testing.T, b Behavior) (*Server, *httptest.Server) {
 	})
 	control := httptest.NewServer(s.ControlHandler())
 	t.Cleanup(control.Close)
-	return s, control
+	return control
 }
 
 func get(t *testing.T, url string) (int, http.Header, []byte) {
@@ -215,6 +220,39 @@ func TestStopAndResumeListening(t *testing.T) {
 	}
 	if status, _, _ := get(t, "http://"+addr+"/"); status != http.StatusOK {
 		t.Fatalf("got %d after resuming", status)
+	}
+}
+
+func TestReadyOnlyWhileListeningAndHoldingTheLeaseItNeeds(t *testing.T) {
+	ready := func(control *httptest.Server) int {
+		status, _, _ := get(t, control.URL+"/ready")
+		return status
+	}
+	_, unregistered := start(t, DefaultBehavior())
+	if got := ready(unregistered); got != http.StatusOK {
+		t.Fatalf("a dimension that doesn't register: %d", got)
+	}
+	s, err := New("c-137", "v1", DefaultBehavior())
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := s.RequireLease()
+	control := serve(t, s)
+	if got := ready(control); got != http.StatusServiceUnavailable {
+		t.Fatalf("before the first registration: %d", got)
+	}
+	held(true)
+	if got := ready(control); got != http.StatusOK {
+		t.Fatalf("registered: %d", got)
+	}
+	patch(t, control, `{"listening": false}`)
+	if got := ready(control); got != http.StatusServiceUnavailable {
+		t.Fatalf("registered but not listening: %d", got)
+	}
+	patch(t, control, `{"listening": true}`)
+	held(false)
+	if got := ready(control); got != http.StatusServiceUnavailable {
+		t.Fatalf("listening after the lease was lost: %d", got)
 	}
 }
 

@@ -301,7 +301,7 @@ func sameInstance(a, b Instance) bool {
 	return a.Name == b.Name && a.Addr == b.Addr && maps.Equal(a.Meta, b.Meta)
 }
 
-func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl time.Duration, logger *slog.Logger) {
+func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl time.Duration, logger *slog.Logger, held func(bool)) {
 	stopping, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
 	defer context.AfterFunc(ctx, func() { time.AfterFunc(stopTime, stop) })()
@@ -324,8 +324,10 @@ func (c *Client) Keep(ctx context.Context, service string, inst Instance, ttl ti
 		failing, backoff = false, firstBackoff
 		if ctx.Err() == nil {
 			logger.Info("registered", "service", service, "instance", inst.Name, "addr", inst.Addr, "lease", l.ID, "ttl", l.TTL)
+			held(true)
 			err = c.renew(ctx, l, asked, time.Now(), logger)
 		}
+		held(false)
 		if ctx.Err() != nil {
 			logger.Info("deregistering", "service", service, "instance", inst.Name, "lease", l.ID)
 			if err := c.revokeSomewhere(stopping, l.ID); err != nil {
