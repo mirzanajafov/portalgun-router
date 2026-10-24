@@ -2,12 +2,14 @@ package bench
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
@@ -86,13 +88,12 @@ type Report struct {
 }
 
 func LoadPoints(dir string) ([]Point, error) {
-	f, err := os.Open(filepath.Join(dir, "runs.jsonl"))
+	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var points []Point
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 1<<20), 1<<24)
 	for sc.Scan() {
 		var p Point
@@ -219,40 +220,37 @@ func Summarize(points []Point) Report {
 }
 
 func (r Report) WriteText(w io.Writer) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(tw, "rate\tsystem\truns\tsat\tdied\tp50 us\t+p50\tp99 us (min-max)\t+p99\tp99.9 us\tcpu us/req\tuser\tmem MB\t\n")
+	var b strings.Builder
+	fmt.Fprintf(&b, "rate\tsystem\truns\tsat\tdied\tp50 us\t+p50\tp99 us (min-max)\t+p99\tp99.9 us\tcpu us/req\tuser\tmem MB\t\n")
 	for _, c := range r.Cells {
-		fmt.Fprintf(tw, "%.0f\t%s\t%d\t%d\t%d\t%.1f\t%+.1f\t%.0f (%.0f-%.0f)\t%+.0f\t%.0f\t%.1f\t%.1f\t%.0f\t\n",
+		fmt.Fprintf(&b, "%.0f\t%s\t%d\t%d\t%d\t%.1f\t%+.1f\t%.0f (%.0f-%.0f)\t%+.0f\t%.0f\t%.1f\t%.1f\t%.0f\t\n",
 			c.Rate, c.System, c.Runs, c.Saturated, c.Died,
 			c.P50Us.Median, c.OverheadP50Us,
 			c.P99Us.Median, c.P99Us.Min, c.P99Us.Max, c.OverheadP99Us,
 			c.P999Us.Median, c.CPUPerRequestUs.Median, c.UserPerRequestUs.Median, c.MemoryPeakMB.Max)
 	}
-	if err := tw.Flush(); err != nil {
-		return err
-	}
-	fmt.Fprintln(w)
+	fmt.Fprintln(&b)
 	names := make([]string, 0, len(r.MaxRate))
 	for n := range r.MaxRate {
 		names = append(names, n)
 	}
 	slices.Sort(names)
 	for _, n := range names {
-		fmt.Fprintf(w, "max sustained rate %-8s %.0f rps\n", n, r.MaxRate[n])
+		fmt.Fprintf(&b, "max sustained rate %-8s %.0f rps\n", n, r.MaxRate[n])
 	}
-	return nil
+	return writeTable(w, b.String(), tabwriter.AlignRight)
 }
 
 func (r Report) WriteOverloadText(w io.Writer) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(tw, "rate\tsystem\truns\tcollapsed\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")
+	var b strings.Builder
+	fmt.Fprintf(&b, "rate\tsystem\truns\tcollapsed\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")
 	for _, c := range r.Cells {
-		fmt.Fprintf(tw, "%.0f\t%s\t%d\t%d\t%.0f (%.0f-%.0f)\t%.1f\t%.2f\t%.1f\t%.1f (%.1f-%.1f)\t%.1f\t%.0f\t%.0f\t%.0f\t%.0f\t\n",
+		fmt.Fprintf(&b, "%.0f\t%s\t%d\t%d\t%.0f (%.0f-%.0f)\t%.1f\t%.2f\t%.1f\t%.1f (%.1f-%.1f)\t%.1f\t%.0f\t%.0f\t%.0f\t%.0f\t\n",
 			c.Rate, c.System, c.Runs, c.Collapsed,
 			c.GoodputRps.Median, c.GoodputRps.Min, c.GoodputRps.Max,
 			c.ShedShare.Median*100, c.FailedShare.Median*100,
 			c.OKP50Us.Median/1000, c.OKP99Us.Median/1000, c.OKP99Us.Min/1000, c.OKP99Us.Max/1000,
 			c.CPUPerRequestUs.Median, c.MemoryPeakMB.Max, c.AnonPeakMB.Max, c.SockPeakMB.Max, c.SwapPeakMB.Max)
 	}
-	return tw.Flush()
+	return writeTable(w, b.String(), tabwriter.AlignRight)
 }

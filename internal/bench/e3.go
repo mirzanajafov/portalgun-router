@@ -276,11 +276,11 @@ func (p FailoverPlan) gatewayServices() []string {
 	return gs
 }
 
-func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
+func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Cells) == 0 || plan.Rate <= 0 || plan.Gateways < 1 || plan.Gateways > 2 {
 		return "", errors.New("the plan needs cells, a rate, one or two gateways and at least one repetition")
 	}
-	dir, err := filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
 	if err != nil {
 		return "", err
 	}
@@ -289,7 +289,7 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 		return "", err
 	}
 	for _, c := range plan.Cells {
-		if err := writeJSON(filepath.Join(configs, c.file()+".json"), c.Variant.Config()); err != nil {
+		if err := WriteJSON(filepath.Join(configs, c.file()+".json"), c.Variant.Config()); err != nil {
 			return "", err
 		}
 	}
@@ -298,24 +298,24 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 	if plan.Gateways == 2 {
 		compose.Env = append(compose.Env, "COMPOSE_PROFILES=two")
 	}
-	r.logf("starting the failover stack with %d gateway(s)", plan.Gateways)
+	r.Log.Printf("starting the failover stack with %d gateway(s)", plan.Gateways)
 	if err := compose.Up(ctx); err != nil {
 		return "", err
 	}
 	defer func() {
 		if err := compose.Down(context.Background()); err != nil {
-			r.logf("tearing down: %v", err)
+			r.Log.Printf("tearing down: %v", err)
 		}
 	}()
 	meta := map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env}
-	if err := writeJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
+	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
 		return dir, err
 	}
 	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return dir, err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	enc := json.NewEncoder(f)
 
 	total := plan.Reps * len(plan.Cells)
@@ -326,7 +326,7 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 			run, err := tryTwice(ctx, func() (FailoverRun, error) {
 				return r.failoverCell(ctx, compose, plan, c, rep, slot, dir)
 			}, func(err error) error {
-				r.logf("%s rep %d: %v; restarting toxiproxy and trying once more", c.Name, rep+1, err)
+				r.Log.Printf("%s rep %d: %v; restarting toxiproxy and trying once more", c.Name, rep+1, err)
 				_, herr := compose.run(ctx, "restart", "toxiproxy")
 				return herr
 			})
@@ -342,7 +342,7 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 				if err := enc.Encode(failed); err != nil {
 					return dir, err
 				}
-				r.logf("[%d/%d] rep %d %-34s failed twice, going on: %v", done, total, rep+1, c.Name, err)
+				r.Log.Printf("[%d/%d] rep %d %-34s failed twice, going on: %v", done, total, rep+1, c.Name, err)
 				continue
 			}
 			failedInARow = 0
@@ -350,7 +350,7 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (string, error) {
 				return dir, err
 			}
 			res := run.Report.Result
-			r.logf("[%d/%d] rep %d %-34s detect %8s  move %8s  lost %5d  p99 %7.1f -> %7.1f ms  recover %8s  %s",
+			r.Log.Printf("[%d/%d] rep %d %-34s detect %8s  move %8s  lost %5d  p99 %7.1f -> %7.1f ms  recover %8s  %s",
 				done, total, rep+1, c.Name, msOrDash(res.DetectMs), msOrDash(res.MoveMs), res.Lost,
 				res.P99BeforeMs, res.P99FaultMs, msOrDash(res.RecoverMs), strings.Join(run.Report.Generator.Invalid, ", "))
 		}

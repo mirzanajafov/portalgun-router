@@ -138,7 +138,7 @@ func (c *upstreamCheck) inspect(addr string, out *http.Request) {
 		return
 	}
 	body, err := io.ReadAll(out.Body)
-	_ = out.Body.Close()
+	out.Body.Close()
 	if out.ContentLength >= 0 && int64(len(body)) > out.ContentLength {
 		c.failf("body of %d bytes on a request that declares %d", len(body), out.ContentLength)
 	}
@@ -261,7 +261,7 @@ func FuzzWire(f *testing.F) {
 		_, _ = c.Write(raw)
 		_ = c.(*net.TCPConn).CloseWrite()
 		_, _ = io.Copy(io.Discard, c)
-		_ = c.Close()
+		c.Close()
 		deadline := time.Now().Add(3 * time.Second)
 		for active.Load() != 0 || inflight(g) != 0 {
 			if time.Now().After(deadline) {

@@ -3,6 +3,7 @@ version: "2"
 linters:
   default: none
   enable:
+    - errcheck
     - errorlint
     - gocritic
     - govet
@@ -11,8 +12,13 @@ linters:
     - staticcheck
     - unused
   settings:
-    errorlint:
-      errorf: false
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (net.Listener).Close
+        - (net.Conn).Close
+        - (*github.com/redis/go-redis/v9.Client).Close
+        - (*github.com/redis/go-redis/v9.PubSub).Close
     gocritic:
       disabled-checks:
         - appendAssign

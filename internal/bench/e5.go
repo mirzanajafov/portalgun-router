@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -79,7 +80,7 @@ type registryStatus struct {
 	Leader uint64 `json:"leader"`
 }
 
-func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
+func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err error) {
 	counts := []int{plan.Join, plan.Leader, plan.Failover, plan.Down}
 	if math.IsNaN(plan.Rate) || math.IsInf(plan.Rate, 0) || plan.Rate <= 0 || slices.Min(counts) < 0 || slices.Max(counts) == 0 {
 		return "", errors.New("the plan needs a finite positive rate, no negative run counts and at least one run")
@@ -89,7 +90,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 		return "", fmt.Errorf("%w (build FiveFamilies' node image in its repo, or name another one in FF_IMAGE)", err)
 	}
 	if plan.ImageCommit == "" {
-		r.logf("FF_COMMIT is not set, so the results won't say which FiveFamilies commit %s was built from", plan.Image)
+		r.Log.Printf("FF_COMMIT is not set, so the results won't say which FiveFamilies commit %s was built from", plan.Image)
 	}
 	compose := r.Compose
 	compose.Env = append(slices.Clone(compose.Env), "FF_IMAGE="+plan.Image)
@@ -102,14 +103,14 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 	}
 	defer func() {
 		if err := down(context.Background()); err != nil {
-			r.logf("tearing down: %v", err)
+			r.Log.Printf("tearing down: %v", err)
 		}
 	}()
-	r.logf("starting the registry stack")
+	r.Log.Printf("starting the registry stack")
 	if err := compose.Up(ctx); err != nil {
 		return "", err
 	}
-	dir, err := filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")+"-"+plan.Label))
+	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")+"-"+plan.Label))
 	if err != nil {
 		return "", err
 	}
@@ -117,14 +118,14 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 		return "", err
 	}
 	meta := map[string]any{"plan": plan, "commit": commit(ctx), "imageId": image, "startedAt": time.Now().UTC()}
-	if err := writeJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
+	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
 		return dir, err
 	}
 	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
 	if err != nil {
 		return dir, err
 	}
-	defer f.Close()
+	defer func() { err = errors.Join(err, f.Close()) }()
 	enc := json.NewEncoder(f)
 	cells := []struct {
 		name string
@@ -151,7 +152,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (string, error) {
 			if err := enc.Encode(run); err != nil {
 				return dir, err
 			}
-			r.logf("%-8s %2d  lost %d of %d  join %s  applied %s  leave %s  up after kill %s  kill to first %s  versions %v  refusals %d  lost registrations %d %s",
+			r.Log.Printf("%-8s %2d  lost %d of %d  join %s  applied %s  leave %s  up after kill %s  kill to first %s  versions %v  refusals %d  lost registrations %d %s",
 				c.name, i+1, run.Lost, run.Requests, msOrDash(run.JoinMs), msOrDash(run.AppliedMs), msOrDash(run.LeaveGatewaysMs),
 				msOrDash(run.UpAfterKillMs), msOrDash(run.KillToFirstMs), run.Versions, run.Refusals, run.LostRegistrations, run.Error)
 		}
@@ -267,7 +268,8 @@ type load struct {
 	err           error
 	file          string
 	duration      time.Duration
-	log           *loadgen.Log
+	records       *loadgen.Log
+	progress      *log.Logger
 	counted, read bool
 }
 
@@ -276,8 +278,8 @@ const (
 	lostMessage  = "the registration was lost, registering again"
 )
 
-func startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
-	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed), duration: d}
+func (r *Runner) startLoad(ctx context.Context, compose Compose, rate float64, d time.Duration, seed int) *load {
+	l := &load{done: make(chan struct{}), file: fmt.Sprintf("/tmp/e5-%d.bin", seed), duration: d, progress: r.Log}
 	go func() {
 		defer close(l.done)
 		l.sum, l.err = compose.Loadgen(ctx, "-url", "http://gateway-1:8080/", "-url", "http://gateway-2:8080/",
@@ -293,7 +295,7 @@ func (l *load) finish(ctx context.Context, compose Compose, run *RegistryRun) er
 			return err
 		}
 	}
-	if l.log == nil || l.read {
+	if l.records == nil || l.read {
 		return nil
 	}
 	_, err := l.readWindow(ctx, compose, run)
@@ -301,7 +303,7 @@ func (l *load) finish(ctx context.Context, compose Compose, run *RegistryRun) er
 }
 
 func (l *load) started() time.Time {
-	return time.Unix(0, l.log.StartUnixNano)
+	return time.Unix(0, l.records.StartUnixNano)
 }
 
 func (l *load) windowEnd() time.Time {
@@ -327,18 +329,22 @@ func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*l
 	if _, err := compose.run(ctx, "cp", "loadgen:"+l.file, local); err != nil {
 		return nil, err
 	}
-	defer os.Remove(local)
+	defer func() {
+		if err := os.Remove(local); err != nil {
+			l.progress.Printf("removing %s: %v", local, err)
+		}
+	}()
 	f, err := os.Open(local)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	lg, err := loadgen.ReadLog(f)
 	if err != nil {
 		return nil, err
 	}
 	tally(run, lg)
-	l.log = lg
+	l.records = lg
 	return lg, nil
 }
 
@@ -500,13 +506,13 @@ func kill(ctx context.Context, compose Compose, service string) (time.Time, erro
 
 func (r *Runner) startAgain(compose Compose, services ...string) {
 	if _, err := compose.run(context.Background(), append([]string{"start"}, services...)...); err != nil {
-		r.logf("starting %v again: %v", services, err)
+		r.Log.Printf("starting %v again: %v", services, err)
 	}
 }
 
 func (r *Runner) removeDimE(compose Compose) {
 	if _, err := compose.run(context.Background(), "--profile", "join", "rm", "-f", "-s", "dim-e"); err != nil {
-		r.logf("removing dim-e: %v", err)
+		r.Log.Printf("removing dim-e: %v", err)
 	}
 }
 
@@ -525,7 +531,7 @@ func dimESteps(ctx context.Context, compose Compose, run *RegistryRun, from, to 
 
 func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
 	defer r.removeDimE(compose)
-	l := startLoad(ctx, compose, rate, 15*time.Second, i)
+	l := r.startLoad(ctx, compose, rate, 15*time.Second, i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 2*time.Second)
 	if _, err := compose.run(ctx, "--profile", "join", "up", "-d", "--no-deps", "--force-recreate", "dim-e"); err != nil {
@@ -570,7 +576,7 @@ func (r *Runner) joinRun(ctx context.Context, compose Compose, rate float64, i i
 }
 
 func (r *Runner) leaderRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
-	l := startLoad(ctx, compose, rate, 20*time.Second, 100+i)
+	l := r.startLoad(ctx, compose, rate, 20*time.Second, 100+i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 3*time.Second)
 	node, err := leader(ctx, compose)
@@ -592,7 +598,7 @@ func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64,
 	if _, err := compose.run(ctx, "--profile", "join", "up", "--no-start", "--no-deps", "--force-recreate", "dim-e"); err != nil {
 		return err
 	}
-	l := startLoad(ctx, compose, rate, 25*time.Second, 200+i)
+	l := r.startLoad(ctx, compose, rate, 25*time.Second, 200+i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 3*time.Second)
 	node, err := leader(ctx, compose)
@@ -636,7 +642,7 @@ func (r *Runner) failoverRun(ctx context.Context, compose Compose, rate float64,
 }
 
 func (r *Runner) downRun(ctx context.Context, compose Compose, rate float64, i int, run *RegistryRun) (err error) {
-	l := startLoad(ctx, compose, rate, 45*time.Second, 300+i)
+	l := r.startLoad(ctx, compose, rate, 45*time.Second, 300+i)
 	defer func() { err = errors.Join(err, l.finish(ctx, compose, run)) }()
 	sleepCtx(ctx, 5*time.Second)
 	defer r.startAgain(compose, registryNodes...)

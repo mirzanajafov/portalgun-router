@@ -3,10 +3,10 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +18,8 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/bench"
 )
+
+var progress = log.New(os.Stdout, "", 0)
 
 func main() {
 	if len(os.Args) < 2 {
@@ -103,7 +105,7 @@ func e1(ctx context.Context, args []string) error {
 		}
 		rs = append(rs, r)
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: progress}
 	dir, err := runner.RunE1(ctx, bench.Plan{
 		Workload: w,
 		Systems:  sys,
@@ -138,7 +140,7 @@ func report(args []string) error {
 	if err := rep.WriteText(os.Stdout); err != nil {
 		return err
 	}
-	return writeSummary(filepath.Join(args[0], "summary.json"), rep)
+	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), rep)
 }
 
 func reportOverload(args []string) error {
@@ -153,7 +155,7 @@ func reportOverload(args []string) error {
 	if err := rep.WriteOverloadText(os.Stdout); err != nil {
 		return err
 	}
-	return writeSummary(filepath.Join(args[0], "summary.json"), rep)
+	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), rep)
 }
 
 func e5(ctx context.Context, args []string) error {
@@ -170,7 +172,7 @@ func e5(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: progress}
 	dir, err := runner.RunE5(ctx, plan)
 	if dir != "" {
 		fmt.Println("results in", dir)
@@ -193,7 +195,7 @@ func reportE5(args []string) error {
 	if err := bench.WriteRegistryText(os.Stdout, sums); err != nil {
 		return err
 	}
-	return writeSummary(filepath.Join(args[0], "summary.json"), sums)
+	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sums)
 }
 
 func e3(ctx context.Context, args []string) error {
@@ -236,7 +238,7 @@ func e3(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: progress}
 	dir, err := runner.RunE3(ctx, bench.FailoverPlan{Cells: cells, Reps: *reps, Rate: *rate, Gateways: *gateways, Bins: *bins, Records: *records})
 	if dir != "" {
 		if rerr := reportE3([]string{dir}); rerr != nil {
@@ -258,18 +260,7 @@ func reportE3(args []string) error {
 	if err := bench.WriteFailoverText(os.Stdout, sums); err != nil {
 		return err
 	}
-	return writeSummary(filepath.Join(args[0], "summary.json"), sums)
-}
-
-func writeSummary(path string, v any) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sums)
 }
 
 func e2(ctx context.Context, args []string) error {
@@ -308,7 +299,7 @@ func e2(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
-	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: os.Stdout}
+	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: progress}
 	dir, err := runner.RunE2(ctx, bench.LimiterPlan{Cells: cells, Reps: *reps})
 	if dir != "" {
 		if rerr := reportE2([]string{dir}); rerr != nil {
@@ -330,7 +321,7 @@ func reportE2(args []string) error {
 	if err := bench.WriteLimiterText(os.Stdout, sums); err != nil {
 		return err
 	}
-	return writeSummary(filepath.Join(args[0], "summary.json"), sums)
+	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sums)
 }
 
 func hotpath(ctx context.Context, args []string) error {
@@ -342,7 +333,7 @@ func hotpath(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	dir, err := bench.RunHotpath(ctx, bench.HotpathPlan{Package: *pkg, Reps: *reps, BenchTime: *benchtime, Out: *out, Log: os.Stdout})
+	dir, err := bench.RunHotpath(ctx, bench.HotpathPlan{Package: *pkg, Reps: *reps, BenchTime: *benchtime, Out: *out, Log: progress})
 	if dir != "" && err == nil {
 		err = reportHotpath([]string{dir})
 	}
@@ -361,5 +352,5 @@ func reportHotpath(args []string) error {
 	if err := bench.WriteHotpathText(os.Stdout, sum); err != nil {
 		return err
 	}
-	return writeSummary(filepath.Join(args[0], "summary.json"), sum)
+	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sum)
 }
