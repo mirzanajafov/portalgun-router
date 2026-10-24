@@ -89,7 +89,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 		return "", fmt.Errorf("%w (build FiveFamilies' node image in its repo, or name another one in FF_IMAGE)", err)
 	}
 	if plan.ImageCommit == "" {
-		r.logf("FF_COMMIT is not set, so the results won't say which FiveFamilies commit %s was built from", plan.Image)
+		r.Log.Printf("FF_COMMIT is not set, so the results won't say which FiveFamilies commit %s was built from", plan.Image)
 	}
 	compose := r.Compose
 	compose.Env = append(slices.Clone(compose.Env), "FF_IMAGE="+plan.Image)
@@ -102,10 +102,10 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 	}
 	defer func() {
 		if err := down(context.Background()); err != nil {
-			r.logf("tearing down: %v", err)
+			r.Log.Printf("tearing down: %v", err)
 		}
 	}()
-	r.logf("starting the registry stack")
+	r.Log.Printf("starting the registry stack")
 	if err := compose.Up(ctx); err != nil {
 		return "", err
 	}
@@ -117,7 +117,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 		return "", err
 	}
 	meta := map[string]any{"plan": plan, "commit": commit(ctx), "imageId": image, "startedAt": time.Now().UTC()}
-	if err := writeJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
+	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
 		return dir, err
 	}
 	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
@@ -151,7 +151,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 			if err := enc.Encode(run); err != nil {
 				return dir, err
 			}
-			r.logf("%-8s %2d  lost %d of %d  join %s  applied %s  leave %s  up after kill %s  kill to first %s  versions %v  refusals %d  lost registrations %d %s",
+			r.Log.Printf("%-8s %2d  lost %d of %d  join %s  applied %s  leave %s  up after kill %s  kill to first %s  versions %v  refusals %d  lost registrations %d %s",
 				c.name, i+1, run.Lost, run.Requests, msOrDash(run.JoinMs), msOrDash(run.AppliedMs), msOrDash(run.LeaveGatewaysMs),
 				msOrDash(run.UpAfterKillMs), msOrDash(run.KillToFirstMs), run.Versions, run.Refusals, run.LostRegistrations, run.Error)
 		}
@@ -327,11 +327,13 @@ func (l *load) count(ctx context.Context, compose Compose, run *RegistryRun) (*l
 	if _, err := compose.run(ctx, "cp", "loadgen:"+l.file, local); err != nil {
 		return nil, err
 	}
-	data, readErr := os.ReadFile(local)
-	if err := errors.Join(readErr, os.Remove(local)); err != nil {
+	defer func() { _ = os.Remove(local) }()
+	f, err := os.Open(local)
+	if err != nil {
 		return nil, err
 	}
-	lg, err := loadgen.ReadLog(bytes.NewReader(data))
+	defer func() { _ = f.Close() }()
+	lg, err := loadgen.ReadLog(f)
 	if err != nil {
 		return nil, err
 	}
@@ -498,13 +500,13 @@ func kill(ctx context.Context, compose Compose, service string) (time.Time, erro
 
 func (r *Runner) startAgain(compose Compose, services ...string) {
 	if _, err := compose.run(context.Background(), append([]string{"start"}, services...)...); err != nil {
-		r.logf("starting %v again: %v", services, err)
+		r.Log.Printf("starting %v again: %v", services, err)
 	}
 }
 
 func (r *Runner) removeDimE(compose Compose) {
 	if _, err := compose.run(context.Background(), "--profile", "join", "rm", "-f", "-s", "dim-e"); err != nil {
-		r.logf("removing dim-e: %v", err)
+		r.Log.Printf("removing dim-e: %v", err)
 	}
 }
 

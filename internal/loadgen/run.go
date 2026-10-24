@@ -293,7 +293,7 @@ func (g *generator) fire(ctx context.Context, u *url.URL, key string, scheduled 
 	if err == nil {
 		var n int64
 		n, err = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
+		resp.Body.Close()
 		rec.Status = uint16(resp.StatusCode)
 		rec.Bytes = uint32(min(n, math.MaxUint32))
 		rec.Attempts = attempts(resp.Header.Get(gatewayapi.AttemptsHeader))

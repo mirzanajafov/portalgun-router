@@ -96,10 +96,6 @@ func parseBenchLine(line string) (HotpathRow, bool) {
 }
 
 func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
-	logger := plan.Log
-	if logger == nil {
-		logger = log.New(io.Discard, "", 0)
-	}
 	dir, err = filepath.Abs(filepath.Join(plan.Out, time.Now().UTC().Format("20060102-150405")))
 	if err != nil {
 		return "", err
@@ -111,13 +107,13 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { err = errors.Join(err, os.RemoveAll(tmp)) }()
+	defer func() { _ = os.RemoveAll(tmp) }()
 	bin := filepath.Join(tmp, "proxy.test")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
 	build := exec.CommandContext(ctx, "go", "test", "-c", "-o", bin, plan.Package)
-	build.Stdout, build.Stderr = logger.Writer(), logger.Writer()
+	build.Stdout, build.Stderr = plan.Log.Writer(), plan.Log.Writer()
 	if err := build.Run(); err != nil {
 		return "", fmt.Errorf("building the benchmarks: %w", err)
 	}
@@ -162,7 +158,7 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
 					if err := enc.Encode(row); err != nil {
 						return dir, err
 					}
-					logger.Printf("rep %d  %-10s %-15s %8.0f ns/op %8.0f cpu-ns/op %4.0f allocs/op",
+					plan.Log.Printf("rep %d  %-10s %-15s %8.0f ns/op %8.0f cpu-ns/op %4.0f allocs/op",
 						rep+1, row.Group, row.System, row.NsPerOp, row.CPUNsPerOp, row.AllocsPerOp)
 				}
 				if !found {

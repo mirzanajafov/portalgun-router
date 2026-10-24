@@ -255,7 +255,7 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 	most := 0
 	for _, c := range plan.Cells {
 		most = max(most, c.Instances)
-		if err := writeJSON(filepath.Join(configs, c.file()+".json"), c.Config()); err != nil {
+		if err := WriteJSON(filepath.Join(configs, c.file()+".json"), c.Config()); err != nil {
 			return "", err
 		}
 	}
@@ -264,17 +264,17 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 	if most > 2 {
 		compose.Env = append(compose.Env, "COMPOSE_PROFILES=four")
 	}
-	r.logf("starting the limiter stack")
+	r.Log.Printf("starting the limiter stack")
 	if err := compose.Up(ctx); err != nil {
 		return "", err
 	}
 	defer func() {
 		if err := compose.Down(context.Background()); err != nil {
-			r.logf("tearing down: %v", err)
+			r.Log.Printf("tearing down: %v", err)
 		}
 	}()
 	meta := map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env}
-	if err := writeJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
+	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
 		return dir, err
 	}
 	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
@@ -300,7 +300,7 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 			if v := run.Report.Verdict; v != nil {
 				line += fmt.Sprintf("  over %+6.1f%%  ahead %d behind %d  worst %.2fx", v.OverAdmission*100, v.MaxAhead, v.MaxBehind, v.WorstRatio)
 			}
-			r.logf("%s  redis %.2f trips/req  %s", line, run.Report.Redis.TripsReq, strings.Join(g.Invalid, ", "))
+			r.Log.Printf("%s  redis %.2f trips/req  %s", line, run.Report.Redis.TripsReq, strings.Join(g.Invalid, ", "))
 		}
 	}
 	return dir, nil

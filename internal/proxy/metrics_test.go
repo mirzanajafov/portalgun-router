@@ -88,7 +88,7 @@ func TestAResponseCutOffMidBodyIsCounted(t *testing.T) {
 	g, srv := serve(t, onePool(t, config.BalancerRoundRobin, config.Dimension{ID: "a", Address: up.Listener.Addr().String(), Version: "v1"}))
 	if resp, err := http.Get(srv.URL + "/"); err == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
+		resp.Body.Close()
 	}
 	if n := gathered(t, g.metrics, "portal_response_cut_off_total"); n != 1 {
 		t.Fatalf("%v responses counted as cut off, want 1", n)

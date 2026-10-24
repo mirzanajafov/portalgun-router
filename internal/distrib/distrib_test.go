@@ -136,20 +136,20 @@ func TestAnUnreadableConfigIsLoggedOnceNotOnEveryPoll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = ln.Close() })
+	t.Cleanup(func() { ln.Close() })
 	go func() {
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			_ = conn.Close()
+			conn.Close()
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	rdb := redis.NewClient(&redis.Options{Addr: ln.Addr().String(), MaxRetries: -1})
-	t.Cleanup(func() { _ = rdb.Close() })
+	t.Cleanup(func() { rdb.Close() })
 	NewWatcher(rdb, &fakeTarget{}, slog.New(slog.NewTextHandler(&logs, nil)), 10*time.Millisecond).Run(ctx)
 	if n := strings.Count(logs.String(), "can't be read"); n != 1 {
 		t.Fatalf("%d warnings over about 30 polls of a Redis that hangs up, want 1:\n%s", n, logs.String())

@@ -42,7 +42,7 @@ func MergeRuns(out string, runs []string) error {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
-	if err := writeJSON(filepath.Join(out, "meta.json"), meta); err != nil {
+	if err := WriteJSON(filepath.Join(out, "meta.json"), meta); err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(out, "runs.jsonl"), all.Bytes(), 0o644)

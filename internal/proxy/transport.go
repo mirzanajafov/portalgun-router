@@ -149,7 +149,7 @@ func takeBody(req *http.Request) ([]byte, bool, error) {
 	}
 	buf := make([]byte, req.ContentLength)
 	_, err := io.ReadFull(req.Body, buf)
-	_ = req.Body.Close()
+	req.Body.Close()
 	if err != nil {
 		return nil, false, err
 	}
@@ -224,7 +224,7 @@ func (a *attempt) finish(resp *http.Response, err error, attempts int) (*http.Re
 func discard(resp *http.Response) {
 	if resp != nil {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
-		_ = resp.Body.Close()
+		resp.Body.Close()
 	}
 }
 
@@ -248,7 +248,7 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 
 	resp, err := u.rt.RoundTrip(out)
 	if !timer.Stop() && err == nil {
-		_ = resp.Body.Close()
+		resp.Body.Close()
 		resp, err = nil, errPerTryTimeout
 	}
 	finished := g.now()

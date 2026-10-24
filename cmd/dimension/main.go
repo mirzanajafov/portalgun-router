@@ -109,11 +109,11 @@ const leaveDrain = time.Second
 func run(ctx context.Context, logger *slog.Logger, id, version, addr string, cl net.Listener, controlToken string, b dimension.Behavior, keep func(context.Context, func(bool))) error {
 	s, err := dimension.New(id, version, b)
 	if err != nil {
-		_ = cl.Close()
+		cl.Close()
 		return err
 	}
 	if err := s.Listen(addr); err != nil {
-		_ = cl.Close()
+		cl.Close()
 		return err
 	}
 	kctx, stopKeeping := context.WithCancel(ctx)

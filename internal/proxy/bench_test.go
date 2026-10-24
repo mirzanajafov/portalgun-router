@@ -23,7 +23,7 @@ type canned struct{}
 func (canned) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Body != nil {
 		_, _ = io.Copy(io.Discard, req.Body)
-		_ = req.Body.Close()
+		req.Body.Close()
 	}
 	return &http.Response{
 		StatusCode:    http.StatusOK,
