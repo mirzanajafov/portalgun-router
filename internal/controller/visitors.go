@@ -36,7 +36,10 @@ const proxyTokenHeader = "X-Portal-Proxy-Token"
 
 var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right now, so try again in a minute")
 
-const recountAfter = time.Minute
+const (
+	recountAfter = time.Minute
+	warnEvery    = time.Minute
+)
 
 type visitorLimit struct {
 	name       string
@@ -46,13 +49,14 @@ type visitorLimit struct {
 	logger     *slog.Logger
 	now        func() time.Time
 
-	mu       sync.Mutex
-	failedAt time.Time
+	mu         sync.Mutex
+	failedAt   time.Time
+	mismatchAt time.Time
 }
 
 func newVisitorLimit(name string, perHour int64, counter Counter, proxyToken string, logger *slog.Logger) *visitorLimit {
 	if proxyToken == "" {
-		logger.Warn("PORTAL_PROXY_TOKEN is not set, so the limit ignores X-Forwarded-For and counts every caller by its own address", "limit", name)
+		logger.Warn("no proxy token, so the limit ignores X-Forwarded-For and counts every caller by its own address", "limit", name)
 	}
 	return &visitorLimit{name: name, perHour: perHour, counter: counter, proxyToken: proxyToken, logger: logger, now: time.Now}
 }
@@ -61,7 +65,19 @@ func (l *visitorLimit) client(r *http.Request) string {
 	if carries(r, proxyTokenHeader, l.proxyToken) {
 		return proxy.ClientIP(r, 1)
 	}
+	if r.Header.Get(proxyTokenHeader) != "" {
+		l.mismatch()
+	}
 	return proxy.ClientIP(r, 0)
+}
+
+func (l *visitorLimit) mismatch() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if now := l.now(); now.Sub(l.mismatchAt) >= warnEvery {
+		l.logger.Warn("a request carried a proxy token that doesn't match, so it was counted by its peer", "limit", l.name)
+		l.mismatchAt = now
+	}
 }
 
 func (l *visitorLimit) exceeded(ctx context.Context, client string) (bool, error) {

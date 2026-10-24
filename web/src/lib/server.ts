@@ -10,9 +10,15 @@ export async function adminToken(): Promise<string | undefined> {
   return (await cookies()).get(ADMIN_COOKIE)?.value
 }
 
+let warned = false
+
 export function forwarded(req: Request): Record<string, string> {
   const xff = req.headers.get('x-forwarded-for')
   const token = process.env.PORTAL_PROXY_TOKEN
+  if (xff && !token && !warned) {
+    warned = true
+    console.warn('PORTAL_PROXY_TOKEN is not set, so the controller counts every visitor under the address of this server')
+  }
   return xff && token ? { 'X-Forwarded-For': xff, 'X-Portal-Proxy-Token': token } : {}
 }
 

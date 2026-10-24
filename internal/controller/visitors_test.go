@@ -7,18 +7,20 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 const (
-	adminToken  = "s3cret"
-	proxySecret = "proxy-token"
+	adminToken = "s3cret"
+	proxyToken = "proxy-token"
 )
 
 func viaProxy(visitor string) http.Header {
-	return http.Header{"X-Forwarded-For": {visitor}, proxyTokenHeader: {proxySecret}}
+	return http.Header{"X-Forwarded-For": {visitor}, proxyTokenHeader: {proxyToken}}
 }
 
 func asAdmin(visitor string) http.Header {
@@ -47,11 +49,11 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 		name, forwardedFor, configured, sent, want string
 	}{
 		{"no token configured", "6.6.6.6, 9.9.9.9", "", "", "192.0.2.1"},
-		{"a token sent while none is configured", "6.6.6.6, 9.9.9.9", "", proxySecret, "192.0.2.1"},
-		{"the proxy token", "6.6.6.6, 9.9.9.9", proxySecret, proxySecret, "9.9.9.9"},
-		{"the proxy token without an address", "", proxySecret, proxySecret, "192.0.2.1"},
-		{"a wrong token", "6.6.6.6, 9.9.9.9", proxySecret, "proxy-tokem", "192.0.2.1"},
-		{"no token sent", "6.6.6.6, 9.9.9.9", proxySecret, "", "192.0.2.1"},
+		{"a token sent while none is configured", "6.6.6.6, 9.9.9.9", "", proxyToken, "192.0.2.1"},
+		{"the proxy token", "6.6.6.6, 9.9.9.9", proxyToken, proxyToken, "9.9.9.9"},
+		{"the proxy token without an address", "", proxyToken, proxyToken, "192.0.2.1"},
+		{"a wrong token", "6.6.6.6, 9.9.9.9", proxyToken, "proxy-tokem", "192.0.2.1"},
+		{"no token sent", "6.6.6.6, 9.9.9.9", proxyToken, "", "192.0.2.1"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -73,9 +75,40 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 func TestALimitWithoutTheProxyTokenSaysSoAtStart(t *testing.T) {
 	logs := &logSink{}
 	newVisitorLimit("chaos", 3, nil, "", slog.New(slog.NewTextHandler(logs, nil)))
-	newVisitorLimit("rollout", 3, nil, proxySecret, slog.New(slog.NewTextHandler(logs, nil)))
-	if strings.Count(logs.String(), "PORTAL_PROXY_TOKEN") != 1 || !strings.Contains(logs.String(), "limit=chaos") {
+	newVisitorLimit("rollout", 3, nil, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	if strings.Count(logs.String(), "no proxy token") != 1 || !strings.Contains(logs.String(), "limit=chaos") {
 		t.Fatalf("want one warning, for the chaos limit: %q", logs.String())
+	}
+}
+
+func TestAWrongProxyTokenIsLoggedOnceAMinuteWithoutTheAddress(t *testing.T) {
+	logs := &logSink{}
+	limit := newVisitorLimit("rollout", 3, nil, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	start := time.Now()
+	var elapsed time.Duration
+	limit.now = func() time.Time { return start.Add(elapsed) }
+	req := httptest.NewRequest(http.MethodPost, "/api/rollouts", nil)
+	req.RemoteAddr = "192.0.2.1:4000"
+	req.Header = http.Header{"X-Forwarded-For": {"9.9.9.9"}, proxyTokenHeader: {"an-old-token"}}
+	for range 2 {
+		if got := limit.client(req); got != "192.0.2.1" {
+			t.Fatalf("counted as %s, want the peer", got)
+		}
+	}
+	elapsed = warnEvery
+	limit.client(req)
+	if n := strings.Count(logs.String(), "doesn't match"); n != 2 || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
+		t.Fatalf("want two warnings a minute apart, naming the limit and not the visitor: %q", logs.String())
+	}
+}
+
+func TestTheWebServerSendsTheTokenUnderTheHeaderTheLimitsRead(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "server.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "'"+proxyTokenHeader+"'") {
+		t.Fatalf("web/src/lib/server.ts doesn't send %s", proxyTokenHeader)
 	}
 }
 
@@ -83,7 +116,7 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, proxySecret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -104,7 +137,7 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 
 func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) {
 	counter := &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, proxySecret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	mux := http.NewServeMux()
 	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
 	srv := httptest.NewServer(mux)

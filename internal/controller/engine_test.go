@@ -323,7 +323,7 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, proxySecret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, proxyToken, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	visitor, admin := viaProxy("9.9.9.9"), asAdmin("9.9.9.9")
@@ -373,7 +373,7 @@ func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), proxySecret, slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -405,7 +405,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
 	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(), adminToken)
-	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), proxySecret, slog.New(slog.NewTextHandler(logs, nil)))
+	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup

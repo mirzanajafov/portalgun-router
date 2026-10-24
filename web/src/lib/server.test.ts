@@ -15,9 +15,13 @@ describe('forwarded', () => {
     expect(forwarded(visitor)).toEqual({ 'X-Forwarded-For': '203.0.113.7', 'X-Portal-Proxy-Token': 'proxy-secret' })
   })
 
-  it('sends nothing without a token, since the controller would not believe the address', () => {
+  it('sends nothing without a token, since the controller would not believe the address, and says so once', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.stubEnv('PORTAL_PROXY_TOKEN', '')
     expect(forwarded(visitor)).toEqual({})
+    expect(forwarded(visitor)).toEqual({})
+    expect(warn).toHaveBeenCalledOnce()
+    warn.mockRestore()
   })
 
   it('sends nothing without an address', () => {
