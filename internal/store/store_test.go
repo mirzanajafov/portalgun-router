@@ -182,15 +182,17 @@ func TestAbandonActiveRollouts(t *testing.T) {
 	}
 }
 
-func TestChaosEvents(t *testing.T) {
+func TestAChaosEventIsWrittenWithAnEmptyDetailWhenItHasNone(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	if err := s.LogChaos(ctx, ChaosEvent{At: time.Now().UTC(), Actor: ActorVisitor, Mode: "crash", Target: "dim-a", Action: "inject"}); err != nil {
 		t.Fatal(err)
 	}
-	evs, err := s.ChaosEvents(ctx, 10)
-	if err != nil || len(evs) != 1 || evs[0].Mode != "crash" || string(evs[0].Detail) != "{}" {
-		t.Fatalf("events %+v %v", evs, err)
+	var n int
+	var mode, detail string
+	err := s.pool.QueryRow(ctx, `select count(*), min(mode), min(detail::text) from chaos_events`).Scan(&n, &mode, &detail)
+	if err != nil || n != 1 || mode != "crash" || detail != "{}" {
+		t.Fatalf("%d events, mode %q, detail %q: %v", n, mode, detail, err)
 	}
 }
 
