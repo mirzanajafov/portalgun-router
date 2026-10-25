@@ -196,7 +196,7 @@ func (s *Server) listenLocked(addr string) error {
 	}
 	s.addr = ln.Addr().String()
 	srv := &http.Server{
-		Handler:           http.HandlerFunc(s.serve),
+		Handler:           s.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
