@@ -24,6 +24,8 @@ export function useAction() {
       if (!res) setMessage('the server did not answer, so try again')
       else if (!res.ok) setMessage(await refusal(res))
       else await done?.(res)
+    } catch {
+      setMessage('the server sent an answer this page cannot read')
     } finally {
       setBusy(false)
     }

@@ -72,6 +72,7 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
                 Stop
               </button>
             )}
+            {message && <span className="ml-3 text-[var(--color-warn)]">{message}</span>}
           </span>
         ) : cooldown > 0 && !admin ? (
           <span className="muted">The portal gun is cooling down: {cooldown} s</span>
