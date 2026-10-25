@@ -12,7 +12,7 @@ import (
 func TestTheWireNamesStayWhatTheDashboardAndTheResultsRead(t *testing.T) {
 	values := map[string]any{
 		"snapshot": Snapshot{Instance: "gw-1", Second: 1, ConfigVersion: 2, ClusterConfig: 3,
-			Routes:     map[string]RouteSnapshot{"api": {Requests: 4, Limited: 5, Failed: 6, Stable: "v1", Canary: "v2", Weight: 0.5, Rollout: "ro-1", Versions: [2]VersionSnapshot{{Attempts: 7, Errors: 8, Slow: 9}, {}}, SlowThresholdMs: 10, Brake: true}},
+			Routes:     map[string]RouteSnapshot{"api": {Requests: 4, Limited: 5, Failed: 6, Stable: "v1", Canary: "v2", Weight: 0.5, Rollout: "ro-1", Versions: [2]VersionSnapshot{StableSlot: {Attempts: 7, Errors: 8, Slow: 9}}, SlowThresholdMs: 10, Brake: true}},
 			Dimensions: []DimensionSnapshot{{ID: "a", Version: "v1", Attempts: 11, Errors: 12, P50Ms: 13, P99Ms: 14, Inflight: 15, Healthy: true, Outlier: health.Ejected, EjectedMs: 16}}},
 		"state":     State{Version: 1, Inflight: 2, MaxInflight: 3, Upstreams: []Upstream{{ID: "a", Version: "v1", Address: "dim-a:8080", Inflight: 4, MaxInflight: 5, LatencyMs: 6, Healthy: true, Outlier: health.HalfOpen, EjectedMs: 7}}},
 		"event":     DimensionEvent{UnixNano: 1, Dimension: "a", State: "ejected", Reason: "5 failures in a row"},

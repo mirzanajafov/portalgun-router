@@ -15,7 +15,7 @@ func snap(inst string, sec int64, attempts, errors int64, dim gatewayapi.Dimensi
 		ClusterConfig: 7,
 		Routes: map[string]gatewayapi.RouteSnapshot{"api": {
 			Requests: attempts,
-			Versions: [2]gatewayapi.VersionSnapshot{{Attempts: attempts, Errors: errors}, {Attempts: 1}},
+			Versions: [2]gatewayapi.VersionSnapshot{gatewayapi.StableSlot: {Attempts: attempts, Errors: errors}, gatewayapi.CanarySlot: {Attempts: 1}},
 		}},
 		Dimensions: []gatewayapi.DimensionSnapshot{dim},
 	}
@@ -36,7 +36,7 @@ func TestMergeSumsAcrossInstances(t *testing.T) {
 	}
 	m := (*out)[0]
 	r := m.Routes["api"]
-	if r.Requests != 30 || r.Versions[0].Errors != 3 || r.Versions[1].Attempts != 2 {
+	if r.Requests != 30 || r.Versions[gatewayapi.StableSlot].Errors != 3 || r.Versions[gatewayapi.CanarySlot].Attempts != 2 {
 		t.Fatalf("route %+v", r)
 	}
 	d := m.Dimensions[0]

@@ -235,16 +235,12 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 		e.finish(ctx, store.OutcomeRolledBack, reason)
 		return
 	}
-	bin := canary.Bin{
-		Requests: [2]int64{rs.Versions[0].Attempts, rs.Versions[1].Attempts},
-		Errors:   [2]int64{rs.Versions[0].Errors, rs.Versions[1].Errors},
-		Slow:     [2]int64{rs.Versions[0].Slow, rs.Versions[1].Slow},
-	}
+	bin := canary.Bin{Stable: canaryCounts(rs.Versions[gatewayapi.StableSlot]), Canary: canaryCounts(rs.Versions[gatewayapi.CanarySlot])}
 	a.seconds++
-	a.step.StableRequests += bin.Requests[0]
-	a.step.CanaryRequests += bin.Requests[1]
-	a.step.StableErrors += bin.Errors[0]
-	a.step.CanaryErrors += bin.Errors[1]
+	a.step.StableRequests += bin.Stable.Requests
+	a.step.CanaryRequests += bin.Canary.Requests
+	a.step.StableErrors += bin.Stable.Errors
+	a.step.CanaryErrors += bin.Canary.Errors
 	elapsed := time.Duration(a.seconds) * time.Second
 	d := a.policy.Observe(bin, elapsed)
 	if d.Verdict == canary.Continue && elapsed >= e.opts.MaxStep {
@@ -260,6 +256,10 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 			e.saveStep(ctx)
 		}
 	}
+}
+
+func canaryCounts(v gatewayapi.VersionSnapshot) canary.Counts {
+	return canary.Counts{Requests: v.Attempts, Errors: v.Errors, Slow: v.Slow}
 }
 
 func (a *active) countDead(m Merged) {

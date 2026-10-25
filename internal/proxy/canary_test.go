@@ -96,7 +96,7 @@ func TestRetriesFromACanaryLandOnStable(t *testing.T) {
 	}
 	snap := g.Tick(1)
 	v := snap.Routes["all"].Versions
-	if v[canarySlot].Attempts != 5 || v[canarySlot].Errors != 5 || v[stableSlot].Attempts != 5 || v[stableSlot].Errors != 0 {
+	if v[gatewayapi.CanarySlot].Attempts != 5 || v[gatewayapi.CanarySlot].Errors != 5 || v[gatewayapi.StableSlot].Attempts != 5 || v[gatewayapi.StableSlot].Errors != 0 {
 		t.Fatalf("version counts %+v", v)
 	}
 	if snap.Routes["all"].Requests != 5 || snap.Routes["all"].Failed != 0 {
@@ -109,7 +109,7 @@ func TestRetriesFromACanaryLandOnStable(t *testing.T) {
 	if dims["canary"].Errors != 5 || dims["stable"].Attempts != 5 || dims["stable"].P50Ms <= 0 {
 		t.Fatalf("dimensions %+v", snap.Dimensions)
 	}
-	if again := g.Tick(2); again.Routes["all"].Versions[canarySlot].Attempts != 0 {
+	if again := g.Tick(2); again.Routes["all"].Versions[gatewayapi.CanarySlot].Attempts != 0 {
 		t.Fatal("a tick did not reset the counters")
 	}
 }
@@ -144,8 +144,8 @@ func TestBrakeTakesTheCanaryOutLocally(t *testing.T) {
 	for i := range 10 {
 		from(t, srv.URL, fmt.Sprintf("10.0.1.%d", i+1))
 	}
-	if v := g.Tick(2).Routes["all"].Versions; v[canarySlot].Attempts != 0 {
-		t.Fatalf("canary still got %d attempts with the brake on", v[canarySlot].Attempts)
+	if v := g.Tick(2).Routes["all"].Versions; v[gatewayapi.CanarySlot].Attempts != 0 {
+		t.Fatalf("canary still got %d attempts with the brake on", v[gatewayapi.CanarySlot].Attempts)
 	}
 	next := canaryConfig(t, stable, broken, 1, "r2")
 	next.Pools[0].Outlier.Disabled = true
@@ -153,7 +153,7 @@ func TestBrakeTakesTheCanaryOutLocally(t *testing.T) {
 		t.Fatal(err)
 	}
 	from(t, srv.URL, "10.0.2.1")
-	if snap := g.Tick(3); snap.Routes["all"].Brake || snap.Routes["all"].Versions[canarySlot].Attempts != 1 {
+	if snap := g.Tick(3); snap.Routes["all"].Brake || snap.Routes["all"].Versions[gatewayapi.CanarySlot].Attempts != 1 {
 		t.Fatalf("a new rollout did not release the brake: %+v", snap.Routes["all"])
 	}
 }
@@ -174,8 +174,8 @@ func TestSlowEventsUseTheStableP95(t *testing.T) {
 	for i := range 10 {
 		from(t, srv.URL, fmt.Sprintf("10.1.0.%d", i+1))
 	}
-	if v := g.Tick(2).Routes["all"].Versions; v[canarySlot].Slow != 10 || v[canarySlot].Attempts != 10 {
-		t.Fatalf("canary counts %+v", v[canarySlot])
+	if v := g.Tick(2).Routes["all"].Versions; v[gatewayapi.CanarySlot].Slow != 10 || v[gatewayapi.CanarySlot].Attempts != 10 {
+		t.Fatalf("canary counts %+v", v[gatewayapi.CanarySlot])
 	}
 }
 

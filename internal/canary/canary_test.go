@@ -7,7 +7,7 @@ import (
 )
 
 func bin(n1, n2, e1, e2 int64) Bin {
-	return Bin{Requests: [2]int64{n1, n2}, Errors: [2]int64{e1, e2}}
+	return Bin{Stable: Counts{Requests: n1, Errors: e1}, Canary: Counts{Requests: n2, Errors: e2}}
 }
 
 func TestSPRTMatchesHandComputedValues(t *testing.T) {
@@ -69,7 +69,7 @@ func TestSequentialRespectsTheMinimumStep(t *testing.T) {
 	var d Decision
 	for i := range 40 {
 		b := bin(950, 50, 19, 1)
-		b.Slow = [2]int64{48, 2}
+		b.Stable.Slow, b.Canary.Slow = 48, 2
 		d = s.Observe(b, time.Duration(i+1)*time.Second)
 		if d.Verdict == Promote && i+1 < 30 {
 			t.Fatalf("promoted after %ds", i+1)
@@ -86,7 +86,7 @@ func TestSilenceIsEnoughWhenNothingFails(t *testing.T) {
 	sec := 0
 	for ; sec < 600 && d.Verdict == Continue; sec++ {
 		b := bin(198, 2, 0, 0)
-		b.Slow = [2]int64{10, 0}
+		b.Stable.Slow = 10
 		d = s.Observe(b, time.Duration(sec+1)*time.Second)
 	}
 	if d.Verdict != Promote || sec != SilentRequests/2 {
@@ -96,9 +96,9 @@ func TestSilenceIsEnoughWhenNothingFails(t *testing.T) {
 	for i := range 200 {
 		b := bin(198, 2, 0, 0)
 		if i == 100 {
-			b.Errors = [2]int64{0, 1}
+			b.Canary.Errors = 1
 		}
-		b.Slow = [2]int64{10, 0}
+		b.Stable.Slow = 10
 		if d = broken.Observe(b, time.Duration(i+1)*time.Second); d.Verdict == Promote {
 			t.Fatalf("promoted at %ds although the canary failed once and the stable never did", i+1)
 		}
@@ -110,7 +110,7 @@ func TestSequentialRollsBackOnSlowness(t *testing.T) {
 	var d Decision
 	for i := range 60 {
 		b := bin(950, 50, 0, 0)
-		b.Slow = [2]int64{47, 10}
+		b.Stable.Slow, b.Canary.Slow = 47, 10
 		if d = s.Observe(b, time.Duration(i)*time.Second); d.Verdict != Continue {
 			break
 		}

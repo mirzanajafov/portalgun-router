@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	stableSlot   = 0
-	canarySlot   = 1
 	brakeWindow  = 20
 	brakeFailing = 10
 	slowWindow   = 60
@@ -53,10 +51,10 @@ func (rs *routeStats) observe(slot int, failed bool, latency time.Duration) {
 	if t := rs.threshold.Load(); t > 0 && int64(latency) > t {
 		v.slow.Add(1)
 	}
-	if slot == stableSlot && !failed {
+	if slot == gatewayapi.StableSlot && !failed {
 		rs.stable.Observe(latency)
 	}
-	if slot == canarySlot {
+	if slot == gatewayapi.CanarySlot {
 		rs.brake(failed)
 	}
 }
