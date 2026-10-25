@@ -195,10 +195,10 @@ func (in *Injector) startFlapping(f Fault) error {
 		in.mu.Unlock()
 		return fmt.Errorf("%s is already flapping", f.Target)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	stop := make(chan struct{})
 	done := make(chan struct{})
 	in.flaps[f.Target] = func() {
-		cancel()
+		close(stop)
 		<-done
 	}
 	in.mu.Unlock()
@@ -209,10 +209,10 @@ func (in *Injector) startFlapping(f Fault) error {
 		defer t.Stop()
 		up := false
 		for {
-			_ = in.toxi.SetEnabled(ctx, f.Target, up)
+			_ = in.toxi.SetEnabled(context.Background(), f.Target, up)
 			up = !up
 			select {
-			case <-ctx.Done():
+			case <-stop:
 				return
 			case <-t.C:
 			}
