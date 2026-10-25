@@ -211,11 +211,11 @@ func (e *Engine) saveStep(ctx context.Context) {
 func (e *Engine) Observe(ctx context.Context, m Merged) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	defer e.storeStatus()
 	a := e.active
 	if a == nil {
 		return
 	}
+	defer e.storeStatus()
 	ctx = context.WithoutCancel(ctx)
 	rs, ok := m.Routes[a.rollout.Route]
 	current := ok && rs.Rollout == a.rollout.ID && m.MinConfig() >= a.stepVersion
@@ -361,9 +361,9 @@ func (e *Engine) Run(ctx context.Context) {
 func (e *Engine) retry(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	defer e.storeStatus()
 	if e.active != nil && e.active.settling != nil {
 		e.trySettle(ctx)
+		e.storeStatus()
 	}
 }
 
@@ -459,6 +459,7 @@ func (e *Engine) storeStatus() {
 }
 
 func (e *Engine) emit(msg string) {
+	e.storeStatus()
 	e.logger.Info(msg)
 	if e.notify != nil {
 		e.notify(Event{Type: "rollout", At: e.now().UTC(), Message: msg})

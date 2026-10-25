@@ -363,6 +363,21 @@ func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
 	}
 }
 
+func TestTheStatusIsStoredBeforeTheDashboardsHearOfAChange(t *testing.T) {
+	r := newRig(t)
+	var active []bool
+	r.engine.notify = func(Event) { active = append(active, r.engine.Status().Active) }
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.engine.Abort(context.Background(), "changed my mind"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(active, []bool{true, false}) {
+		t.Fatalf("the status said active %v as each event went out, want true then false", active)
+	}
+}
+
 func TestStartChecksItsInputs(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
