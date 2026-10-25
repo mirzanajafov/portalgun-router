@@ -244,7 +244,7 @@ func capped(t *testing.T, limit int, addr string) *config.Config {
 	return parse(t, config.Config{
 		MaxInflight: new(limit),
 		Routes:      []config.Route{{Name: "all", PathPrefix: "/", Pool: "main"}},
-		Pools:       []config.Pool{{Name: "main", Dimensions: []config.Dimension{{ID: "a", Address: addr}}}},
+		Pools:       []config.Pool{{Name: "main", HealthCheck: config.HealthCheck{Disabled: true}, Dimensions: []config.Dimension{{ID: "a", Address: addr}}}},
 	})
 }
 
