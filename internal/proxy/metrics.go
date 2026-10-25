@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
-	"github.com/mirzanajafov/portalgun-router/internal/limit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/redis/go-redis/v9"
@@ -206,10 +205,15 @@ func outcome(err error) string {
 	switch {
 	case err == nil || errors.Is(err, redis.Nil):
 		return "ok"
-	case limit.TimedOut(err):
+	case timedOut(err):
 		return "timeout"
 	}
 	return "error"
+}
+
+func timedOut(err error) bool {
+	var ne net.Error
+	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout())
 }
 
 type redisHook struct {

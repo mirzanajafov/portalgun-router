@@ -1,9 +1,6 @@
 package limit
 
 import (
-	"context"
-	"errors"
-	"net"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -25,9 +22,4 @@ func ClientOptions(addr string) *redis.Options {
 		MinIdleConns:          16,
 		ContextTimeoutEnabled: true,
 	}
-}
-
-func TimedOut(err error) bool {
-	var ne net.Error
-	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout())
 }
