@@ -10,6 +10,16 @@ export async function adminToken(): Promise<string | undefined> {
   return (await cookies()).get(ADMIN_COOKIE)?.value
 }
 
+export async function isAdmin(token: string | undefined): Promise<boolean> {
+  if (!token) return false
+  try {
+    const res = await fetch(`${CONTROLLER}/api/admin`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 let warned = false
 
 export function forwarded(req: Request): Record<string, string> {

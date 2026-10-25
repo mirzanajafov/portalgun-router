@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { postJSON, useAction } from '@/lib/action'
 import { dimensionName, pct } from '@/lib/format'
 import type { LlrPoint } from '@/lib/live'
 import type { Merged, Outcome, PortalEvent, RolloutStatus } from '@/lib/types'
@@ -32,23 +32,10 @@ export function CanaryPanel({
   events: PortalEvent[]
   admin: boolean
 }) {
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
+  const { busy, message, send } = useAction()
   const { stable, canary, target, hosts } = candidate(latest)
   const active = rollout?.active ? rollout : null
   const lastDecision = [...events].reverse().find((e) => e.type === 'rollout')
-
-  async function call(url: string, body: unknown) {
-    setBusy(true)
-    setMessage('')
-    try {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      const out = await res.json().catch(() => ({}))
-      if (!res.ok) setMessage(out.error ?? `refused (${res.status})`)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   return (
     <section className="panel flex flex-col gap-3 p-4">
@@ -123,17 +110,21 @@ export function CanaryPanel({
       </div>
       <div className="flex flex-wrap gap-2">
         {active && target && (
-          <button className="btn btn-danger" disabled={busy} onClick={() => call('/api/chaos', { mode: 'partial', target, errorRate: 0.5, durationSec: 30 })}>
+          <button
+            className="btn btn-danger"
+            disabled={busy}
+            onClick={() => send('/api/chaos', postJSON({ mode: 'partial', target, errorRate: 0.5, durationSec: 30 }))}
+          >
             Break {canary}: 50% errors
           </button>
         )}
         {!active && canary && canary !== stable && (
-          <button className="btn btn-primary" disabled={busy} onClick={() => call('/api/rollouts', { route: ROUTE, canary })}>
+          <button className="btn btn-primary" disabled={busy} onClick={() => send('/api/rollouts', postJSON({ route: ROUTE, canary }))}>
             Start rolling out {canary}
           </button>
         )}
         {admin && active && (
-          <button className="btn" disabled={busy} onClick={() => call('/api/rollouts/abort', { reason: 'aborted from the dashboard' })}>
+          <button className="btn" disabled={busy} onClick={() => send('/api/rollouts/abort', postJSON({ reason: 'aborted from the dashboard' }))}>
             Abort
           </button>
         )}

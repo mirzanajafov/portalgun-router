@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { postJSON, useAction } from '@/lib/action'
 import { dimensionName, remaining, seconds } from '@/lib/format'
 import type { ChaosView } from '@/lib/types'
 
@@ -16,8 +17,7 @@ export const ACTIONS: Action[] = [
 
 export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null; targets: string[]; admin: boolean }) {
   const [target, setTarget] = useState<string>('')
-  const [message, setMessage] = useState<string>('')
-  const [busy, setBusy] = useState(false)
+  const { busy, message, send } = useAction()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -28,31 +28,6 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
   const chosen = target || targets[0] || ''
   const current = chaos?.current
   const cooldown = Math.max(0, Math.ceil(chaos?.cooldownSec ?? 0))
-
-  async function fire(a: Action) {
-    setBusy(true)
-    setMessage('')
-    try {
-      const res = await fetch('/api/chaos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...a.body, target: chosen, durationSec: 20 }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) setMessage(body.error ?? `refused (${res.status})`)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function stop() {
-    setBusy(true)
-    try {
-      await fetch('/api/chaos', { method: 'DELETE' })
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const incidents = (chaos?.incidents ?? []).slice(0, 4)
   return (
@@ -81,7 +56,7 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
             className="btn btn-danger"
             title={a.hint}
             disabled={busy || !!current || (!admin && cooldown > 0) || !chosen}
-            onClick={() => fire(a)}
+            onClick={() => send('/api/chaos', postJSON({ ...a.body, target: chosen, durationSec: 20 }))}
           >
             {a.label}
           </button>
@@ -93,7 +68,7 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
             <span className="font-semibold text-[var(--color-fault)]">{current.fault.mode}</span> on {dimensionName(current.fault.target)},{' '}
             <span className="mono">{remaining(current.until, now)} s</span> left{current.actor === 'admin' ? ' (admin)' : ''}
             {admin && (
-              <button className="btn ml-3 py-0.5" onClick={stop} disabled={busy}>
+              <button className="btn ml-3 py-0.5" onClick={() => send('/api/chaos', { method: 'DELETE' })} disabled={busy}>
                 Stop
               </button>
             )}
