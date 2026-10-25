@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/stats"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -16,19 +15,6 @@ const (
 	tripShare    = 0.5
 	openFor      = 100 * time.Millisecond
 )
-
-func ClientOptions(addr string) *redis.Options {
-	return &redis.Options{
-		Addr:                  addr,
-		MaxRetries:            -1,
-		DialTimeout:           time.Second,
-		ReadTimeout:           time.Second,
-		WriteTimeout:          time.Second,
-		PoolSize:              64,
-		MinIdleConns:          16,
-		ContextTimeoutEnabled: true,
-	}
-}
 
 type breakerState int
 

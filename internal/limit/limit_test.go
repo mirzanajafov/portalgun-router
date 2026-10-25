@@ -292,7 +292,7 @@ func TestBreakerForgetsFailuresOutsideItsWindow(t *testing.T) {
 }
 
 func TestLedgerSendsTheRunningTotalUntilRedisConfirmsIt(t *testing.T) {
-	l := newLedger()
+	l := &ledger{}
 	l.add("k", 2, 0)
 	l.add("k", 1, 0)
 	epoch, total := l.unpaid("k")
@@ -316,7 +316,7 @@ func TestLedgerSendsTheRunningTotalUntilRedisConfirmsIt(t *testing.T) {
 }
 
 func TestLedgerForgetsOldDebts(t *testing.T) {
-	l := newLedger()
+	l := &ledger{}
 	var now int64
 	for i := range 300000 {
 		l.add(fmt.Sprint("ip-", i), 1, now)

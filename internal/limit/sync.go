@@ -11,11 +11,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type Pipeliner interface {
-	Redis
-	Pipeline() redis.Pipeliner
-}
-
 type syncKey struct {
 	mu     sync.Mutex
 	budget float64
