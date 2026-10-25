@@ -329,30 +329,46 @@ func TestWhileAFaultIsStartingTheViewAnswersAndTheSecondCounts(t *testing.T) {
 }
 
 func TestSecondsSeenWhileAFaultFailsToStartCountForNoIncident(t *testing.T) {
-	svc, inj, _ := newChaos(DefaultChaosLimits())
-	base := time.Unix(2_000_000, 0)
-	svc.now = func() time.Time { return base }
-	g := newGate()
-	inj.gate, inj.err = g, errors.New("toxiproxy: connection refused")
-	t.Cleanup(g.release)
-	failed := make(chan error, 1)
-	go func() {
-		_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, "")
-		failed <- err
-	}()
-	<-g.reached
-	svc.Observe(secondOfFailures(base))
-	g.release()
-	if err := <-failed; !errors.Is(err, ErrChaosFailed) {
-		t.Fatalf("the failed start returned %v", err)
-	}
-	inj.gate, inj.err = nil, nil
-	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
-	if incidents := svc.View().Incidents; len(incidents) != 1 || incidents[0].Lost != 0 {
-		t.Fatalf("incidents %+v, want one with nothing lost yet", incidents)
+	for _, c := range []struct {
+		name  string
+		admin bool
+		fail  func(*fakeInjector, *fakeCounter, *gate)
+		want  error
+	}{
+		{"the injection fails", true, func(inj *fakeInjector, _ *fakeCounter, g *gate) {
+			inj.gate, inj.err = g, errors.New("toxiproxy: connection refused")
+		}, ErrChaosFailed},
+		{"the visitor is over the hourly limit", false, func(_ *fakeInjector, counter *fakeCounter, g *gate) {
+			counter.gate, counter.hits["chaos:ip:1.2.3.4"] = g, 3
+		}, ErrChaosLimit},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			svc, inj, counter := newChaos(DefaultChaosLimits())
+			base := time.Unix(2_000_000, 0)
+			svc.now = func() time.Time { return base }
+			g := newGate()
+			c.fail(inj, counter, g)
+			t.Cleanup(g.release)
+			failed := make(chan error, 1)
+			go func() {
+				_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, c.admin, "1.2.3.4")
+				failed <- err
+			}()
+			<-g.reached
+			svc.Observe(secondOfFailures(base))
+			g.release()
+			if err := <-failed; !errors.Is(err, c.want) {
+				t.Fatalf("the failed start returned %v, want %v", err, c.want)
+			}
+			inj.gate, inj.err = nil, nil
+			if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = svc.Stop(context.Background()) })
+			if incidents := svc.View().Incidents; len(incidents) != 1 || incidents[0].Lost != 0 {
+				t.Fatalf("incidents %+v, want one with nothing lost yet", incidents)
+			}
+		})
 	}
 }
 
