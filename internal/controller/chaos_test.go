@@ -61,9 +61,11 @@ type fakeCounter struct {
 	mu   sync.Mutex
 	hits map[string]int64
 	err  error
+	gate *gate
 }
 
 func (f *fakeCounter) Hit(_ context.Context, key string, _ time.Duration) (int64, error) {
+	f.gate.pass()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -269,45 +271,88 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	}
 }
 
-func TestWhileAFaultIsBeingInjectedTheViewAnswersAndTheSecondCounts(t *testing.T) {
+func secondOfFailures(at time.Time) Merged {
+	return Merged{
+		Second:     at.Unix(),
+		Routes:     map[string]gatewayapi.RouteSnapshot{"api": {Failed: 4}},
+		Dimensions: []gatewayapi.DimensionSnapshot{{ID: "dim-a", Attempts: 100, Healthy: true, Outlier: health.Closed}},
+	}
+}
+
+func TestWhileAFaultIsStartingTheViewAnswersAndTheSecondCounts(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		admin bool
+		hold  func(*fakeInjector, *fakeCounter, *gate)
+	}{
+		{"held by the injection", true, func(inj *fakeInjector, _ *fakeCounter, g *gate) { inj.gate = g }},
+		{"held by the visitor count", false, func(_ *fakeInjector, counter *fakeCounter, g *gate) { counter.gate = g }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			svc, inj, counter := newChaos(DefaultChaosLimits())
+			base := time.Unix(2_000_000, 0)
+			svc.now = func() time.Time { return base }
+			g := newGate()
+			c.hold(inj, counter, g)
+			t.Cleanup(g.release)
+			started := make(chan error, 1)
+			go func() {
+				_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, c.admin, "1.2.3.4")
+				started <- err
+			}()
+			<-g.reached
+			answered := make(chan ChaosView, 1)
+			go func() {
+				svc.Observe(secondOfFailures(base))
+				answered <- svc.View()
+			}()
+			select {
+			case v := <-answered:
+				if v.Current != nil || len(v.Incidents) != 0 {
+					t.Fatalf("a fault that isn't injected yet shows: %+v", v)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("the chaos view waited for the start")
+			}
+			g.release()
+			if err := <-started; err != nil {
+				t.Fatal(err)
+			}
+			if lost := svc.View().Incidents[0].Lost; lost != 4 {
+				t.Fatalf("the second observed while the fault was starting counted %d lost requests, want 4", lost)
+			}
+			if err := svc.Stop(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestSecondsSeenWhileAFaultFailsToStartCountForNoIncident(t *testing.T) {
 	svc, inj, _ := newChaos(DefaultChaosLimits())
 	base := time.Unix(2_000_000, 0)
 	svc.now = func() time.Time { return base }
 	g := newGate()
-	inj.gate = g
+	inj.gate, inj.err = g, errors.New("toxiproxy: connection refused")
 	t.Cleanup(g.release)
-	started := make(chan error, 1)
+	failed := make(chan error, 1)
 	go func() {
 		_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, "")
-		started <- err
+		failed <- err
 	}()
 	<-g.reached
-	answered := make(chan ChaosView, 1)
-	go func() {
-		svc.Observe(Merged{
-			Second:     base.Unix(),
-			Routes:     map[string]gatewayapi.RouteSnapshot{"api": {Failed: 4}},
-			Dimensions: []gatewayapi.DimensionSnapshot{{ID: "dim-a", Attempts: 100, Healthy: true, Outlier: health.Closed}},
-		})
-		answered <- svc.View()
-	}()
-	select {
-	case v := <-answered:
-		if v.Current != nil || len(v.Incidents) != 0 {
-			t.Fatalf("a fault that isn't injected yet shows as running: %+v", v)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("the chaos view waited for the injection")
-	}
+	svc.Observe(secondOfFailures(base))
 	g.release()
-	if err := <-started; err != nil {
+	if err := <-failed; !errors.Is(err, ErrChaosFailed) {
+		t.Fatalf("the failed start returned %v", err)
+	}
+	inj.gate, inj.err = nil, nil
+	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
 		t.Fatal(err)
 	}
-	if lost := svc.View().Incidents[0].Lost; lost != 4 {
-		t.Fatalf("the second observed during the injection counted %d lost requests, want 4", lost)
-	}
-	if err := svc.Stop(context.Background()); err != nil {
-		t.Fatal(err)
+	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
+	if incidents := svc.View().Incidents; len(incidents) != 1 || incidents[0].Lost != 0 {
+		t.Fatalf("incidents %+v, want one with nothing lost yet", incidents)
 	}
 }
 

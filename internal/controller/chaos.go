@@ -95,8 +95,7 @@ type ChaosService struct {
 	current   *Running
 	cooldown  time.Time
 	incidents []*Incident
-	injecting bool
-	missed    []Merged
+	starting  *Incident
 }
 
 type ChaosOptions struct {
@@ -167,6 +166,11 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		if wait := cooldown.Sub(now); wait > 0 {
 			return Running{}, wait, ErrChaosCooldown
 		}
+	}
+	inc := &Incident{Fault: f, Actor: actor, InjectedAt: now}
+	c.setStarting(inc)
+	defer c.setStarting(nil)
+	if !admin {
 		exceeded, err := c.visitors.exceeded(ctx, client)
 		if err != nil {
 			return Running{}, 0, err
@@ -175,38 +179,28 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 			return Running{}, time.Hour, ErrChaosLimit
 		}
 	}
-	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
-	if err := c.inject(ctx, run); err != nil {
+	if err := c.inj.Inject(ctx, f); err != nil {
 		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
+	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
+	c.mu.Lock()
+	c.starting = nil
+	c.current = &run
+	c.incidents = append(c.incidents, inc)
+	if len(c.incidents) > 20 {
+		c.incidents = c.incidents[len(c.incidents)-20:]
+	}
+	c.mu.Unlock()
 	c.timer = time.AfterFunc(d, func() { c.expire(run) })
 	c.record(ctx, actor, f, "inject")
 	c.emit(fmt.Sprintf("%s: %s on %s for %v", actor, f.Mode, f.Target, d))
 	return run, 0, nil
 }
 
-func (c *ChaosService) inject(ctx context.Context, run Running) error {
-	c.mu.Lock()
-	c.injecting = true
-	c.mu.Unlock()
-	err := c.inj.Inject(ctx, run.Fault)
+func (c *ChaosService) setStarting(inc *Incident) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	missed := c.missed
-	c.injecting, c.missed = false, nil
-	if err != nil {
-		return err
-	}
-	inc := &Incident{Fault: run.Fault, Actor: run.Actor, InjectedAt: run.Started}
-	for _, m := range missed {
-		inc.observe(m)
-	}
-	c.current = &run
-	c.incidents = append(c.incidents, inc)
-	if len(c.incidents) > 20 {
-		c.incidents = c.incidents[len(c.incidents)-20:]
-	}
-	return nil
+	c.starting = inc
 }
 
 func (c *ChaosService) running() *Running {
@@ -276,11 +270,11 @@ func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fa
 func (c *ChaosService) Observe(m Merged) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.injecting {
-		c.missed = append(c.missed, m)
-	}
 	for _, inc := range c.incidents {
 		inc.observe(m)
+	}
+	if c.starting != nil {
+		c.starting.observe(m)
 	}
 }
 
