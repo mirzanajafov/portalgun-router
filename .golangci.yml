@@ -28,10 +28,6 @@ linters:
           disabled: true
         - name: empty-block
           disabled: true
-        - name: redefines-builtin-id
-          disabled: true
-        - name: unexported-return
-          disabled: true
         - name: unused-parameter
           disabled: true
     staticcheck:

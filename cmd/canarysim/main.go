@@ -43,13 +43,13 @@ func main() {
 	if err := os.WriteFile(filepath.Join(dir, "results.json"), append(b, '\n'), 0o644); err != nil {
 		fail(err)
 	}
-	if err := print(results); err != nil {
+	if err := printResults(results); err != nil {
 		fail(err)
 	}
 	fmt.Printf("\n%d cells in %v, written to %s\n", len(results), elapsed.Round(time.Millisecond), dir)
 }
 
-func print(results []sim.CellResult) error {
+func printResults(results []sim.CellResult) error {
 	var b strings.Builder
 	fmt.Fprintln(&b, "group\tbase\tshare\trps\tcanary\tblip\tsprt (undecided)\tfixed-absolute\tfixed-relative\tpeeking-z\tfixed-horizon\tsprt+terminal\t")
 	for _, r := range results {

@@ -309,10 +309,10 @@ func redisUsage(ctx context.Context, rdb *redis.Client) (usage, error) {
 	if err != nil {
 		return usage{}, fmt.Errorf("redis info: %w", err)
 	}
-	return ParseInfo(info)
+	return parseInfo(info)
 }
 
-func ParseInfo(info string) (usage, error) {
+func parseInfo(info string) (usage, error) {
 	var u usage
 	for line := range strings.Lines(info) {
 		line = strings.TrimSpace(line)

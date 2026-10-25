@@ -62,7 +62,7 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 	out := make([]FailoverSummary, 0, len(order))
 	for _, cell := range order {
 		s := FailoverSummary{Cell: cell}
-		var detect, move, lost, after, before, fault, attempts, recover, falseEj []float64
+		var detect, move, lost, after, before, fault, attempts, recovery, falseEj []float64
 		for _, r := range by[cell] {
 			if r.Report == nil {
 				s.Failed++
@@ -84,7 +84,7 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 			}
 			if res.RecoverMs != nil {
 				s.Recovered++
-				recover = append(recover, *res.RecoverMs)
+				recovery = append(recovery, *res.RecoverMs)
 			}
 			lost = append(lost, float64(res.Lost))
 			after = append(after, float64(res.LostAfter))
@@ -93,7 +93,7 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 			attempts = append(attempts, res.AttemptsFault)
 			falseEj = append(falseEj, float64(res.FalseEjections))
 		}
-		s.DetectMs, s.MoveMs, s.RecoverMs = statOf(detect), statOf(move), statOf(recover)
+		s.DetectMs, s.MoveMs, s.RecoverMs = statOf(detect), statOf(move), statOf(recovery)
 		s.Lost, s.LostAfter = statOf(lost), statOf(after)
 		s.P99BeforeMs, s.P99FaultMs = statOf(before), statOf(fault)
 		s.AttemptsFault, s.FalseEjections = statOf(attempts), statOf(falseEj)
