@@ -94,31 +94,37 @@ func (s *shards[V]) size() int {
 
 type countedScripts struct {
 	*redis.Client
-	runs atomic.Int64
+	calls   atomic.Int64
+	answers atomic.Int64
 }
 
 func (c *countedScripts) EvalSha(ctx context.Context, sha1 string, keys []string, args ...any) *redis.Cmd {
-	c.runs.Add(1)
+	c.calls.Add(1)
 	return c.Client.EvalSha(ctx, sha1, keys, args...)
 }
 
 func (c *countedScripts) Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd {
-	c.runs.Add(1)
+	c.calls.Add(1)
 	return c.Client.Eval(ctx, script, keys, args...)
 }
 
 func (c *countedScripts) Pipeline() redis.Pipeliner {
-	return countedPipeline{Pipeliner: c.Client.Pipeline(), runs: &c.runs}
+	return countedPipeline{Pipeliner: c.Client.Pipeline(), answers: &c.answers}
 }
 
 type countedPipeline struct {
 	redis.Pipeliner
-	runs *atomic.Int64
+	answers *atomic.Int64
 }
 
-func (p countedPipeline) EvalSha(ctx context.Context, sha1 string, keys []string, args ...any) *redis.Cmd {
-	p.runs.Add(1)
-	return p.Pipeliner.EvalSha(ctx, sha1, keys, args...)
+func (p countedPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) {
+	cmds, err := p.Pipeliner.Exec(ctx)
+	for _, cmd := range cmds {
+		if cmd.Err() == nil {
+			p.answers.Add(1)
+		}
+	}
+	return cmds, err
 }
 
 func prefix(t *testing.T) string {
@@ -625,7 +631,7 @@ func TestLeaseFetchesInBatches(t *testing.T) {
 	rdb := &countedScripts{Client: testRedis(t)}
 	l, _ := NewLease(Options{Redis: rdb, Prefix: prefix(t), Rule: Rule{Rate: 10000, Burst: 10000}, Instances: 1, LeaseTarget: 50 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 	allowed := hammer(t, []Limiter{l}, "k", 2000, 0)
-	if f := rdb.runs.Load(); allowed != 2000 || f > 250 {
+	if f := rdb.calls.Load(); allowed != 2000 || f > 250 {
 		t.Fatalf("%d Redis calls for %d admitted requests out of 2000", f, allowed)
 	}
 }
@@ -637,7 +643,7 @@ func TestLeaseKeepsBatchingWhenTheBucketRunsDry(t *testing.T) {
 	began := time.Now()
 	allowed := hammer(t, []Limiter{l}, "k", 1000, 2*time.Millisecond)
 	exact := rule.Burst + rule.Rate*time.Since(began).Seconds()
-	fetches := rdb.runs.Load()
+	fetches := rdb.calls.Load()
 	if float64(allowed) > exact || float64(allowed) < 0.8*exact {
 		t.Fatalf("admitted %d against an exact %.0f", allowed, exact)
 	}
@@ -668,7 +674,7 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	if float64(allowed) > 1.2*ceiling || float64(allowed) < 0.6*ceiling {
 		t.Fatalf("admitted %d against an exact %.0f", allowed, ceiling)
 	}
-	if clients[0].runs.Load() == 0 {
+	if clients[0].answers.Load() == 0 {
 		t.Fatal("never synced")
 	}
 }
@@ -736,7 +742,7 @@ func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 	if float64(allowed) < 0.85*exact || float64(allowed) > 1.15*exact {
 		t.Fatalf("admitted %d against an exact %.0f; a static split would admit about two thirds at 90/10", allowed, exact)
 	}
-	if clients[0].runs.Load() == 0 || clients[1].runs.Load() == 0 {
+	if clients[0].answers.Load() == 0 || clients[1].answers.Load() == 0 {
 		t.Fatal("an instance never synced")
 	}
 }
