@@ -1,7 +1,7 @@
 import 'server-only'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { z, type ZodType } from 'zod'
+import * as z from 'zod/mini'
 
 const PolicyResult = z.object({
   policy: z.string(),
@@ -21,9 +21,9 @@ const CellResult = z.object({
     baseError: z.number(),
     share: z.number(),
     rho: z.number(),
-    totalFailure: z.boolean().optional(),
+    totalFailure: z.optional(z.boolean()),
     canarySlow: z.number(),
-    blip: z.boolean().optional(),
+    blip: z.optional(z.boolean()),
     rps: z.number(),
     trials: z.number(),
   }),
@@ -39,7 +39,7 @@ function resultsDir(): string {
   return process.env.RESULTS_DIR ?? path.join(process.cwd(), '..', 'bench', 'results')
 }
 
-function read<T>(file: string, schema: ZodType<T>): T {
+function read<T>(file: string, schema: z.ZodMiniType<T>): T {
   try {
     return schema.parse(JSON.parse(readFileSync(file, 'utf8')))
   } catch (err) {
@@ -49,7 +49,7 @@ function read<T>(file: string, schema: ZodType<T>): T {
 
 export type Run<T> = { name: string; summary: T }
 
-export function latestRun<T>(experiment: string, schema: ZodType<T>): Run<T> | null {
+export function latestRun<T>(experiment: string, schema: z.ZodMiniType<T>): Run<T> | null {
   const dir = path.join(resultsDir(), experiment)
   let names: string[]
   try {

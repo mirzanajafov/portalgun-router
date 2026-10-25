@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod/mini'
 
 const Stat = z.object({ median: z.number(), min: z.number(), max: z.number() })
 export type Stat = z.infer<typeof Stat>
@@ -8,7 +8,7 @@ const ProxyCell = z.object({
   rate: z.number(),
   runs: z.number(),
   saturated: z.number(),
-  died: z.number().optional(),
+  died: z.optional(z.number()),
   generatorIssues: z.number(),
   p50Us: Stat,
   p99Us: Stat,
@@ -16,14 +16,14 @@ const ProxyCell = z.object({
   throughputRps: Stat,
   cpuPerRequestUs: Stat,
   userPerRequestUs: Stat,
-  memoryPeakMb: Stat.optional(),
-  swapPeakMb: Stat.optional(),
+  memoryPeakMb: z.optional(Stat),
+  swapPeakMb: z.optional(Stat),
   overheadP50Us: z.number(),
   overheadP99Us: z.number(),
-  collapsed: z.number().optional(),
-  goodputRps: Stat.optional(),
-  okP99Us: Stat.optional(),
-  shedShare: Stat.optional(),
+  collapsed: z.optional(z.number()),
+  goodputRps: z.optional(Stat),
+  okP99Us: z.optional(Stat),
+  shedShare: z.optional(Stat),
 })
 export type ProxyCell = z.infer<typeof ProxyCell>
 
@@ -32,13 +32,13 @@ export type ProxyReport = z.infer<typeof ProxyReport>
 
 const LimiterSummary = z.object({
   cell: z.string(),
-  baseline: z.string().optional(),
+  baseline: z.optional(z.string()),
   runs: z.number(),
   invalidRuns: z.number(),
   p50Us: Stat,
   p99Us: Stat,
-  addedP50Us: Stat.optional(),
-  addedP99Us: Stat.optional(),
+  addedP50Us: z.optional(Stat),
+  addedP99Us: z.optional(Stat),
   overAdmission: Stat,
   maxAhead: Stat,
   maxBehind: Stat,
@@ -188,15 +188,15 @@ export function failoverMatrix(sums: FailoverSummary[]): FailoverRow[] {
 }
 
 const RegistryTimes = z.object({
-  registerMs: Stat.optional(),
-  joinMs: Stat.optional(),
-  gatewaysMs: Stat.optional(),
-  leaveGatewaysMs: Stat.optional(),
-  killToFirstMs: Stat.optional(),
+  registerMs: z.optional(Stat),
+  joinMs: z.optional(Stat),
+  gatewaysMs: z.optional(Stat),
+  leaveGatewaysMs: z.optional(Stat),
+  killToFirstMs: z.optional(Stat),
 })
 type RegistryTimes = z.infer<typeof RegistryTimes>
 
-const RegistrySummary = RegistryTimes.extend({
+const RegistrySummary = z.extend(RegistryTimes, {
   cell: z.string(),
   runs: z.number(),
   failed: z.number(),

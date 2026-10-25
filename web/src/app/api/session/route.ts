@@ -1,11 +1,11 @@
 import { cookies } from 'next/headers'
-import { z } from 'zod'
+import * as z from 'zod/mini'
 import { ADMIN_COOKIE, adminToken, isAdmin } from '@/lib/server'
 import type { Refusal, Session } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-const SignIn = z.object({ token: z.string().min(1).max(512) })
+const SignIn = z.object({ token: z.string().check(z.minLength(1), z.maxLength(512)) })
 
 export async function GET() {
   return Response.json({ admin: await isAdmin(await adminToken()) } satisfies Session)

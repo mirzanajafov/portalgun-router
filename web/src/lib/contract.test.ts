@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import * as z from 'zod/mini'
 import { State, Tick } from './types'
 
 const Contract = z.object({ firstState: State, state: State, tick: Tick, quietTick: Tick })

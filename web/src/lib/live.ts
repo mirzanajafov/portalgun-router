@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { ZodType } from 'zod'
+import type { ZodMiniType } from 'zod/mini'
 import { PortalEvent, State, Tick, type ChaosView, type Merged, type RolloutStatus } from './types'
 
 export type LlrPoint = { t: number; errors: number; slow: number; step: number; rollout: string }
@@ -25,7 +25,7 @@ export function appendLlr(points: LlrPoint[], r: RolloutStatus, second: number):
   return [...kept.slice(-(LLR_POINTS - 1)), { t: second, errors: r.llrErrors, slow: r.llrSlow, step: r.step.step, rollout }]
 }
 
-function listen<T>(source: EventSource, type: string, schema: ZodType<T>, apply: (value: T) => void) {
+function listen<T>(source: EventSource, type: string, schema: ZodMiniType<T>, apply: (value: T) => void) {
   source.addEventListener(type, (e: MessageEvent<string>) => {
     const parsed = schema.safeParse(JSON.parse(e.data))
     if (parsed.success) apply(parsed.data)
