@@ -95,6 +95,8 @@ type ChaosService struct {
 	current   *Running
 	cooldown  time.Time
 	incidents []*Incident
+	injecting bool
+	missed    []Merged
 }
 
 type ChaosOptions struct {
@@ -173,27 +175,38 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 			return Running{}, time.Hour, ErrChaosLimit
 		}
 	}
-	inc := &Incident{Fault: f, Actor: actor, InjectedAt: now}
-	c.mu.Lock()
-	c.incidents = append(c.incidents, inc)
-	c.mu.Unlock()
-	if err := c.inj.Inject(ctx, f); err != nil {
-		c.mu.Lock()
-		c.incidents = slices.DeleteFunc(c.incidents, func(i *Incident) bool { return i == inc })
-		c.mu.Unlock()
+	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
+	if err := c.inject(ctx, run); err != nil {
 		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
-	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
-	c.mu.Lock()
-	c.current = &run
-	if len(c.incidents) > 20 {
-		c.incidents = c.incidents[len(c.incidents)-20:]
-	}
-	c.mu.Unlock()
 	c.timer = time.AfterFunc(d, func() { c.expire(run) })
 	c.record(ctx, actor, f, "inject")
 	c.emit(fmt.Sprintf("%s: %s on %s for %v", actor, f.Mode, f.Target, d))
 	return run, 0, nil
+}
+
+func (c *ChaosService) inject(ctx context.Context, run Running) error {
+	c.mu.Lock()
+	c.injecting = true
+	c.mu.Unlock()
+	err := c.inj.Inject(ctx, run.Fault)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	missed := c.missed
+	c.injecting, c.missed = false, nil
+	if err != nil {
+		return err
+	}
+	inc := &Incident{Fault: run.Fault, Actor: run.Actor, InjectedAt: run.Started}
+	for _, m := range missed {
+		inc.observe(m)
+	}
+	c.current = &run
+	c.incidents = append(c.incidents, inc)
+	if len(c.incidents) > 20 {
+		c.incidents = c.incidents[len(c.incidents)-20:]
+	}
+	return nil
 }
 
 func (c *ChaosService) running() *Running {
@@ -263,37 +276,43 @@ func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fa
 func (c *ChaosService) Observe(m Merged) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	start := time.Unix(m.Second, 0)
-	var total, failed int64
-	for _, r := range m.Routes {
-		failed += r.Failed
-	}
-	byID := map[string]gatewayapi.DimensionSnapshot{}
-	for _, d := range m.Dimensions {
-		total += d.Attempts
-		byID[d.ID] = d
+	if c.injecting {
+		c.missed = append(c.missed, m)
 	}
 	for _, inc := range c.incidents {
-		if inc.Closed || start.Add(time.Second).Before(inc.InjectedAt) {
-			continue
+		inc.observe(m)
+	}
+}
+
+func (inc *Incident) observe(m Merged) {
+	start := time.Unix(m.Second, 0)
+	if inc.Closed || start.Add(time.Second).Before(inc.InjectedAt) {
+		return
+	}
+	i := slices.IndexFunc(m.Dimensions, func(d gatewayapi.DimensionSnapshot) bool { return d.ID == inc.Fault.Target })
+	if i < 0 {
+		return
+	}
+	d := m.Dimensions[i]
+	after := start.Add(time.Second).Sub(inc.InjectedAt).Seconds()
+	if inc.DetectedS == nil && (!d.Healthy || d.Outlier == health.Ejected) {
+		inc.DetectedS = &after
+	}
+	if inc.MovedS == nil && (inc.ClearedAt == nil || !start.After(*inc.ClearedAt)) {
+		var total, failed int64
+		for _, r := range m.Routes {
+			failed += r.Failed
 		}
-		after := start.Add(time.Second).Sub(inc.InjectedAt).Seconds()
-		d, ok := byID[inc.Fault.Target]
-		if !ok {
-			continue
+		for _, dim := range m.Dimensions {
+			total += dim.Attempts
 		}
-		if inc.DetectedS == nil && (!d.Healthy || d.Outlier == health.Ejected) {
-			inc.DetectedS = &after
+		inc.Lost += failed
+		if total > 0 && float64(d.Attempts) < 0.01*float64(total) {
+			inc.MovedS = &after
 		}
-		if inc.MovedS == nil && (inc.ClearedAt == nil || !start.After(*inc.ClearedAt)) {
-			inc.Lost += failed
-			if total > 0 && float64(d.Attempts) < 0.01*float64(total) {
-				inc.MovedS = &after
-			}
-		}
-		if inc.ClearedAt != nil && start.After(inc.ClearedAt.Add(10*time.Second)) {
-			inc.Closed = true
-		}
+	}
+	if inc.ClearedAt != nil && start.After(inc.ClearedAt.Add(10*time.Second)) {
+		inc.Closed = true
 	}
 }
 

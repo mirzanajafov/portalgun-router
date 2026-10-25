@@ -293,8 +293,8 @@ func TestWhileAFaultIsBeingInjectedTheViewAnswersAndTheSecondCounts(t *testing.T
 	}()
 	select {
 	case v := <-answered:
-		if v.Current != nil {
-			t.Fatal("a fault that isn't injected yet shows as running")
+		if v.Current != nil || len(v.Incidents) != 0 {
+			t.Fatalf("a fault that isn't injected yet shows as running: %+v", v)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("the chaos view waited for the injection")
