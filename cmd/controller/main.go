@@ -165,16 +165,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		apiOpts.Chaos = controller.NewChaosService(controller.ChaosOptions{Injector: inj, Log: st, Counter: counter, Limits: controller.DefaultChaosLimits(), Targets: names, ProxyToken: o.proxyToken, Notify: hub.Event, Logger: logger})
 	}
 	api := controller.NewAPI(apiOpts)
-	agg := controller.NewAggregator(func(m controller.Merged) {
-		api.SetLatest(m)
-		engine.Observe(ctx, m)
-		tick := map[string]any{"latest": m, "rollout": engine.Status(), "viewers": hub.Viewers()}
-		if apiOpts.Chaos != nil {
-			apiOpts.Chaos.Observe(m)
-			tick["chaos"] = apiOpts.Chaos.View()
-		}
-		hub.Broadcast("tick", tick)
-	})
+	agg := controller.NewAggregator(func(m controller.Merged) { api.Observe(ctx, m) })
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err

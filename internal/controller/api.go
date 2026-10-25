@@ -72,7 +72,24 @@ func (a *API) State() State {
 	return State{ConfigVersion: v, Latest: a.latest.Load(), Rollout: a.engine.Status(), Viewers: a.hub.Viewers(), Events: a.hub.Events()}
 }
 
-func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
+type Tick struct {
+	Latest  Merged     `json:"latest"`
+	Rollout Status     `json:"rollout"`
+	Viewers int        `json:"viewers"`
+	Chaos   *ChaosView `json:"chaos,omitempty"`
+}
+
+func (a *API) Observe(ctx context.Context, m Merged) {
+	a.latest.Store(&m)
+	a.engine.Observe(ctx, m)
+	tick := Tick{Latest: m, Rollout: a.engine.Status(), Viewers: a.hub.Viewers()}
+	if a.chaos != nil {
+		a.chaos.Observe(m)
+		v := a.chaos.View()
+		tick.Chaos = &v
+	}
+	a.hub.Broadcast("tick", tick)
+}
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()

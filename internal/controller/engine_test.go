@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -832,6 +833,33 @@ func TestClosingTheHubEndsEveryStream(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the stream kept going after the hub closed")
+	}
+}
+
+func TestEverySecondTheDashboardsGetATickWithChaosOnlyWhenChaosIsOn(t *testing.T) {
+	for _, withChaos := range []bool{false, true} {
+		r := newRig(t)
+		o := r.apiOptions()
+		want := []string{"latest", "rollout", "viewers"}
+		if withChaos {
+			o.Chaos, _, _ = newChaos(DefaultChaosLimits())
+			want = append(want, "chaos")
+		}
+		api := NewAPI(o)
+		frames, done := o.Hub.Subscribe()
+		api.Observe(context.Background(), Merged{Second: 42})
+		done()
+		kind, data, _ := strings.Cut(string(<-frames), "\ndata: ")
+		var tick map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(data), &tick); err != nil || kind != "event: tick" {
+			t.Fatalf("%s %q: %v", kind, data, err)
+		}
+		if got := slices.Sorted(maps.Keys(tick)); !slices.Equal(got, slices.Sorted(slices.Values(want))) {
+			t.Fatalf("with chaos %v the tick has %v", withChaos, got)
+		}
+		if latest := api.State().Latest; latest == nil || latest.Second != 42 {
+			t.Fatalf("the state's latest second is %+v", latest)
+		}
 	}
 }
 
