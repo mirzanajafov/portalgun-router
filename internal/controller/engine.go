@@ -20,6 +20,7 @@ type RolloutStore interface {
 	StartRollout(ctx context.Context, r store.Rollout, c store.ConfigChange) (store.ConfigVersion, error)
 	SaveStep(ctx context.Context, rollout string, st store.Step) error
 	EndRollout(ctx context.Context, end store.RolloutEnd, c *store.ConfigChange) (store.ConfigVersion, error)
+	AbandonActive(ctx context.Context, reason string, at time.Time) ([]string, error)
 }
 
 type EngineOptions struct {
@@ -94,6 +95,32 @@ var (
 	ErrRolloutFailed = errors.New("the rollout could not be started")
 	ErrEndNotSaved   = errors.New("the rollout's end is decided but not saved yet, and it is tried again every few seconds")
 )
+
+func (e *Engine) Recover(ctx context.Context) error {
+	abandoned, err := e.store.AbandonActive(ctx, "the controller restarted during the rollout", e.now().UTC())
+	if err != nil {
+		return err
+	}
+	cfg, _ := e.cfgs.Current()
+	live := false
+	for _, r := range cfg.Routes {
+		live = live || (r.Versions.Canary != "" && r.Versions.Weight > 0)
+	}
+	if len(abandoned) == 0 && !live {
+		return nil
+	}
+	e.logger.Warn("taking traffic off canaries left from before a restart", "rollouts", abandoned)
+	_, err = e.cfgs.Update(ctx, store.ActorController, "restarted during a rollout: canary traffic set to zero", func(c *config.Config) error {
+		for i := range c.Routes {
+			v := &c.Routes[i].Versions
+			if v.Canary != "" {
+				v.Canary, v.Weight = "", 0
+			}
+		}
+		return nil
+	})
+	return err
+}
 
 func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
 	e.mu.Lock()

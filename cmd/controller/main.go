@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
-	"github.com/mirzanajafov/portalgun-router/internal/config"
 	"github.com/mirzanajafov/portalgun-router/internal/controller"
 	"github.com/mirzanajafov/portalgun-router/internal/distrib"
 	"github.com/mirzanajafov/portalgun-router/internal/registry"
@@ -134,7 +133,8 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	if err := cfgs.Load(ctx, boot); err != nil {
 		return err
 	}
-	if err := recoverRollouts(ctx, st, cfgs, logger); err != nil {
+	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
+	if err := engine.Recover(ctx); err != nil {
 		return err
 	}
 
@@ -148,7 +148,6 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		}
 	}
 
-	engine := controller.NewEngine(controller.DefaultEngineOptions(), cfgs, st, logger, hub.Event)
 	settled := make(chan struct{})
 	go func() {
 		defer close(settled)
@@ -215,31 +214,5 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	defer cancel()
 	err = errors.Join(serveErr, srv.Shutdown(shutdownCtx))
 	<-settled
-	return err
-}
-
-func recoverRollouts(ctx context.Context, st *store.Store, cfgs *controller.ConfigManager, logger *slog.Logger) error {
-	abandoned, err := st.AbandonActive(ctx, "the controller restarted during the rollout", time.Now().UTC())
-	if err != nil {
-		return err
-	}
-	cfg, _ := cfgs.Current()
-	live := false
-	for _, r := range cfg.Routes {
-		live = live || (r.Versions.Canary != "" && r.Versions.Weight > 0)
-	}
-	if len(abandoned) == 0 && !live {
-		return nil
-	}
-	logger.Warn("taking traffic off canaries left from before a restart", "rollouts", abandoned)
-	_, err = cfgs.Update(ctx, store.ActorController, "restarted during a rollout: canary traffic set to zero", func(c *config.Config) error {
-		for i := range c.Routes {
-			v := &c.Routes[i].Versions
-			if v.Canary != "" {
-				v.Canary, v.Weight = "", 0
-			}
-		}
-		return nil
-	})
 	return err
 }

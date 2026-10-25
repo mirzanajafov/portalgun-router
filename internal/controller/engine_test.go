@@ -144,6 +144,20 @@ func (m *memStore) EndRollout(ctx context.Context, end store.RolloutEnd, c *stor
 	return saved, err
 }
 
+func (m *memStore) AbandonActive(ctx context.Context, _ string, at time.Time) ([]string, error) {
+	var ids []string
+	_, err := m.write(ctx, func() (store.ConfigVersion, error) {
+		for _, r := range m.rollouts {
+			if _, done := m.outcomes[r.ID]; !done {
+				m.outcomes[r.ID], m.finished[r.ID] = store.OutcomeAborted, at
+				ids = append(ids, r.ID)
+			}
+		}
+		return store.ConfigVersion{}, nil
+	})
+	return ids, err
+}
+
 var quiet = slog.New(slog.DiscardHandler)
 
 const baseConfig = `{"routes":[{"name":"api","pathPrefix":"/","pool":"p","versions":{"stable":"v1"}}],
@@ -337,6 +351,53 @@ func TestStartChecksItsInputs(t *testing.T) {
 	}
 	if err := r.engine.Abort(ctx, "again"); err == nil {
 		t.Fatal("aborted a rollout that isn't running")
+	}
+}
+
+func TestARestartClosesTheRolloutItInterruptedAndTakesTheCanaryOff(t *testing.T) {
+	cases := []struct {
+		name    string
+		before  func(t *testing.T, r *rig)
+		written bool
+	}{
+		{"nothing was running", func(*testing.T, *rig) {}, false},
+		{"a rollout was running", func(t *testing.T, r *rig) {
+			if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
+				t.Fatal(err)
+			}
+		}, true},
+		{"a canary was left in the config without a rollout", func(t *testing.T, r *rig) {
+			_, err := r.cfgs.Update(context.Background(), store.ActorAdmin, "by hand", func(c *config.Config) error {
+				c.Routes[0].Versions = config.Versions{Stable: "v1", Canary: "v2", Weight: 0.1}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := newRig(t)
+			c.before(t, r)
+			before := len(r.store.configs)
+			restarted := NewEngine(r.engine.opts, r.cfgs, r.store, quiet, nil)
+			if err := restarted.Recover(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if v := r.versions(t); v.Canary != "" || v.Weight != 0 {
+				t.Fatalf("versions after the restart: %+v", v)
+			}
+			for _, ro := range r.store.rollouts {
+				if r.store.outcomes[ro.ID] != store.OutcomeAborted {
+					t.Fatalf("rollout %s left as %q", ro.ID, r.store.outcomes[ro.ID])
+				}
+			}
+			written := len(r.store.configs) > before
+			if written != c.written || (written && r.store.configs[len(r.store.configs)-1].Author != store.ActorController) {
+				t.Fatalf("configs %v, want a new one: %v", r.store.configs[before:], c.written)
+			}
+		})
 	}
 }
 
