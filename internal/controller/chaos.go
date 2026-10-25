@@ -115,7 +115,7 @@ func NewChaosService(o ChaosOptions) *ChaosService {
 		chaosLimit: newVisitorLimit(chaosVisitors, o.Limits.PerHour, o.Counter, o.Logger),
 		notify:     o.Notify,
 		limits:     o.Limits,
-		targets:    o.Targets,
+		targets:    append([]string{}, o.Targets...),
 		logger:     o.Logger,
 		now:        time.Now,
 	}

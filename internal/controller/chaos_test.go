@@ -258,13 +258,13 @@ func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	}
 }
 
-func TestTheChaosViewListsNoIncidentsRatherThanNull(t *testing.T) {
-	svc, _, _ := newChaos(DefaultChaosLimits())
+func TestAChaosViewWithNothingInItListsNothingRatherThanNull(t *testing.T) {
+	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Limits: DefaultChaosLimits(), Logger: quiet})
 	raw, err := json.Marshal(svc.View())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"incidents":[]`) {
+	if !strings.Contains(string(raw), `"targets":[]`) || !strings.Contains(string(raw), `"incidents":[]`) {
 		t.Fatalf("chaos view %s", raw)
 	}
 }
