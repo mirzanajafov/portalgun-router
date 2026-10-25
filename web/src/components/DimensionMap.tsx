@@ -1,5 +1,3 @@
-'use client'
-
 import { dimensionName, errorRate, health, ms, pct, share, type Health } from '@/lib/format'
 import type { Merged } from '@/lib/types'
 

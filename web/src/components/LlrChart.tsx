@@ -1,5 +1,3 @@
-'use client'
-
 import type { LlrPoint } from '@/lib/live'
 
 const W = 560
