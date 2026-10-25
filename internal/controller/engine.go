@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/canary"
@@ -83,10 +84,13 @@ type Engine struct {
 
 	mu     sync.Mutex
 	active *active
+	status atomic.Pointer[Status]
 }
 
 func NewEngine(opts EngineOptions, cfgs *ConfigManager, s RolloutStore, logger *slog.Logger, notify func(Event)) *Engine {
-	return &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now}
+	e := &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now}
+	e.storeStatus()
+	return e
 }
 
 var (
@@ -125,6 +129,7 @@ func (e *Engine) Recover(ctx context.Context) error {
 func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	defer e.storeStatus()
 	if e.active != nil {
 		return store.Rollout{}, ErrBusy
 	}
@@ -206,6 +211,7 @@ func (e *Engine) saveStep(ctx context.Context) {
 func (e *Engine) Observe(ctx context.Context, m Merged) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	defer e.storeStatus()
 	a := e.active
 	if a == nil {
 		return
@@ -355,6 +361,7 @@ func (e *Engine) Run(ctx context.Context) {
 func (e *Engine) retry(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	defer e.storeStatus()
 	if e.active != nil && e.active.settling != nil {
 		e.trySettle(ctx)
 	}
@@ -400,6 +407,7 @@ func (e *Engine) saveSettlement(ctx context.Context, a *active, s *settlement) e
 func (e *Engine) Abort(ctx context.Context, reason string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	defer e.storeStatus()
 	a := e.active
 	if a == nil {
 		return ErrNoRollout
@@ -429,21 +437,25 @@ type Status struct {
 	Pending   store.Outcome `json:"pending,omitempty"`
 }
 
-func (e *Engine) Status() Status {
+func (e *Engine) Status() Status { return *e.status.Load() }
+
+func (e *Engine) Busy() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	return e.active != nil
+}
+
+func (e *Engine) storeStatus() {
 	st := Status{Steps: e.opts.Steps}
-	a := e.active
-	if a == nil {
-		return st
+	if a := e.active; a != nil {
+		st.Active, st.Rollout, st.Step, st.DataSec = true, a.rollout, a.record(), a.seconds
+		st.LLRErrors, st.LLRSlow = st.Step.LLRErrors, st.Step.LLRSlow
+		st.Lower, st.Upper = a.policy.Sequential().Errors().Bounds()
+		if a.settling != nil {
+			st.Pending = a.settling.outcome
+		}
 	}
-	st.Active, st.Rollout, st.Step, st.DataSec = true, a.rollout, a.record(), a.seconds
-	st.LLRErrors, st.LLRSlow = st.Step.LLRErrors, st.Step.LLRSlow
-	st.Lower, st.Upper = a.policy.Sequential().Errors().Bounds()
-	if a.settling != nil {
-		st.Pending = a.settling.outcome
-	}
-	return st
+	e.status.Store(&st)
 }
 
 func (e *Engine) emit(msg string) {

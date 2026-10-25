@@ -32,9 +32,32 @@ type memStore struct {
 	finished map[string]time.Time
 
 	refuseWrites, refuseReads, loseEndReply, loseStartReply atomic.Bool
+
+	gate *gate
 }
 
 var errStoreDown = errors.New("dial tcp postgres:5432: connect: connection refused")
+
+type gate struct {
+	reached chan struct{}
+	open    chan struct{}
+	once    sync.Once
+}
+
+func newGate() *gate { return &gate{reached: make(chan struct{}, 1), open: make(chan struct{})} }
+
+func (g *gate) pass() {
+	if g == nil {
+		return
+	}
+	select {
+	case g.reached <- struct{}{}:
+	default:
+	}
+	<-g.open
+}
+
+func (g *gate) release() { g.once.Do(func() { close(g.open) }) }
 
 func newMemStore() *memStore {
 	return &memStore{steps: map[string]map[int]store.Step{}, outcomes: map[string]store.Outcome{}, finished: map[string]time.Time{}}
@@ -53,6 +76,7 @@ func (m *memStore) write(ctx context.Context, apply func() (store.ConfigVersion,
 	if err := ctx.Err(); err != nil {
 		return store.ConfigVersion{}, err
 	}
+	m.gate.pass()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.refuseWrites.Load() {
@@ -833,6 +857,34 @@ func TestClosingTheHubEndsEveryStream(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the stream kept going after the hub closed")
+	}
+}
+
+func TestTheDashboardsAreAnsweredWhileARolloutWaitsOnPostgres(t *testing.T) {
+	r := newRig(t)
+	api := NewAPI(r.apiOptions())
+	g := newGate()
+	r.store.gate = g
+	t.Cleanup(g.release)
+	started := make(chan error, 1)
+	go func() {
+		_, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+		started <- err
+	}()
+	<-g.reached
+	answered := make(chan State, 1)
+	go func() { answered <- api.State() }()
+	select {
+	case st := <-answered:
+		if st.Rollout.Active {
+			t.Fatal("a rollout whose start isn't saved yet shows as running")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the state waited for the rollout's write")
+	}
+	g.release()
+	if err := <-started; err != nil || !r.engine.Status().Active {
+		t.Fatalf("start: %v, then %+v", err, r.engine.Status())
 	}
 }
 

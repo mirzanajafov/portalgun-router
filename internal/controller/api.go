@@ -184,7 +184,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if author == store.ActorVisitor {
-		if a.engine.Status().Active {
+		if a.engine.Busy() {
 			httpx.WriteError(w, http.StatusConflict, ErrBusy.Error())
 			return
 		}

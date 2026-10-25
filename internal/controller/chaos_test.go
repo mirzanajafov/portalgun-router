@@ -24,9 +24,11 @@ type fakeInjector struct {
 	injected []chaos.Fault
 	cleared  []chaos.Fault
 	err      error
+	gate     *gate
 }
 
 func (f *fakeInjector) Inject(_ context.Context, fault chaos.Fault) error {
+	f.gate.pass()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -264,6 +266,39 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	}
 	if *inc.DetectedS != 1.7 || *inc.MovedS != 1.7 {
 		t.Fatalf("detected after %.1fs, moved after %.1fs; want both at the end of the second second, 1.7s", *inc.DetectedS, *inc.MovedS)
+	}
+}
+
+func TestTheChaosViewIsAnsweredWhileAFaultIsBeingInjected(t *testing.T) {
+	svc, inj, _ := newChaos(DefaultChaosLimits())
+	g := newGate()
+	inj.gate = g
+	t.Cleanup(g.release)
+	started := make(chan error, 1)
+	go func() {
+		_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, "")
+		started <- err
+	}()
+	<-g.reached
+	answered := make(chan ChaosView, 1)
+	go func() {
+		svc.Observe(Merged{Second: 1})
+		answered <- svc.View()
+	}()
+	select {
+	case v := <-answered:
+		if v.Current != nil {
+			t.Fatal("a fault that isn't injected yet shows as running")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the chaos view waited for the injection")
+	}
+	g.release()
+	if err := <-started; err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Stop(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 

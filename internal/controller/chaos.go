@@ -88,9 +88,11 @@ type ChaosService struct {
 	logger   *slog.Logger
 	now      func() time.Time
 
+	actions sync.Mutex
+	timer   *time.Timer
+
 	mu        sync.Mutex
 	current   *Running
-	timer     *time.Timer
 	cooldown  time.Time
 	incidents []*Incident
 }
@@ -149,16 +151,19 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 	if err != nil {
 		return Running{}, 0, err
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.actions.Lock()
+	defer c.actions.Unlock()
 	now := c.now()
-	if c.current != nil {
-		return Running{}, c.current.Until.Sub(now), ErrChaosBusy
+	c.mu.Lock()
+	current, cooldown := c.current, c.cooldown
+	c.mu.Unlock()
+	if current != nil {
+		return Running{}, current.Until.Sub(now), ErrChaosBusy
 	}
 	actor := store.ActorAdmin
 	if !admin {
 		actor = store.ActorVisitor
-		if wait := c.cooldown.Sub(now); wait > 0 {
+		if wait := cooldown.Sub(now); wait > 0 {
 			return Running{}, wait, ErrChaosCooldown
 		}
 		exceeded, err := c.visitors.exceeded(ctx, client)
@@ -173,32 +178,41 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
 	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
+	c.mu.Lock()
 	c.current = &run
-	c.timer = time.AfterFunc(d, func() { c.expire(run) })
 	c.incidents = append(c.incidents, &Incident{Fault: f, Actor: actor, InjectedAt: now})
 	if len(c.incidents) > 20 {
 		c.incidents = c.incidents[len(c.incidents)-20:]
 	}
+	c.mu.Unlock()
+	c.timer = time.AfterFunc(d, func() { c.expire(run) })
 	c.record(ctx, actor, f, "inject")
 	c.emit(fmt.Sprintf("%s: %s on %s for %v", actor, f.Mode, f.Target, d))
 	return run, 0, nil
 }
 
-func (c *ChaosService) expire(run Running) {
+func (c *ChaosService) running() *Running {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.current == nil || c.current.Started != run.Started {
+	return c.current
+}
+
+func (c *ChaosService) expire(run Running) {
+	c.actions.Lock()
+	defer c.actions.Unlock()
+	if current := c.running(); current == nil || current.Started != run.Started {
 		return
 	}
 	c.clearLocked(context.Background(), "the fault ran its course")
 }
 
 func (c *ChaosService) clearLocked(ctx context.Context, why string) {
-	run := c.current
+	run := c.running()
 	if err := c.inj.Clear(ctx, run.Fault); err != nil {
 		c.logger.Error("clearing a fault", "err", err)
 	}
 	now := c.now()
+	c.mu.Lock()
 	for _, inc := range c.incidents {
 		if inc.InjectedAt == run.Started {
 			inc.ClearedAt = &now
@@ -208,14 +222,15 @@ func (c *ChaosService) clearLocked(ctx context.Context, why string) {
 		c.cooldown = now.Add(c.limits.Cooldown)
 	}
 	c.current = nil
+	c.mu.Unlock()
 	c.record(ctx, run.Actor, run.Fault, "clear")
 	c.emit(fmt.Sprintf("%s on %s cleared: %s", run.Fault.Mode, run.Fault.Target, why))
 }
 
 func (c *ChaosService) Stop(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.current == nil {
+	c.actions.Lock()
+	defer c.actions.Unlock()
+	if c.running() == nil {
 		return errors.New("no fault is running")
 	}
 	c.timer.Stop()
