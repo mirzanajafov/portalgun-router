@@ -89,7 +89,7 @@ func TestLatencyIsMeasuredFromTheSchedule(t *testing.T) {
 
 func TestSuccessLatencyLeavesFastRefusalsOut(t *testing.T) {
 	var n atomic.Int64
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if n.Add(1)%3 != 0 {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
@@ -132,7 +132,7 @@ func TestSpreadsRequestsOverURLsInTurn(t *testing.T) {
 
 func TestSendsBodyAndHeaders(t *testing.T) {
 	var seen, wrong atomic.Int64
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		seen.Add(1)
 		if r.Method != http.MethodPost || len(body) != 1000 || r.Header.Get("X-Api-Key") != "morty" {

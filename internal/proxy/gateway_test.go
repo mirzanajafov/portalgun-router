@@ -209,15 +209,22 @@ type holding struct {
 
 func (h *holding) let() { h.once.Do(func() { close(h.release) }) }
 
+func raiseTo(v *atomic.Int64, n int64) {
+	for m := v.Load(); n > m; m = v.Load() {
+		if v.CompareAndSwap(m, n) {
+			return
+		}
+	}
+}
+
 func holdingDim(t *testing.T) (*holding, string) {
 	t.Helper()
 	h := &holding{release: make(chan struct{})}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		h.seen.Add(1)
 		n := h.now.Add(1)
 		defer h.now.Add(-1)
-		for m := h.most.Load(); n > m && !h.most.CompareAndSwap(m, n); m = h.most.Load() {
-		}
+		raiseTo(&h.most, n)
 		if r.URL.Path == "/hold" {
 			select {
 			case <-h.release:

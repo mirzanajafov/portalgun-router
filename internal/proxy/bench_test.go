@@ -178,7 +178,7 @@ func BenchmarkServeHTTPParallel(b *testing.B) {
 }
 
 func BenchmarkLoopback(b *testing.B) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "1024")
 		_, _ = w.Write(payload)
 	}))
