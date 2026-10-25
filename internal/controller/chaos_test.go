@@ -269,8 +269,10 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	}
 }
 
-func TestTheChaosViewIsAnsweredWhileAFaultIsBeingInjected(t *testing.T) {
+func TestWhileAFaultIsBeingInjectedTheViewAnswersAndTheSecondCounts(t *testing.T) {
 	svc, inj, _ := newChaos(DefaultChaosLimits())
+	base := time.Unix(2_000_000, 0)
+	svc.now = func() time.Time { return base }
 	g := newGate()
 	inj.gate = g
 	t.Cleanup(g.release)
@@ -282,7 +284,11 @@ func TestTheChaosViewIsAnsweredWhileAFaultIsBeingInjected(t *testing.T) {
 	<-g.reached
 	answered := make(chan ChaosView, 1)
 	go func() {
-		svc.Observe(Merged{Second: 1})
+		svc.Observe(Merged{
+			Second:     base.Unix(),
+			Routes:     map[string]gatewayapi.RouteSnapshot{"api": {Failed: 4}},
+			Dimensions: []gatewayapi.DimensionSnapshot{{ID: "dim-a", Attempts: 100, Healthy: true, Outlier: health.Closed}},
+		})
 		answered <- svc.View()
 	}()
 	select {
@@ -296,6 +302,9 @@ func TestTheChaosViewIsAnsweredWhileAFaultIsBeingInjected(t *testing.T) {
 	g.release()
 	if err := <-started; err != nil {
 		t.Fatal(err)
+	}
+	if lost := svc.View().Incidents[0].Lost; lost != 4 {
+		t.Fatalf("the second observed during the injection counted %d lost requests, want 4", lost)
 	}
 	if err := svc.Stop(context.Background()); err != nil {
 		t.Fatal(err)
@@ -346,6 +355,9 @@ func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
 			if named := strings.Contains(w.Body.String(), "dim-a"); w.Code != http.StatusServiceUnavailable || named != caller.admin {
 				t.Fatalf("%v came back to admin=%v as %d %s", failure, caller.admin, w.Code, w.Body)
 			}
+		}
+		if n := len(svc.View().Incidents); n != 0 {
+			t.Fatalf("%d incidents left from faults that never started", n)
 		}
 	}
 }

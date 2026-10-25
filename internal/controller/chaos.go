@@ -174,13 +174,19 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 			return Running{}, time.Hour, ErrChaosLimit
 		}
 	}
+	inc := &Incident{Fault: f, Actor: actor, InjectedAt: now}
+	c.mu.Lock()
+	c.incidents = append(c.incidents, inc)
+	c.mu.Unlock()
 	if err := c.inj.Inject(ctx, f); err != nil {
+		c.mu.Lock()
+		c.incidents = slices.DeleteFunc(c.incidents, func(i *Incident) bool { return i == inc })
+		c.mu.Unlock()
 		return Running{}, 0, fmt.Errorf("%w: %w", ErrChaosFailed, err)
 	}
 	run := Running{Fault: f, Actor: actor, Started: now, Until: now.Add(d)}
 	c.mu.Lock()
 	c.current = &run
-	c.incidents = append(c.incidents, &Incident{Fault: f, Actor: actor, InjectedAt: now})
 	if len(c.incidents) > 20 {
 		c.incidents = c.incidents[len(c.incidents)-20:]
 	}
