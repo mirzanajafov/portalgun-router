@@ -47,9 +47,10 @@ func DefaultEngineOptions() EngineOptions {
 }
 
 type Event struct {
-	Type    string    `json:"type"`
-	At      time.Time `json:"at"`
-	Message string    `json:"message"`
+	Type    string      `json:"type"`
+	At      time.Time   `json:"at"`
+	Message string      `json:"message"`
+	Actor   store.Actor `json:"actor,omitempty"`
 }
 
 type active struct {
