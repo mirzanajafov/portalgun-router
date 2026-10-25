@@ -48,7 +48,7 @@ func TestBucketsForgetFullBuckets(t *testing.T) {
 		b.Take(fmt.Sprint("ip-", i), clk.now())
 		clk.advance(time.Millisecond)
 	}
-	if n := b.Len(); n > 20000 {
+	if n := b.buckets.size(); n > 20000 {
 		t.Fatalf("%d buckets kept for 100k one-off keys", n)
 	}
 }
@@ -79,6 +79,36 @@ func testRedis(t *testing.T) *redis.Client {
 		t.Fatalf("redis at %s: %v", addr, err)
 	}
 	return rdb
+}
+
+func (s *shards[V]) size() int {
+	n := 0
+	for i := range s {
+		sh := &s[i]
+		sh.mu.Lock()
+		n += len(sh.m)
+		sh.mu.Unlock()
+	}
+	return n
+}
+
+type countedScripts struct {
+	*redis.Client
+	runs atomic.Int64
+}
+
+func (c *countedScripts) EvalSha(ctx context.Context, sha1 string, keys []string, args ...any) *redis.Cmd {
+	c.runs.Add(1)
+	return c.Client.EvalSha(ctx, sha1, keys, args...)
+}
+
+func synced(t *testing.T, rdb *redis.Client, key, instance string) bool {
+	t.Helper()
+	ok, err := rdb.HExists(context.Background(), key+":demand", instance).Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ok
 }
 
 func prefix(t *testing.T) string {
@@ -306,7 +336,7 @@ func TestLedgerSendsTheRunningTotalUntilRedisConfirmsIt(t *testing.T) {
 		t.Fatalf("unpaid %q %v: the total keeps growing under one epoch until all of it is confirmed", again, total)
 	}
 	l.settle("k", epoch, 7)
-	if l.size() != 0 {
+	if l.debts.size() != 0 {
 		t.Fatal("a key with everything confirmed is kept")
 	}
 	l.add("k", 1, 0)
@@ -322,7 +352,7 @@ func TestLedgerForgetsOldDebts(t *testing.T) {
 		l.add(fmt.Sprint("ip-", i), 1, now)
 		now += int64(time.Millisecond)
 	}
-	if n := l.size(); n > 150000 {
+	if n := l.debts.size(); n > 150000 {
 		t.Fatalf("%d debts kept from 300k one-off keys over five minutes", n)
 	}
 }
@@ -582,22 +612,22 @@ func TestLeaseNeverOverAdmits(t *testing.T) {
 }
 
 func TestLeaseFetchesInBatches(t *testing.T) {
-	rdb := testRedis(t)
+	rdb := &countedScripts{Client: testRedis(t)}
 	l, _ := NewLease(Options{Redis: rdb, Prefix: prefix(t), Rule: Rule{Rate: 10000, Burst: 10000}, Instances: 1, LeaseTarget: 50 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 	allowed := hammer(t, []Limiter{l}, "k", 2000, 0)
-	if f := l.(*lease).Fetches(); allowed != 2000 || f > 250 {
+	if f := rdb.runs.Load(); allowed != 2000 || f > 250 {
 		t.Fatalf("%d Redis calls for %d admitted requests out of 2000", f, allowed)
 	}
 }
 
 func TestLeaseKeepsBatchingWhenTheBucketRunsDry(t *testing.T) {
-	rdb := testRedis(t)
+	rdb := &countedScripts{Client: testRedis(t)}
 	rule := Rule{Rate: 200, Burst: 20}
 	l, _ := NewLease(Options{Redis: rdb, Prefix: prefix(t), Rule: rule, Instances: 1, LeaseTarget: 20 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 	began := time.Now()
 	allowed := hammer(t, []Limiter{l}, "k", 1000, 2*time.Millisecond)
 	exact := rule.Burst + rule.Rate*time.Since(began).Seconds()
-	fetches := l.(*lease).Fetches()
+	fetches := rdb.runs.Load()
 	if float64(allowed) > exact || float64(allowed) < 0.8*exact {
 		t.Fatalf("admitted %d against an exact %.0f", allowed, exact)
 	}
@@ -625,7 +655,7 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	if float64(allowed) > 1.2*ceiling || float64(allowed) < 0.6*ceiling {
 		t.Fatalf("admitted %d against an exact %.0f", allowed, ceiling)
 	}
-	if ls[0].(*localSync).Syncs() == 0 {
+	if !synced(t, rdb, p+"k", "gw-0") {
 		t.Fatal("never synced")
 	}
 }
@@ -690,7 +720,7 @@ func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 	if float64(allowed) < 0.85*exact || float64(allowed) > 1.15*exact {
 		t.Fatalf("admitted %d against an exact %.0f; a static split would admit about two thirds at 90/10", allowed, exact)
 	}
-	if ls[0].(*localSync).Syncs() == 0 || ls[1].(*localSync).Syncs() == 0 {
+	if !synced(t, rdb, p+"k", "gw-0") || !synced(t, rdb, p+"k", "gw-1") {
 		t.Fatal("an instance never synced")
 	}
 }

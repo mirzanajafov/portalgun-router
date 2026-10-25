@@ -34,7 +34,6 @@ type localSync struct {
 	mu       sync.RWMutex
 	keys     map[string]*syncKey
 	degraded atomic.Bool
-	syncs    atomic.Int64
 	cancel   context.CancelFunc
 	done     chan struct{}
 }
@@ -104,8 +103,6 @@ func (s *localSync) Close() {
 	s.cancel()
 	<-s.done
 }
-
-func (s *localSync) Syncs() int64 { return s.syncs.Load() }
 
 func (s *localSync) loop(ctx context.Context) {
 	defer close(s.done)
@@ -187,9 +184,6 @@ func (s *localSync) sync(ctx context.Context) {
 		p.st.mu.Unlock()
 	}
 	s.degraded.Store(failed)
-	if !failed {
-		s.syncs.Add(1)
-	}
 }
 
 func (s *localSync) send(ctx context.Context, batch []pending) {

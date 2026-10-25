@@ -95,5 +95,3 @@ func (l *ledger) settle(key, epoch string, total float64) {
 		}
 	}
 }
-
-func (l *ledger) size() int { return l.debts.size() }
