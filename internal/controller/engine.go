@@ -37,12 +37,12 @@ type EngineOptions struct {
 func DefaultEngineOptions() EngineOptions {
 	return EngineOptions{
 		Steps:       []float64{0.01, 0.05, 0.25, 0.5},
-		MaxStep:     5 * time.Minute,
-		MinStep:     30 * time.Second,
+		MaxStep:     canary.DefaultMaxStep,
+		MinStep:     canary.DefaultMinStep,
 		DeadSeconds: 10,
-		Alpha:       0.01,
-		Beta:        0.05,
-		Rho:         2,
+		Alpha:       canary.DefaultAlpha,
+		Beta:        canary.DefaultBeta,
+		Rho:         canary.DefaultRho,
 	}
 }
 

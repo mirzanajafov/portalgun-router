@@ -257,6 +257,14 @@ type Hybrid struct {
 	slow *FixedHorizon
 }
 
+const (
+	DefaultAlpha   = 0.01
+	DefaultBeta    = 0.05
+	DefaultRho     = 2
+	DefaultMinStep = 30 * time.Second
+	DefaultMaxStep = 5 * time.Minute
+)
+
 func NewHybrid(alpha, beta, rho float64, minStep time.Duration) *Hybrid {
 	return &Hybrid{
 		seq:  NewSequential(alpha/2, beta, rho, minStep),
