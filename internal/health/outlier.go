@@ -169,13 +169,8 @@ func (o *Outlier) observeLocked(now int64, failed, refused bool) *Transition {
 }
 
 func (o *Outlier) ejectLocked(now int64, reason string) *Transition {
-	recent := o.ejections[:0]
-	for _, at := range o.ejections {
-		if now-at < ejectionMemory {
-			recent = append(recent, at)
-		}
-	}
-	o.ejections = append(recent, now)
+	o.ejections = slices.DeleteFunc(o.ejections, func(at int64) bool { return now-at >= ejectionMemory })
+	o.ejections = append(o.ejections, now)
 	d := o.cfg.BaseEjection << (len(o.ejections) - 1)
 	if d > o.cfg.MaxEjection || d <= 0 {
 		d = o.cfg.MaxEjection

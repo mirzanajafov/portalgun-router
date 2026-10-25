@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 )
@@ -60,7 +61,7 @@ func TestTheClientSpeaksEveryExampleOfTheContract(t *testing.T) {
 		},
 		"wait for a change after an index": func(t *testing.T, c *Client) {
 			list, index, err := c.Lookup(ctx, "dimensions", 57, 30*time.Second)
-			want := append(dims, Instance{Name: "e-7", Addr: "dim-e:8080"})
+			want := slices.Concat(dims, []Instance{{Name: "e-7", Addr: "dim-e:8080"}})
 			if err != nil || index != 64 || !reflect.DeepEqual(list, want) {
 				t.Errorf("%v at %d, %v", list, index, err)
 			}
