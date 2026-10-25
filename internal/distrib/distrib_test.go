@@ -95,16 +95,28 @@ func TestWatcherReactsToTheChannel(t *testing.T) {
 	rdb := testRedis(t)
 	ctx := t.Context()
 	target := &fakeTarget{}
+	if err := PublishConfig(ctx, rdb, Envelope{Version: 1, Config: json.RawMessage(cfgJSON)}); err != nil {
+		t.Fatal(err)
+	}
 	go NewWatcher(rdb, target, quiet(), time.Hour).Run(ctx)
-	deadline := time.Now().Add(2 * time.Second)
-	for target.count() == 0 {
+	waitFor(t, func() bool {
+		subs, err := rdb.PubSubNumSub(ctx, ConfigChannel).Result()
+		return target.count() == 1 && err == nil && subs[ConfigChannel] == 1
+	})
+	if err := PublishConfig(ctx, rdb, Envelope{Version: 2, Config: json.RawMessage(cfgJSON)}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return target.count() == 2 })
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !cond() {
 		if time.Now().After(deadline) {
-			t.Fatal("the change notification was not acted on")
+			t.Fatal("condition not reached in time")
 		}
-		if err := PublishConfig(ctx, rdb, Envelope{Version: 1, Config: json.RawMessage(cfgJSON)}); err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -115,11 +127,10 @@ func TestPublisherWritesSnapshots(t *testing.T) {
 	go p.Run(ctx)
 	p.Offer(gatewayapi.Snapshot{Instance: "gw-1", Second: 42, Routes: map[string]gatewayapi.RouteSnapshot{"all": {Requests: 7}}})
 	var msgs []redis.XMessage
-	deadline := time.Now().Add(2 * time.Second)
-	for len(msgs) == 0 && time.Now().Before(deadline) {
+	waitFor(t, func() bool {
 		msgs, _ = rdb.XRange(ctx, SnapshotStream, "-", "+").Result()
-		time.Sleep(10 * time.Millisecond)
-	}
+		return len(msgs) > 0
+	})
 	if len(msgs) != 1 {
 		t.Fatalf("%d entries in the stream", len(msgs))
 	}
