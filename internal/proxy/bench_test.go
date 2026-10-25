@@ -196,8 +196,8 @@ func BenchmarkLoopback(b *testing.B) {
 	}{
 		{"direct", func(testing.TB) string { return upstream.URL }},
 		{"bare", func(tb testing.TB) string { return serve(tb, bareProxy(defaultTransport(addr), addrs)) }},
-		{"portalgun", func(tb testing.TB) string { return serve(tb, benchGateway(tb, addrs, false, nil)) }},
-		{"portalgun-full", func(tb testing.TB) string { return serve(tb, benchGateway(tb, addrs, true, nil)) }},
+		{"portalgun", func(tb testing.TB) string { return serve(tb, benchGateway(tb, addrs, false, defaultTransport)) }},
+		{"portalgun-full", func(tb testing.TB) string { return serve(tb, benchGateway(tb, addrs, true, defaultTransport)) }},
 	} {
 		b.Run(sys.name, func(b *testing.B) {
 			target := sys.url(b) + "/items/42"
