@@ -11,26 +11,10 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/httpx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Counter interface {
 	Hit(ctx context.Context, key string, window time.Duration) (int64, error)
-}
-
-type RedisCounter struct{ RDB *redis.Client }
-
-func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration) (int64, error) {
-	var incr *redis.IntCmd
-	_, err := r.RDB.TxPipelined(ctx, func(p redis.Pipeliner) error {
-		incr = p.Incr(ctx, key)
-		p.ExpireNX(ctx, key, window)
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	return incr.Val(), nil
 }
 
 const proxyTokenHeader = "X-Portal-Proxy-Token"

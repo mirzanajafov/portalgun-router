@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"sync"
@@ -162,4 +163,17 @@ func merge(sec int64, bin map[string]gatewayapi.Snapshot) Merged {
 	}
 	slices.SortFunc(m.Dimensions, func(a, b gatewayapi.DimensionSnapshot) int { return strings.Compare(a.ID, b.ID) })
 	return m
+}
+
+func FlushLoop(ctx context.Context, agg *Aggregator) {
+	t := time.NewTicker(250 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			agg.Flush(now)
+		}
+	}
 }

@@ -44,15 +44,17 @@ func Consume(ctx context.Context, rdb *redis.Client, agg *Aggregator, logger *sl
 	}
 }
 
-func FlushLoop(ctx context.Context, agg *Aggregator) {
-	t := time.NewTicker(250 * time.Millisecond)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case now := <-t.C:
-			agg.Flush(now)
-		}
+type RedisCounter struct{ RDB *redis.Client }
+
+func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration) (int64, error) {
+	var incr *redis.IntCmd
+	_, err := r.RDB.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		incr = p.Incr(ctx, key)
+		p.ExpireNX(ctx, key, window)
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
+	return incr.Val(), nil
 }
