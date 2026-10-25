@@ -57,6 +57,14 @@ func onePool(t *testing.T, balancer config.Balancer, dims ...config.Dimension) *
 	})
 }
 
+func newManualGateway(cfg *config.Config, opts Options, transport func(address string) http.RoundTripper) (*Gateway, error) {
+	g, err := newGateway(cfg, opts, transport)
+	if err == nil {
+		close(g.tickDone)
+	}
+	return g, err
+}
+
 func serve(t *testing.T, cfg *config.Config) (*Gateway, *httptest.Server) {
 	t.Helper()
 	g, err := New(cfg, Options{})

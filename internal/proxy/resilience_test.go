@@ -342,7 +342,7 @@ func TestOnlyAnEjectionLogsHowLongItLasts(t *testing.T) {
 		config.Dimension{ID: "b", Address: dim(t, "b", func(b *dimension.Behavior) { b.ErrorRate = 1 })},
 	)
 	var logs lockedBuffer
-	g, err := New(cfg, Options{ManualTick: true, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	g, err := newManualGateway(cfg, Options{Logger: slog.New(slog.NewJSONHandler(&logs, nil))}, defaultTransport)
 	if err != nil {
 		t.Fatal(err)
 	}

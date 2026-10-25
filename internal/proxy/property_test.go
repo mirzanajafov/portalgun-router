@@ -58,7 +58,7 @@ func TestEjectionNeverPushesAPoolPastThePanicThreshold(t *testing.T) {
 				Dimensions:     dims,
 			}},
 		})
-		g, err := New(cfg, Options{ManualTick: true, Transport: func(addr string) http.RoundTripper { return scripted{fail: broken[addr]} }})
+		g, err := newManualGateway(cfg, Options{}, func(addr string) http.RoundTripper { return scripted{fail: broken[addr]} })
 		if err != nil {
 			rt.Fatal(err)
 		}

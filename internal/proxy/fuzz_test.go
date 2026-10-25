@@ -163,9 +163,9 @@ func FuzzServeHTTP(f *testing.F) {
 	}
 	check := &upstreamCheck{}
 	addrs := []string{"dim-a:8080", "dim-b:8080", "dim-c:8080"}
-	g, err := New(fuzzConfig(f, addrs), Options{ManualTick: true, Transport: func(addr string) http.RoundTripper {
+	g, err := newManualGateway(fuzzConfig(f, addrs), Options{}, func(addr string) http.RoundTripper {
 		return checkingTransport{addr: addr, check: check}
-	}})
+	})
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -232,9 +232,9 @@ func FuzzWire(f *testing.F) {
 	f.Cleanup(upstream.Close)
 	addr := upstream.Listener.Addr().String()
 	var trips, handled, active, panics atomic.Int64
-	g, err := New(fuzzConfig(f, []string{addr, addr, addr}), Options{ManualTick: true, Transport: func(a string) http.RoundTripper {
-		return countingTransport{rt: DefaultTransport(a), trips: &trips}
-	}})
+	g, err := newManualGateway(fuzzConfig(f, []string{addr, addr, addr}), Options{}, func(a string) http.RoundTripper {
+		return countingTransport{rt: defaultTransport(a), trips: &trips}
+	})
 	if err != nil {
 		f.Fatal(err)
 	}

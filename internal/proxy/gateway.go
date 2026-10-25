@@ -22,13 +22,11 @@ import (
 )
 
 type Options struct {
-	Metrics    *Metrics
-	Logger     *slog.Logger
-	Transport  func(address string) http.RoundTripper
-	Redis      limit.Pipeliner
-	Instance   string
-	ManualTick bool
-	Decisions  int
+	Metrics   *Metrics
+	Logger    *slog.Logger
+	Redis     limit.Pipeliner
+	Instance  string
+	Decisions int
 }
 
 type Gateway struct {
@@ -59,10 +57,19 @@ type Gateway struct {
 }
 
 func New(cfg *config.Config, opts Options) (*Gateway, error) {
+	g, err := newGateway(cfg, opts, defaultTransport)
+	if err != nil {
+		return nil, err
+	}
+	go g.tickLoop()
+	return g, nil
+}
+
+func newGateway(cfg *config.Config, opts Options, transport func(address string) http.RoundTripper) (*Gateway, error) {
 	g := &Gateway{
 		metrics:    opts.Metrics,
 		logger:     opts.Logger,
-		transport:  opts.Transport,
+		transport:  transport,
 		redis:      opts.Redis,
 		instance:   opts.Instance,
 		epoch:      time.Now(),
@@ -83,17 +90,9 @@ func New(cfg *config.Config, opts Options) (*Gateway, error) {
 	if g.logger == nil {
 		g.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	if g.transport == nil {
-		g.transport = DefaultTransport
-	}
 	g.metrics.watch(g)
 	if err := g.Apply(cfg); err != nil {
 		return nil, err
-	}
-	if opts.ManualTick {
-		close(g.tickDone)
-	} else {
-		go g.tickLoop()
 	}
 	return g, nil
 }

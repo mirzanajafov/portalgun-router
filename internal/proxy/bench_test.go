@@ -87,7 +87,7 @@ func benchConfig(tb testing.TB, addrs []string, full bool) *config.Config {
 }
 
 func benchGateway(tb testing.TB, addrs []string, full bool, rt func(string) http.RoundTripper) *Gateway {
-	g, err := New(benchConfig(tb, addrs, full), Options{ManualTick: true, Transport: rt})
+	g, err := newManualGateway(benchConfig(tb, addrs, full), Options{}, rt)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func BenchmarkLoopback(b *testing.B) {
 		url  func(testing.TB) string
 	}{
 		{"direct", func(testing.TB) string { return upstream.URL }},
-		{"bare", func(tb testing.TB) string { return serve(tb, bareProxy(DefaultTransport(addr), addrs)) }},
+		{"bare", func(tb testing.TB) string { return serve(tb, bareProxy(defaultTransport(addr), addrs)) }},
 		{"portalgun", func(tb testing.TB) string { return serve(tb, benchGateway(tb, addrs, false, nil)) }},
 		{"portalgun-full", func(tb testing.TB) string { return serve(tb, benchGateway(tb, addrs, true, nil)) }},
 	} {
