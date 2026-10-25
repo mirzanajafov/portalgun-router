@@ -80,7 +80,7 @@ var (
 
 type ChaosService struct {
 	inj      Injector
-	log      ChaosLog
+	store    ChaosLog
 	visitors *visitorLimit
 	notify   func(Event)
 	limits   ChaosLimits
@@ -99,7 +99,7 @@ type ChaosService struct {
 
 type ChaosOptions struct {
 	Injector Injector
-	Log      ChaosLog
+	Store    ChaosLog
 	Counter  Counter
 	Limits   ChaosLimits
 	Targets  []string
@@ -110,7 +110,7 @@ type ChaosOptions struct {
 func NewChaosService(o ChaosOptions) *ChaosService {
 	return &ChaosService{
 		inj:      o.Injector,
-		log:      o.Log,
+		store:    o.Store,
 		visitors: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.Logger),
 		notify:   o.Notify,
 		limits:   o.Limits,
@@ -205,14 +205,14 @@ func (c *ChaosService) running() *Running {
 func (c *ChaosService) expire(run Running) {
 	c.actions.Lock()
 	defer c.actions.Unlock()
-	if current := c.running(); current == nil || !current.Started.Equal(run.Started) {
+	current := c.running()
+	if current == nil || !current.Started.Equal(run.Started) {
 		return
 	}
-	c.clearLocked(context.Background(), "the fault ran its course")
+	c.end(context.Background(), current, "the fault ran its course")
 }
 
-func (c *ChaosService) clearLocked(ctx context.Context, why string) {
-	run := c.running()
+func (c *ChaosService) end(ctx context.Context, run *Running, why string) {
 	if err := c.inj.Clear(ctx, run.Fault); err != nil {
 		c.logger.Error("clearing a fault", "err", err)
 	}
@@ -235,11 +235,12 @@ func (c *ChaosService) clearLocked(ctx context.Context, why string) {
 func (c *ChaosService) Stop(ctx context.Context) error {
 	c.actions.Lock()
 	defer c.actions.Unlock()
-	if c.running() == nil {
+	run := c.running()
+	if run == nil {
 		return errors.New("no fault is running")
 	}
 	c.timer.Stop()
-	c.clearLocked(ctx, "stopped by an admin")
+	c.end(ctx, run, "stopped by an admin")
 	return nil
 }
 
@@ -250,11 +251,11 @@ func (c *ChaosService) emit(msg string) {
 }
 
 func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fault, action string) {
-	if c.log == nil {
+	if c.store == nil {
 		return
 	}
 	detail, _ := json.Marshal(f)
-	if err := c.log.LogChaos(ctx, store.ChaosEvent{At: c.now().UTC(), Actor: actor, Mode: string(f.Mode), Target: f.Target, Action: action, Detail: detail}); err != nil {
+	if err := c.store.LogChaos(ctx, store.ChaosEvent{At: c.now().UTC(), Actor: actor, Mode: string(f.Mode), Target: f.Target, Action: action, Detail: detail}); err != nil {
 		c.logger.Warn("logging a chaos event", "err", err)
 	}
 }

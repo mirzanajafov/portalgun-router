@@ -159,7 +159,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		apiOpts.VisitorRolloutsPerHour = controller.DefaultVisitorRolloutsPerHour
 	}
 	if inj != nil {
-		apiOpts.Chaos = controller.NewChaosService(controller.ChaosOptions{Injector: inj, Log: st, Counter: counter, Limits: controller.DefaultChaosLimits(), Targets: names, Notify: hub.Event, Logger: logger})
+		apiOpts.Chaos = controller.NewChaosService(controller.ChaosOptions{Injector: inj, Store: st, Counter: counter, Limits: controller.DefaultChaosLimits(), Targets: names, Notify: hub.Event, Logger: logger})
 	}
 	api := controller.NewAPI(apiOpts)
 	agg := controller.NewAggregator(func(m controller.Merged) { api.Observe(ctx, m) })
