@@ -4,7 +4,7 @@ import { worthShowing } from '@/components/EventLog'
 import { scale } from '@/components/LlrChart'
 import { candidate } from './canary'
 import { errorRate, health, pct, remaining, share } from './format'
-import { appendHistory, appendLlr } from './live'
+import { appendLlr } from './live'
 import type { DimensionSnapshot, Merged, RolloutStatus } from './types'
 
 const dim = (over: Partial<DimensionSnapshot>): DimensionSnapshot => ({
@@ -12,9 +12,7 @@ const dim = (over: Partial<DimensionSnapshot>): DimensionSnapshot => ({
   version: 'v1',
   attempts: 100,
   errors: 0,
-  p50Ms: 10,
   p99Ms: 30,
-  inflight: 0,
   healthy: true,
   outlier: 'closed',
   ...over,
@@ -23,22 +21,7 @@ const dim = (over: Partial<DimensionSnapshot>): DimensionSnapshot => ({
 const merged = (dims: DimensionSnapshot[], stable = 'v1', canary?: string): Merged => ({
   second: 100,
   instances: ['gw-1'],
-  configVersions: { 'gw-1': 1 },
-  routes: {
-    portal: {
-      requests: 0,
-      limited: 0,
-      failed: 0,
-      stable,
-      canary,
-      weight: 0,
-      versions: [
-        { attempts: 0, errors: 0, slow: 0 },
-        { attempts: 0, errors: 0, slow: 0 },
-      ],
-      slowThresholdMs: 0,
-    },
-  },
+  routes: { portal: { requests: 0, limited: 0, failed: 0, stable, canary } },
   dimensions: dims,
 })
 
@@ -69,18 +52,11 @@ describe('format', () => {
 })
 
 describe('live state', () => {
-  it('keeps a minute of history per dimension', () => {
-    let h: Record<string, number[]> = {}
-    for (let i = 0; i < 70; i++) h = appendHistory(h, merged([dim({ attempts: i })]))
-    expect(h['c-137']).toHaveLength(60)
-    expect(h['c-137']?.at(-1)).toBe(69)
-  })
-
   it('restarts the evidence curve when a new rollout begins', () => {
     const status = (id: string, step: number, llr: number): RolloutStatus => ({
       active: true,
-      rollout: { id, route: 'portal', stable: 'v1', canary: 'v2', startedAt: '', steps: [] },
-      step: { step, weight: 0.01, startedAt: '', llrErrors: llr, llrSlow: 0, stableRequests: 0, canaryRequests: 0, stableErrors: 0, canaryErrors: 0 },
+      rollout: { id, route: 'portal', stable: 'v1', canary: 'v2' },
+      step: { step, weight: 0.01, canaryRequests: 0, stableErrors: 0, canaryErrors: 0 },
       steps: [0.01],
       dataSec: 1,
       llrErrors: llr,

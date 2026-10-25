@@ -14,21 +14,9 @@ export type Live = {
   viewers: number
   events: PortalEvent[]
   llr: LlrPoint[]
-  history: Record<string, number[]>
-  configVersion: number
 }
 
-const HISTORY = 60
 const LLR_POINTS = 600
-
-export function appendHistory(history: Record<string, number[]>, m: Merged): Record<string, number[]> {
-  const next: Record<string, number[]> = {}
-  for (const d of m.dimensions) {
-    const prev = history[d.id] ?? []
-    next[d.id] = [...prev.slice(-(HISTORY - 1)), d.attempts]
-  }
-  return next
-}
 
 export function appendLlr(points: LlrPoint[], r: RolloutStatus, second: number): LlrPoint[] {
   if (!r.active || !r.step || !r.rollout) return points
@@ -54,8 +42,6 @@ export function useLive(): Live {
     viewers: 0,
     events: [],
     llr: [],
-    history: {},
-    configVersion: 0,
   })
   const retry = useRef(1000)
 
@@ -71,7 +57,7 @@ export function useLive(): Live {
         setLive((l) => ({ ...l, connected: true }))
       }
       listen(source, 'state', State, (s) => {
-        setLive((l) => ({ ...l, rollout: s.rollout, viewers: s.viewers, latest: s.latest ?? l.latest, configVersion: s.configVersion, events: s.events }))
+        setLive((l) => ({ ...l, rollout: s.rollout, viewers: s.viewers, latest: s.latest ?? l.latest, events: s.events }))
       })
       listen(source, 'tick', Tick, (t) => {
         setLive((l) => ({
@@ -80,7 +66,6 @@ export function useLive(): Live {
           rollout: t.rollout,
           viewers: t.viewers,
           chaos: t.chaos ?? l.chaos,
-          history: appendHistory(l.history, t.latest),
           llr: appendLlr(l.llr, t.rollout, t.latest.second),
         }))
       })
