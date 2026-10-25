@@ -104,8 +104,12 @@ func TestParseRejectsBadConfigs(t *testing.T) {
 		"outlier ratio":              {func(_, _, p, _ map[string]any) { p["outlier"] = map[string]any{"failureRatio": 2} }, "failureRatio"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := Parse(configWith(t, tc.change)); err == nil || !strings.Contains(err.Error(), tc.want) {
+			_, err := Parse(configWith(t, tc.change))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("got %v, want an error mentioning %q", err, tc.want)
+			}
+			if name != "unknown field" && strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("the change went into the wrong object: %v", err)
 			}
 		})
 	}
