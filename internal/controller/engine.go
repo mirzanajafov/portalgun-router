@@ -85,10 +85,11 @@ type Engine struct {
 	mu     sync.Mutex
 	active *active
 	status atomic.Pointer[Status]
+	idle   *Status
 }
 
 func NewEngine(opts EngineOptions, cfgs *ConfigManager, s RolloutStore, logger *slog.Logger, notify func(Event)) *Engine {
-	e := &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now}
+	e := &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now, idle: &Status{Steps: opts.Steps}}
 	e.storeStatus()
 	return e
 }
@@ -128,8 +129,7 @@ func (e *Engine) Recover(ctx context.Context) error {
 
 func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	defer e.storeStatus()
+	defer e.unlock()
 	if e.active != nil {
 		return store.Rollout{}, ErrBusy
 	}
@@ -210,12 +210,11 @@ func (e *Engine) saveStep(ctx context.Context) {
 
 func (e *Engine) Observe(ctx context.Context, m Merged) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	a := e.active
 	if a == nil {
 		return
 	}
-	defer e.storeStatus()
 	ctx = context.WithoutCancel(ctx)
 	rs, ok := m.Routes[a.rollout.Route]
 	current := ok && rs.Rollout == a.rollout.ID && m.MinConfig() >= a.stepVersion
@@ -360,10 +359,9 @@ func (e *Engine) Run(ctx context.Context) {
 
 func (e *Engine) retry(ctx context.Context) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if e.active != nil && e.active.settling != nil {
 		e.trySettle(ctx)
-		e.storeStatus()
 	}
 }
 
@@ -406,8 +404,7 @@ func (e *Engine) saveSettlement(ctx context.Context, a *active, s *settlement) e
 
 func (e *Engine) Abort(ctx context.Context, reason string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	defer e.storeStatus()
+	defer e.unlock()
 	a := e.active
 	if a == nil {
 		return ErrNoRollout
@@ -445,15 +442,22 @@ func (e *Engine) Busy() bool {
 	return e.active != nil
 }
 
+func (e *Engine) unlock() {
+	e.storeStatus()
+	e.mu.Unlock()
+}
+
 func (e *Engine) storeStatus() {
-	st := Status{Steps: e.opts.Steps}
-	if a := e.active; a != nil {
-		st.Active, st.Rollout, st.Step, st.DataSec = true, a.rollout, a.record(), a.seconds
-		st.LLRErrors, st.LLRSlow = st.Step.LLRErrors, st.Step.LLRSlow
-		st.Lower, st.Upper = a.policy.Sequential().Errors().Bounds()
-		if a.settling != nil {
-			st.Pending = a.settling.outcome
-		}
+	a := e.active
+	if a == nil {
+		e.status.Store(e.idle)
+		return
+	}
+	st := Status{Steps: e.opts.Steps, Active: true, Rollout: a.rollout, Step: a.record(), DataSec: a.seconds}
+	st.LLRErrors, st.LLRSlow = st.Step.LLRErrors, st.Step.LLRSlow
+	st.Lower, st.Upper = a.policy.Sequential().Errors().Bounds()
+	if a.settling != nil {
+		st.Pending = a.settling.outcome
 	}
 	e.status.Store(&st)
 }
