@@ -24,9 +24,11 @@ type fakeInjector struct {
 	injected []chaos.Fault
 	cleared  []chaos.Fault
 	err      error
+	gate     *gate
 }
 
 func (f *fakeInjector) Inject(_ context.Context, fault chaos.Fault) error {
+	f.gate.pass()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -59,9 +61,11 @@ type fakeCounter struct {
 	mu   sync.Mutex
 	hits map[string]int64
 	err  error
+	gate *gate
 }
 
 func (f *fakeCounter) Hit(_ context.Context, key string, _ time.Duration) (int64, error) {
+	f.gate.pass()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -100,8 +104,12 @@ func (l *logSink) String() string {
 
 func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector, *fakeCounter) {
 	inj, counter := &fakeInjector{}, &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(inj, nil, counter, NewHub(quiet), limits, []string{"dim-a", "dim-b"}, proxyToken, quiet)
+	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: limits, Targets: []string{"dim-a", "dim-b"}, Logger: quiet})
 	return svc, inj, counter
+}
+
+func chaosAPI(svc *ChaosService) http.Handler {
+	return NewAPI(APIOptions{Chaos: svc, Token: adminToken, ProxyToken: proxyToken, Logger: quiet}).Handler()
 }
 
 func TestVisitorsGetBoundedChaos(t *testing.T) {
@@ -177,14 +185,11 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	logs := &logSink{}
 	counter := downCounter()
 	inj := &fakeInjector{}
-	svc := NewChaosService(inj, nil, counter, NewHub(quiet), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
 	var elapsed atomic.Int64
 	start := time.Now()
-	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
-	mux := http.NewServeMux()
-	api := &API{token: adminToken}
-	svc.Routes(mux, api.admin, adminToken)
-	srv := httptest.NewServer(mux)
+	svc.chaosLimit.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
+	srv := httptest.NewServer(chaosAPI(svc))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
 	url, fault := srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`
@@ -222,7 +227,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	logs := &logSink{}
 	counter := &fakeCounter{hits: map[string]int64{}, err: context.Canceled}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(quiet), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {
@@ -266,12 +271,111 @@ func TestIncidentsMeasureDetectionMoveAndLoss(t *testing.T) {
 	}
 }
 
+func secondOfFailures(at time.Time) Merged {
+	return Merged{
+		Second:     at.Unix(),
+		Routes:     map[string]gatewayapi.RouteSnapshot{"api": {Failed: 4}},
+		Dimensions: []gatewayapi.DimensionSnapshot{{ID: "dim-a", Attempts: 100, Healthy: true, Outlier: health.Closed}},
+	}
+}
+
+func TestWhileAFaultIsStartingTheViewAnswersAndTheSecondCounts(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		admin bool
+		hold  func(*fakeInjector, *fakeCounter, *gate)
+	}{
+		{"held by the injection", true, func(inj *fakeInjector, _ *fakeCounter, g *gate) { inj.gate = g }},
+		{"held by the visitor count", false, func(_ *fakeInjector, counter *fakeCounter, g *gate) { counter.gate = g }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			svc, inj, counter := newChaos(DefaultChaosLimits())
+			base := time.Unix(2_000_000, 0)
+			svc.now = func() time.Time { return base }
+			g := newGate()
+			c.hold(inj, counter, g)
+			t.Cleanup(g.release)
+			started := make(chan error, 1)
+			go func() {
+				_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, c.admin, "1.2.3.4")
+				started <- err
+			}()
+			<-g.reached
+			answered := make(chan ChaosView, 1)
+			go func() {
+				svc.Observe(secondOfFailures(base))
+				answered <- svc.View()
+			}()
+			select {
+			case v := <-answered:
+				if v.Current != nil || len(v.Incidents) != 0 {
+					t.Fatalf("a fault that isn't injected yet shows: %+v", v)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("the chaos view waited for the start")
+			}
+			g.release()
+			if err := <-started; err != nil {
+				t.Fatal(err)
+			}
+			if lost := svc.View().Incidents[0].Lost; lost != 4 {
+				t.Fatalf("the second observed while the fault was starting counted %d lost requests, want 4", lost)
+			}
+			if err := svc.Stop(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestSecondsSeenWhileAFaultFailsToStartCountForNoIncident(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		admin bool
+		fail  func(*fakeInjector, *fakeCounter, *gate)
+		want  error
+	}{
+		{"the injection fails", true, func(inj *fakeInjector, _ *fakeCounter, g *gate) {
+			inj.gate, inj.err = g, errors.New("toxiproxy: connection refused")
+		}, ErrChaosFailed},
+		{"the visitor is over the hourly limit", false, func(_ *fakeInjector, counter *fakeCounter, g *gate) {
+			counter.gate, counter.hits["chaos:ip:1.2.3.4"] = g, 3
+		}, ErrChaosLimit},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			svc, inj, counter := newChaos(DefaultChaosLimits())
+			base := time.Unix(2_000_000, 0)
+			svc.now = func() time.Time { return base }
+			g := newGate()
+			c.fail(inj, counter, g)
+			t.Cleanup(g.release)
+			failed := make(chan error, 1)
+			go func() {
+				_, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, c.admin, "1.2.3.4")
+				failed <- err
+			}()
+			<-g.reached
+			svc.Observe(secondOfFailures(base))
+			g.release()
+			if err := <-failed; !errors.Is(err, c.want) {
+				t.Fatalf("the failed start returned %v, want %v", err, c.want)
+			}
+			inj.gate, inj.err = nil, nil
+			if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = svc.Stop(context.Background()) })
+			if incidents := svc.View().Incidents; len(incidents) != 1 || incidents[0].Lost != 0 {
+				t.Fatalf("incidents %+v, want one with nothing lost yet", incidents)
+			}
+		})
+	}
+}
+
 func TestChaosEndpoints(t *testing.T) {
 	svc, _, counter := newChaos(DefaultChaosLimits())
-	mux := http.NewServeMux()
-	api := &API{token: adminToken}
-	svc.Routes(mux, api.admin, adminToken)
-	srv := httptest.NewServer(mux)
+	svc.now = func() time.Time { return time.Unix(2_000_000, 0) }
+	srv := httptest.NewServer(chaosAPI(svc))
 	t.Cleanup(srv.Close)
 	url, visitor := srv.URL+"/api/chaos", viaProxy("9.9.9.9")
 	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 201 {
@@ -280,8 +384,8 @@ func TestChaosEndpoints(t *testing.T) {
 	if n := counter.hits["chaos:ip:9.9.9.9"]; n != 1 || len(counter.hits) != 1 {
 		t.Fatalf("counts %v, want the fault on the address the dashboard forwarded", counter.hits)
 	}
-	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-b"}`, visitor).StatusCode; got != 409 {
-		t.Fatalf("second fault: %d", got)
+	if resp := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-b"}`, visitor); resp.StatusCode != 409 || resp.Header.Get("Retry-After") != "20" {
+		t.Fatalf("second fault: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if got := send(t, http.MethodDelete, url, "", visitor).StatusCode; got != 401 {
 		t.Fatalf("visitor stop: %d", got)
@@ -289,8 +393,8 @@ func TestChaosEndpoints(t *testing.T) {
 	if got := send(t, http.MethodDelete, url, "", asAdmin("9.9.9.9")).StatusCode; got != 200 {
 		t.Fatalf("admin stop: %d", got)
 	}
-	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 429 {
-		t.Fatalf("during the cooldown: %d", got)
+	if resp := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor); resp.StatusCode != 429 || resp.Header.Get("Retry-After") != "120" {
+		t.Fatalf("during the cooldown: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 }
 
@@ -301,8 +405,7 @@ func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
 	} {
 		svc, inj, _ := newChaos(DefaultChaosLimits())
 		inj.err = failure
-		mux := http.NewServeMux()
-		svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
+		api := chaosAPI(svc)
 		for _, caller := range []struct {
 			header http.Header
 			admin  bool
@@ -310,10 +413,13 @@ func TestAFaultThatFailsToStartIs503AndOnlyTheAdminSeesWhy(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/chaos", strings.NewReader(`{"mode":"partial","target":"dim-a","errorRate":0.3}`))
 			req.Header = caller.header
 			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, req)
+			api.ServeHTTP(w, req)
 			if named := strings.Contains(w.Body.String(), "dim-a"); w.Code != http.StatusServiceUnavailable || named != caller.admin {
 				t.Fatalf("%v came back to admin=%v as %d %s", failure, caller.admin, w.Code, w.Body)
 			}
+		}
+		if n := len(svc.View().Incidents); n != 0 {
+			t.Fatalf("%d incidents left from faults that never started", n)
 		}
 	}
 }

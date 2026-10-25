@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -31,9 +32,32 @@ type memStore struct {
 	finished map[string]time.Time
 
 	refuseWrites, refuseReads, loseEndReply, loseStartReply atomic.Bool
+
+	gate *gate
 }
 
 var errStoreDown = errors.New("dial tcp postgres:5432: connect: connection refused")
+
+type gate struct {
+	reached chan struct{}
+	open    chan struct{}
+	once    sync.Once
+}
+
+func newGate() *gate { return &gate{reached: make(chan struct{}, 1), open: make(chan struct{})} }
+
+func (g *gate) pass() {
+	if g == nil {
+		return
+	}
+	select {
+	case g.reached <- struct{}{}:
+	default:
+	}
+	<-g.open
+}
+
+func (g *gate) release() { g.once.Do(func() { close(g.open) }) }
 
 func newMemStore() *memStore {
 	return &memStore{steps: map[string]map[int]store.Step{}, outcomes: map[string]store.Outcome{}, finished: map[string]time.Time{}}
@@ -52,6 +76,7 @@ func (m *memStore) write(ctx context.Context, apply func() (store.ConfigVersion,
 	if err := ctx.Err(); err != nil {
 		return store.ConfigVersion{}, err
 	}
+	m.gate.pass()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.refuseWrites.Load() {
@@ -144,6 +169,20 @@ func (m *memStore) EndRollout(ctx context.Context, end store.RolloutEnd, c *stor
 	return saved, err
 }
 
+func (m *memStore) AbandonActive(ctx context.Context, _ string, at time.Time) ([]string, error) {
+	var ids []string
+	_, err := m.write(ctx, func() (store.ConfigVersion, error) {
+		for _, r := range m.rollouts {
+			if _, done := m.outcomes[r.ID]; !done {
+				m.outcomes[r.ID], m.finished[r.ID] = store.OutcomeAborted, at
+				ids = append(ids, r.ID)
+			}
+		}
+		return store.ConfigVersion{}, nil
+	})
+	return ids, err
+}
+
 var quiet = slog.New(slog.DiscardHandler)
 
 const baseConfig = `{"routes":[{"name":"api","pathPrefix":"/","pool":"p","versions":{"stable":"v1"}}],
@@ -168,6 +207,16 @@ func newRig(t *testing.T) *rig {
 	r.engine = NewEngine(opts, r.cfgs, r.store, quiet, nil)
 	r.engine.now = func() time.Time { return r.now }
 	return r
+}
+
+func (r *rig) apiOptions() APIOptions {
+	return APIOptions{Configs: r.cfgs, Engine: r.engine, History: r.store, Hub: NewHub(quiet), Token: adminToken, ProxyToken: proxyToken, Logger: quiet}
+}
+
+func (r *rig) visitorAPI(perHour int64, counter Counter, logger *slog.Logger) *API {
+	o := r.apiOptions()
+	o.VisitorRolloutsPerHour, o.Counter, o.Logger = perHour, counter, logger
+	return NewAPI(o)
 }
 
 type bin struct {
@@ -314,6 +363,21 @@ func TestAnOutageOfBothVersionsIsNotTheCanarysFault(t *testing.T) {
 	}
 }
 
+func TestTheStatusIsStoredBeforeTheDashboardsHearOfAChange(t *testing.T) {
+	r := newRig(t)
+	var active []bool
+	r.engine.notify = func(Event) { active = append(active, r.engine.Status().Active) }
+	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.engine.Abort(context.Background(), "changed my mind"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(active, []bool{true, false}) {
+		t.Fatalf("the status said active %v as each event went out, want true then false", active)
+	}
+}
+
 func TestStartChecksItsInputs(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
@@ -340,9 +404,56 @@ func TestStartChecksItsInputs(t *testing.T) {
 	}
 }
 
+func TestARestartClosesTheRolloutItInterruptedAndTakesTheCanaryOff(t *testing.T) {
+	cases := []struct {
+		name    string
+		before  func(t *testing.T, r *rig)
+		written bool
+	}{
+		{"nothing was running", func(*testing.T, *rig) {}, false},
+		{"a rollout was running", func(t *testing.T, r *rig) {
+			if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
+				t.Fatal(err)
+			}
+		}, true},
+		{"a canary was left in the config without a rollout", func(t *testing.T, r *rig) {
+			_, err := r.cfgs.Update(context.Background(), store.ActorAdmin, "by hand", func(c *config.Config) error {
+				c.Routes[0].Versions = config.Versions{Stable: "v1", Canary: "v2", Weight: 0.1}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := newRig(t)
+			c.before(t, r)
+			before := len(r.store.configs)
+			restarted := NewEngine(r.engine.opts, r.cfgs, r.store, quiet, nil)
+			if err := restarted.Recover(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if v := r.versions(t); v.Canary != "" || v.Weight != 0 {
+				t.Fatalf("versions after the restart: %+v", v)
+			}
+			for _, ro := range r.store.rollouts {
+				if r.store.outcomes[ro.ID] != store.OutcomeAborted {
+					t.Fatalf("rollout %s left as %q", ro.ID, r.store.outcomes[ro.ID])
+				}
+			}
+			written := len(r.store.configs) > before
+			if written != c.written || (written && r.store.configs[len(r.store.configs)-1].Author != store.ActorController) {
+				t.Fatalf("configs %v, want a new one: %v", r.store.configs[before:], c.written)
+			}
+		})
+	}
+}
+
 func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
+	api := NewAPI(r.apiOptions())
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	for _, tc := range []struct {
@@ -383,9 +494,8 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 
 func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, proxyToken, quiet)
+	api := r.visitorAPI(2, counter, quiet)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	visitor, admin := viaProxy("9.9.9.9"), asAdmin("9.9.9.9")
@@ -411,8 +521,8 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 		t.Fatalf("second visitor start: %d", got)
 	}
 	abort()
-	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor).StatusCode; got != 429 {
-		t.Fatalf("third visitor start in the hour: %d", got)
+	if resp := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor); resp.StatusCode != 429 || resp.Header.Get("Retry-After") != "3600" {
+		t.Fatalf("third visitor start in the hour: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, admin).StatusCode; got != 201 {
 		t.Fatalf("admin start after the visitor limit: %d", got)
@@ -434,8 +544,7 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	api := r.visitorAPI(DefaultVisitorRolloutsPerHour, downCounter(), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -466,8 +575,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	logs := &logSink{}
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
-	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	api := r.visitorAPI(DefaultVisitorRolloutsPerHour, counter, slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup
@@ -518,8 +626,7 @@ func TestAStartTheStoreRefusesLeavesNothingBehind(t *testing.T) {
 
 func TestAStoreFailureIsA503AndOnlyTheAdminSeesWhy(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
-	api.LetVisitorsRollOut(&fakeCounter{hits: map[string]int64{}}, RolloutLimits{PerHour: 10}, proxyToken, quiet)
+	api := r.visitorAPI(10, &fakeCounter{hits: map[string]int64{}}, quiet)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	admin := asAdmin("9.9.9.9")
@@ -679,7 +786,7 @@ func TestReasonsAreCheckedAtTheDoor(t *testing.T) {
 	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet).Handler())
+	srv := httptest.NewServer(NewAPI(r.apiOptions()).Handler())
 	t.Cleanup(srv.Close)
 	for _, reason := range []string{"stop\u0000", strings.Repeat("x", maxReason+1)} {
 		body, err := json.Marshal(map[string]string{"reason": reason})
@@ -739,8 +846,9 @@ func TestAnAbortKeepsARollbackThatIsAlreadyDecided(t *testing.T) {
 
 func TestClosingTheHubEndsEveryStream(t *testing.T) {
 	r := newRig(t)
-	hub := NewHub(quiet)
-	srv := httptest.NewServer(NewAPI(r.cfgs, r.engine, r.store, hub, adminToken, quiet).Handler())
+	o := r.apiOptions()
+	hub := o.Hub
+	srv := httptest.NewServer(NewAPI(o).Handler())
 	t.Cleanup(srv.Close)
 	resp, err := http.Get(srv.URL + "/api/events")
 	if err != nil {
@@ -764,6 +872,67 @@ func TestClosingTheHubEndsEveryStream(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the stream kept going after the hub closed")
+	}
+}
+
+func TestTheDashboardsAreAnsweredWhileARolloutWaitsOnPostgres(t *testing.T) {
+	r := newRig(t)
+	api := NewAPI(r.apiOptions())
+	g := newGate()
+	r.store.gate = g
+	t.Cleanup(g.release)
+	started := make(chan error, 1)
+	go func() {
+		_, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin)
+		started <- err
+	}()
+	<-g.reached
+	answered := make(chan State, 1)
+	go func() { answered <- api.State() }()
+	select {
+	case st := <-answered:
+		if st.Rollout.Active {
+			t.Fatal("a rollout whose start isn't saved yet shows as running")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the state waited for the rollout's write")
+	}
+	g.release()
+	if err := <-started; err != nil || !r.engine.Status().Active {
+		t.Fatalf("start: %v, then %+v", err, r.engine.Status())
+	}
+}
+
+func TestATickCarriesTheChaosViewOnlyWhenChaosIsOn(t *testing.T) {
+	for _, withChaos := range []bool{false, true} {
+		r := newRig(t)
+		o := r.apiOptions()
+		want := []string{"latest", "rollout", "viewers"}
+		if withChaos {
+			o.Chaos, _, _ = newChaos(DefaultChaosLimits())
+			want = append(want, "chaos")
+		}
+		api := NewAPI(o)
+		frames, done := o.Hub.Subscribe()
+		api.Observe(context.Background(), Merged{Second: 42})
+		done()
+		var frame []byte
+		select {
+		case frame = <-frames:
+		default:
+			t.Fatal("no tick went out")
+		}
+		kind, data, _ := strings.Cut(string(frame), "\ndata: ")
+		var tick map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(data), &tick); err != nil || kind != "event: tick" {
+			t.Fatalf("%s %q: %v", kind, data, err)
+		}
+		if got := slices.Sorted(maps.Keys(tick)); !slices.Equal(got, slices.Sorted(slices.Values(want))) {
+			t.Fatalf("with chaos %v the tick has %v", withChaos, got)
+		}
+		if latest := api.State().Latest; latest == nil || latest.Second != 42 {
+			t.Fatalf("the state's latest second is %+v", latest)
+		}
 	}
 }
 

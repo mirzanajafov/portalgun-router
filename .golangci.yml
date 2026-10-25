@@ -44,7 +44,6 @@ linters:
         - -ST1020
         - -ST1021
         - -ST1022
-        - -QF1009
         - -SA4000
 
 formatters:

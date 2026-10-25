@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/canary"
@@ -20,6 +21,7 @@ type RolloutStore interface {
 	StartRollout(ctx context.Context, r store.Rollout, c store.ConfigChange) (store.ConfigVersion, error)
 	SaveStep(ctx context.Context, rollout string, st store.Step) error
 	EndRollout(ctx context.Context, end store.RolloutEnd, c *store.ConfigChange) (store.ConfigVersion, error)
+	AbandonActive(ctx context.Context, reason string, at time.Time) ([]string, error)
 }
 
 type EngineOptions struct {
@@ -82,10 +84,14 @@ type Engine struct {
 
 	mu     sync.Mutex
 	active *active
+	status atomic.Pointer[Status]
+	idle   *Status
 }
 
 func NewEngine(opts EngineOptions, cfgs *ConfigManager, s RolloutStore, logger *slog.Logger, notify func(Event)) *Engine {
-	return &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now}
+	e := &Engine{opts: opts, cfgs: cfgs, store: s, logger: logger, notify: notify, now: time.Now, idle: &Status{Steps: opts.Steps}}
+	e.storeStatus()
+	return e
 }
 
 var (
@@ -95,9 +101,35 @@ var (
 	ErrEndNotSaved   = errors.New("the rollout's end is decided but not saved yet, and it is tried again every few seconds")
 )
 
+func (e *Engine) Recover(ctx context.Context) error {
+	abandoned, err := e.store.AbandonActive(ctx, "the controller restarted during the rollout", e.now().UTC())
+	if err != nil {
+		return err
+	}
+	cfg, _ := e.cfgs.Current()
+	live := false
+	for _, r := range cfg.Routes {
+		live = live || (r.Versions.Canary != "" && r.Versions.Weight > 0)
+	}
+	if len(abandoned) == 0 && !live {
+		return nil
+	}
+	e.logger.Warn("taking traffic off canaries left from before a restart", "rollouts", abandoned)
+	_, err = e.cfgs.Update(ctx, store.ActorController, "restarted during a rollout: canary traffic set to zero", func(c *config.Config) error {
+		for i := range c.Routes {
+			v := &c.Routes[i].Versions
+			if v.Canary != "" {
+				v.Canary, v.Weight = "", 0
+			}
+		}
+		return nil
+	})
+	return err
+}
+
 func (e *Engine) Start(ctx context.Context, route, canaryVersion string, author store.Actor) (store.Rollout, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if e.active != nil {
 		return store.Rollout{}, ErrBusy
 	}
@@ -178,7 +210,7 @@ func (e *Engine) saveStep(ctx context.Context) {
 
 func (e *Engine) Observe(ctx context.Context, m Merged) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	a := e.active
 	if a == nil {
 		return
@@ -327,7 +359,7 @@ func (e *Engine) Run(ctx context.Context) {
 
 func (e *Engine) retry(ctx context.Context) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if e.active != nil && e.active.settling != nil {
 		e.trySettle(ctx)
 	}
@@ -372,7 +404,7 @@ func (e *Engine) saveSettlement(ctx context.Context, a *active, s *settlement) e
 
 func (e *Engine) Abort(ctx context.Context, reason string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	a := e.active
 	if a == nil {
 		return ErrNoRollout
@@ -402,24 +434,36 @@ type Status struct {
 	Pending   store.Outcome `json:"pending,omitempty"`
 }
 
-func (e *Engine) Status() Status {
+func (e *Engine) Status() Status { return *e.status.Load() }
+
+func (e *Engine) Busy() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	st := Status{Steps: e.opts.Steps}
+	return e.active != nil
+}
+
+func (e *Engine) unlock() {
+	e.storeStatus()
+	e.mu.Unlock()
+}
+
+func (e *Engine) storeStatus() {
 	a := e.active
 	if a == nil {
-		return st
+		e.status.Store(e.idle)
+		return
 	}
-	st.Active, st.Rollout, st.Step, st.DataSec = true, a.rollout, a.record(), a.seconds
+	st := Status{Steps: e.opts.Steps, Active: true, Rollout: a.rollout, Step: a.record(), DataSec: a.seconds}
 	st.LLRErrors, st.LLRSlow = st.Step.LLRErrors, st.Step.LLRSlow
 	st.Lower, st.Upper = a.policy.Sequential().Errors().Bounds()
 	if a.settling != nil {
 		st.Pending = a.settling.outcome
 	}
-	return st
+	e.status.Store(&st)
 }
 
 func (e *Engine) emit(msg string) {
+	e.storeStatus()
 	e.logger.Info(msg)
 	if e.notify != nil {
 		e.notify(Event{Type: "rollout", At: e.now().UTC(), Message: msg})

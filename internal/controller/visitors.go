@@ -11,26 +11,10 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/httpx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Counter interface {
 	Hit(ctx context.Context, key string, window time.Duration) (int64, error)
-}
-
-type RedisCounter struct{ RDB *redis.Client }
-
-func (r RedisCounter) Hit(ctx context.Context, key string, window time.Duration) (int64, error) {
-	var incr *redis.IntCmd
-	_, err := r.RDB.TxPipelined(ctx, func(p redis.Pipeliner) error {
-		incr = p.Incr(ctx, key)
-		p.ExpireNX(ctx, key, window)
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	return incr.Val(), nil
 }
 
 const proxyTokenHeader = "X-Portal-Proxy-Token"
@@ -39,41 +23,56 @@ var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right n
 
 const recountAfter = time.Minute
 
-type visitorLimit struct {
-	name       string
-	perHour    int64
-	counter    Counter
-	proxyToken string
-	logger     *slog.Logger
-	now        func() time.Time
+const (
+	rolloutVisitors = "rollout"
+	chaosVisitors   = "chaos"
+)
 
-	mu          sync.Mutex
-	failedAt    time.Time
+type visitorAddress struct {
+	limit       string
+	proxyToken  string
+	logger      *slog.Logger
+	now         func() time.Time
 	mismatchLog everyMinute
 }
 
-func newVisitorLimit(name string, perHour int64, counter Counter, proxyToken string, logger *slog.Logger) *visitorLimit {
+func newVisitorAddress(limit, proxyToken string, logger *slog.Logger) *visitorAddress {
 	if proxyToken == "" {
-		logger.Warn("no proxy token, so the limit ignores X-Forwarded-For and counts every caller by its own address", "limit", name)
+		logger.Warn("no proxy token, so the limit ignores X-Forwarded-For and counts every caller by its own address", "limit", limit)
 	}
-	return &visitorLimit{name: name, perHour: perHour, counter: counter, proxyToken: proxyToken, logger: logger, now: time.Now}
+	return &visitorAddress{limit: limit, proxyToken: proxyToken, logger: logger, now: time.Now}
 }
 
-func (l *visitorLimit) client(r *http.Request) string {
-	if httpx.Carries(r, proxyTokenHeader, l.proxyToken) {
+func (v *visitorAddress) of(r *http.Request) string {
+	if httpx.Carries(r, proxyTokenHeader, v.proxyToken) {
 		if addr, err := netip.ParseAddr(httpx.ClientIP(r, 1)); err == nil {
 			return addr.Unmap().String()
 		}
 	} else if r.Header.Get(proxyTokenHeader) != "" {
-		l.mismatch()
+		v.mismatch()
 	}
 	return httpx.ClientIP(r, 0)
 }
 
-func (l *visitorLimit) mismatch() {
-	if l.mismatchLog.allow(l.now()) {
-		l.logger.Warn("a request carried a proxy token that doesn't match, so it was counted by its peer", "limit", l.name)
+func (v *visitorAddress) mismatch() {
+	if v.mismatchLog.allow(v.now()) {
+		v.logger.Warn("a request carried a proxy token that doesn't match, so it was counted by its peer", "limit", v.limit)
 	}
+}
+
+type visitorLimit struct {
+	name    string
+	perHour int64
+	counter Counter
+	logger  *slog.Logger
+	now     func() time.Time
+
+	mu       sync.Mutex
+	failedAt time.Time
+}
+
+func newVisitorLimit(name string, perHour int64, counter Counter, logger *slog.Logger) *visitorLimit {
+	return &visitorLimit{name: name, perHour: perHour, counter: counter, logger: logger, now: time.Now}
 }
 
 func (l *visitorLimit) exceeded(ctx context.Context, client string) (bool, error) {
