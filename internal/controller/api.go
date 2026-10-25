@@ -59,11 +59,11 @@ var ErrRolloutLimit = errors.New("that is enough rollouts from this address for 
 func NewAPI(o APIOptions) *API {
 	a := &API{cfgs: o.Configs, engine: o.Engine, history: o.History, hub: o.Hub, chaos: o.Chaos, token: o.Token, logger: o.Logger}
 	if o.VisitorRolloutsPerHour > 0 {
-		a.rolloutLimit = newVisitorLimit("rollout", o.VisitorRolloutsPerHour, o.Counter, o.Logger)
-		a.rolloutAddress = newVisitorAddress("rollout", o.ProxyToken, o.Logger)
+		a.rolloutLimit = newVisitorLimit(rolloutVisitors, o.VisitorRolloutsPerHour, o.Counter, o.Logger)
+		a.rolloutAddress = newVisitorAddress(rolloutVisitors, o.ProxyToken, o.Logger)
 	}
 	if o.Chaos != nil {
-		a.chaosAddress = newVisitorAddress("chaos", o.ProxyToken, o.Logger)
+		a.chaosAddress = newVisitorAddress(chaosVisitors, o.ProxyToken, o.Logger)
 	}
 	return a
 }

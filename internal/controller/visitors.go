@@ -23,6 +23,11 @@ var ErrLimitUnchecked = errors.New("the visitor limits cannot be checked right n
 
 const recountAfter = time.Minute
 
+const (
+	rolloutVisitors = "rollout"
+	chaosVisitors   = "chaos"
+)
+
 type visitorAddress struct {
 	limit       string
 	proxyToken  string

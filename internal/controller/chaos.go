@@ -112,7 +112,7 @@ func NewChaosService(o ChaosOptions) *ChaosService {
 	return &ChaosService{
 		inj:        o.Injector,
 		store:      o.Store,
-		chaosLimit: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.Logger),
+		chaosLimit: newVisitorLimit(chaosVisitors, o.Limits.PerHour, o.Counter, o.Logger),
 		notify:     o.Notify,
 		limits:     o.Limits,
 		targets:    o.Targets,
