@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -54,10 +53,9 @@ type lease struct {
 	now      Clock
 	guard    *breaker
 
-	mu      sync.Mutex
-	keys    map[string]*leaseKey
-	fetches atomic.Int64
-	sweeps  int
+	mu     sync.Mutex
+	keys   map[string]*leaseKey
+	sweeps int
 }
 
 func NewLease(o Options) (Limiter, error) {
@@ -169,12 +167,9 @@ func (l *lease) degraded(st *leaseKey, key string, now int64) Decision {
 func (l *lease) fetch(ctx context.Context, key string, want float64, epoch string, owed float64) (float64, error) {
 	rctx, cancel := context.WithTimeout(ctx, l.timeout)
 	defer cancel()
-	l.fetches.Add(1)
 	n, err := leaseScript.Run(rctx, l.rdb, debtKeys(l.prefix+key, epoch), l.rule.Rate/1e6, l.rule.Burst, ttlMillis(l.rule), want, owed, debtTTL.Milliseconds()).Int64()
 	l.guard.record(ctx, err)
 	return float64(n), err
 }
-
-func (l *lease) Fetches() int64 { return l.fetches.Load() }
 
 func (l *lease) Close() {}

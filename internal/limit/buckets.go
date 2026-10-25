@@ -37,5 +37,3 @@ func (b *Buckets) Take(key string, now int64) (bool, time.Duration) {
 	}
 	return false, time.Duration((1 - bk.tokens) / b.rule.Rate * 1e9)
 }
-
-func (b *Buckets) Len() int { return b.buckets.size() }

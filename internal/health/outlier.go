@@ -91,8 +91,6 @@ func NewOutlier(cfg OutlierConfig, onChange func(Transition)) *Outlier {
 	return &Outlier{cfg: cfg, onChange: onChange, recent: stats.NewOutcomes(cfg.Window)}
 }
 
-func (o *Outlier) State() State { return State(o.state.Load()) }
-
 func (o *Outlier) StateAt(now int64) State {
 	s := State(o.state.Load())
 	if s == Ejected && now >= o.until.Load() {

@@ -68,8 +68,6 @@ type Record struct {
 
 func (r Record) Latency() time.Duration { return time.Duration(r.Ended - r.Scheduled) }
 
-func (r Record) Lag() time.Duration { return time.Duration(r.Started - r.Scheduled) }
-
 type Log struct {
 	StartUnixNano int64
 	Dimensions    []string

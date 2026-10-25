@@ -22,17 +22,6 @@ type shard[V any] struct {
 
 func (s *shards[V]) of(key string) *shard[V] { return &s[maphash.String(seed, key)%shardCount] }
 
-func (s *shards[V]) size() int {
-	n := 0
-	for i := range s {
-		sh := &s[i]
-		sh.mu.Lock()
-		n += len(sh.m)
-		sh.mu.Unlock()
-	}
-	return n
-}
-
 func (sh *shard[V]) add(key string, v *V, stale func(*V) bool) {
 	if sh.m == nil {
 		sh.m = map[string]*V{}

@@ -26,7 +26,7 @@ func canaryConfig(t *testing.T, stable, canary string, weight float64, rollout s
 
 func manual(t *testing.T, cfg *config.Config) (*Gateway, *httptest.Server) {
 	t.Helper()
-	g, err := New(cfg, Options{ManualTick: true})
+	g, err := newManualGateway(cfg, Options{}, defaultTransport)
 	if err != nil {
 		t.Fatal(err)
 	}

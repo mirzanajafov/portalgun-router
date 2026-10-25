@@ -33,7 +33,7 @@ var (
 	}()
 )
 
-func DefaultTransport(string) http.RoundTripper {
+func defaultTransport(string) http.RoundTripper {
 	return &http.Transport{
 		DialContext:         (&net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		MaxIdleConnsPerHost: 1024,

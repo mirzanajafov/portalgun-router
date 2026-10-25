@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func open(t *testing.T) *Store {
@@ -182,15 +184,23 @@ func TestAbandonActiveRollouts(t *testing.T) {
 	}
 }
 
-func TestChaosEvents(t *testing.T) {
+func TestAChaosEventIsWrittenWithAnEmptyDetailWhenItHasNone(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	if err := s.LogChaos(ctx, ChaosEvent{At: time.Now().UTC(), Actor: ActorVisitor, Mode: "crash", Target: "dim-a", Action: "inject"}); err != nil {
 		t.Fatal(err)
 	}
-	evs, err := s.ChaosEvents(ctx, 10)
-	if err != nil || len(evs) != 1 || evs[0].Mode != "crash" || string(evs[0].Detail) != "{}" {
-		t.Fatalf("events %+v %v", evs, err)
+	rows, err := s.pool.Query(ctx, `select actor, mode, target, action, detail::text from chaos_events`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logged, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) ([5]string, error) {
+		var e [5]string
+		err := r.Scan(&e[0], &e[1], &e[2], &e[3], &e[4])
+		return e, err
+	})
+	if want := [5]string{"visitor", "crash", "dim-a", "inject", "{}"}; err != nil || len(logged) != 1 || logged[0] != want {
+		t.Fatalf("logged %v, want only %v: %v", logged, want, err)
 	}
 }
 

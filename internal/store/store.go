@@ -90,8 +90,6 @@ func Open(ctx context.Context, url string) (*Store, error) {
 
 func (s *Store) Close() { s.pool.Close() }
 
-func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
-
 func (s *Store) migrate(ctx context.Context) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `set local statement_timeout = 0`); err != nil {
@@ -402,22 +400,4 @@ func (s *Store) LogChaos(ctx context.Context, e ChaosEvent) error {
 		return fmt.Errorf("logging a chaos event: %w", err)
 	}
 	return nil
-}
-
-func (s *Store) ChaosEvents(ctx context.Context, limit int) ([]ChaosEvent, error) {
-	ctx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	rows, err := s.pool.Query(ctx, `select at, actor, mode, target, action, detail from chaos_events order by id desc limit $1`, limit)
-	if err != nil {
-		return nil, fmt.Errorf("reading chaos events: %w", err)
-	}
-	events, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (ChaosEvent, error) {
-		var e ChaosEvent
-		err := r.Scan(&e.At, &e.Actor, &e.Mode, &e.Target, &e.Action, &e.Detail)
-		return e, err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("reading chaos events: %w", err)
-	}
-	return events, nil
 }
