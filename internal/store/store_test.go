@@ -232,7 +232,7 @@ func TestEveryListedRolloutGetsItsOwnSteps(t *testing.T) {
 			got[ro.ID] = append(got[ro.ID], st.Step)
 		}
 		if ro.Steps == nil {
-			t.Fatalf("%s has nil steps, which the dashboard would read as null", ro.ID)
+			t.Fatalf("%s has nil steps, which the rollouts API would leave out", ro.ID)
 		}
 	}
 	want := map[string][]int{"ro-c": {0, 1, 2}, "ro-b": {}, "ro-a": {0, 1}}

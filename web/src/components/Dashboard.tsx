@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { candidate } from '@/lib/canary'
 import { pct, totalRps } from '@/lib/format'
 import { useLive } from '@/lib/live'
-import { CanaryPanel, candidate } from './CanaryPanel'
+import { CanaryPanel } from './CanaryPanel'
 import { ChaosPanel } from './ChaosPanel'
 import { DimensionCards } from './DimensionCards'
 import { DimensionMap } from './DimensionMap'
@@ -17,7 +18,8 @@ export function Dashboard({ admin }: { admin: boolean }) {
   const failed = m ? Object.values(m.routes).reduce((n, r) => n + r.failed, 0) : 0
   const limited = m ? Object.values(m.routes).reduce((n, r) => n + r.limited, 0) : 0
   const targets = live.chaos?.targets ?? m?.dimensions.map((d) => d.id) ?? []
-  const { canary } = candidate(m)
+  const { stable, canary } = candidate(m)
+  const rolling = canary !== stable ? canary : undefined
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,9 +55,9 @@ export function Dashboard({ admin }: { admin: boolean }) {
             </span>
             <span className="muted">{m ? `${m.instances.length} gateways` : 'no data yet'}</span>
           </div>
-          <DimensionMap latest={m} canary={canary !== m?.routes.portal?.stable ? canary : undefined} />
+          <DimensionMap latest={m} canary={rolling} />
           <div className="sm:hidden">
-            <DimensionCards latest={m} canary={canary !== m?.routes.portal?.stable ? canary : undefined} />
+            <DimensionCards latest={m} canary={rolling} />
           </div>
         </section>
         <div className="flex flex-col gap-4">

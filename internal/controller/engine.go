@@ -46,10 +46,19 @@ func DefaultEngineOptions() EngineOptions {
 	}
 }
 
+type EventType string
+
+const (
+	EventConfig  EventType = "config"
+	EventChaos   EventType = "chaos"
+	EventRollout EventType = "rollout"
+)
+
 type Event struct {
-	Type    string    `json:"type"`
-	At      time.Time `json:"at"`
-	Message string    `json:"message"`
+	Type    EventType   `json:"type"`
+	At      time.Time   `json:"at"`
+	Message string      `json:"message"`
+	Actor   store.Actor `json:"actor,omitempty"`
 }
 
 type active struct {
@@ -466,7 +475,7 @@ func (e *Engine) emit(msg string) {
 	e.storeStatus()
 	e.logger.Info(msg)
 	if e.notify != nil {
-		e.notify(Event{Type: "rollout", At: e.now().UTC(), Message: msg})
+		e.notify(Event{Type: EventRollout, At: e.now().UTC(), Message: msg})
 	}
 }
 

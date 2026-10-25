@@ -1,7 +1,7 @@
 import type { PortalEvent } from '@/lib/types'
 
 export function worthShowing(e: PortalEvent): boolean {
-  return !(e.type === 'config' && e.message.includes(' by controller:'))
+  return !(e.type === 'config' && e.actor === 'controller')
 }
 
 export function EventLog({ events }: { events: PortalEvent[] }) {

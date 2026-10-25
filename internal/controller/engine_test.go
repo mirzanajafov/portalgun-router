@@ -698,6 +698,20 @@ func TestAConfigThatIsSavedButNotPublishedStaysSaved(t *testing.T) {
 	}
 }
 
+func TestAConfigEventNamesWhoChangedTheConfig(t *testing.T) {
+	var events []Event
+	cfgs := NewConfigManager(newMemStore(), func(context.Context, distrib.Envelope) error { return nil }, func(e Event) { events = append(events, e) }, quiet)
+	if err := cfgs.Load(context.Background(), []byte(baseConfig)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfgs.Replace(context.Background(), store.ActorAdmin, "edited", []byte(baseConfig)); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || events[0].Actor != store.ActorBootstrap || events[1].Actor != store.ActorAdmin {
+		t.Fatalf("events %+v, want the bootstrap and then the admin as their actors", events)
+	}
+}
+
 func goodBin(weight float64) bin {
 	canary := int64(1000 * weight)
 	return bin{stable: 1000 - canary, canary: canary, stableErr: 10 - canary/100, canaryErr: canary / 100, stableSlow: 50 - canary/20, canarySlow: canary / 20}

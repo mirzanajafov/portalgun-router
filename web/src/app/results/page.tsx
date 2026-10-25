@@ -3,18 +3,18 @@ import { FailoverResults } from '@/components/FailoverResults'
 import { LimiterResults } from '@/components/LimiterResults'
 import { ProxyResults } from '@/components/ProxyResults'
 import { RegistryResults } from '@/components/RegistryResults'
-import type { FailoverSummary, LimiterSummary, ProxyReport, RegistrySummary } from '@/lib/measured'
+import { FailoverSummaries, LimiterSummaries, ProxyReport, RegistrySummaries } from '@/lib/measured'
 import { latestRun, latestSim } from '@/lib/results'
 
 export default function Results() {
-  const proxy = latestRun<ProxyReport>('e1/w1')
-  const step = latestRun<ProxyReport>('e1-step/w1')
-  const overload = latestRun<ProxyReport>('e1-overload/w1')
-  const limiter = latestRun<LimiterSummary[]>('e2')
-  const before = latestRun<LimiterSummary[]>('e2-breaker/before')
-  const after = latestRun<LimiterSummary[]>('e2-breaker/after')
-  const failover = latestRun<FailoverSummary[]>('e3')
-  const registry = latestRun<RegistrySummary[]>('e5')
+  const proxy = latestRun('e1/w1', ProxyReport)
+  const step = latestRun('e1-step/w1', ProxyReport)
+  const overload = latestRun('e1-overload/w1', ProxyReport)
+  const limiter = latestRun('e2', LimiterSummaries)
+  const before = latestRun('e2-breaker/before', LimiterSummaries)
+  const after = latestRun('e2-breaker/after', LimiterSummaries)
+  const failover = latestRun('e3', FailoverSummaries)
+  const registry = latestRun('e5', RegistrySummaries)
   const sim = latestSim()
   if (!proxy && !limiter && !failover && !registry && !sim) {
     return <p className="muted mt-8">No results in this build.</p>

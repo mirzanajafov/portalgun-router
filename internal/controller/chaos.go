@@ -115,7 +115,7 @@ func NewChaosService(o ChaosOptions) *ChaosService {
 		chaosLimit: newVisitorLimit(chaosVisitors, o.Limits.PerHour, o.Counter, o.Logger),
 		notify:     o.Notify,
 		limits:     o.Limits,
-		targets:    o.Targets,
+		targets:    append([]string{}, o.Targets...),
 		logger:     o.Logger,
 		now:        time.Now,
 	}
@@ -254,7 +254,7 @@ func (c *ChaosService) Stop(ctx context.Context) error {
 
 func (c *ChaosService) emit(msg string) {
 	if c.notify != nil {
-		c.notify(Event{Type: "chaos", Message: msg})
+		c.notify(Event{Type: EventChaos, Message: msg})
 	}
 }
 
@@ -321,7 +321,7 @@ type ChaosView struct {
 func (c *ChaosService) View() ChaosView {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	v := ChaosView{Current: c.current, Targets: c.targets, Cooldown: max(0, c.cooldown.Sub(c.now()).Seconds())}
+	v := ChaosView{Current: c.current, Targets: c.targets, Cooldown: max(0, c.cooldown.Sub(c.now()).Seconds()), Incidents: make([]Incident, 0, len(c.incidents))}
 	for i := len(c.incidents) - 1; i >= 0; i-- {
 		v.Incidents = append(v.Incidents, *c.incidents[i])
 	}

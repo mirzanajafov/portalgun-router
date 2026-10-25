@@ -230,7 +230,7 @@ type Rollout struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 	Outcome    Outcome    `json:"outcome,omitempty"`
 	Reason     string     `json:"reason,omitempty"`
-	Steps      []Step     `json:"steps"`
+	Steps      []Step     `json:"steps,omitzero"`
 }
 
 type Step struct {

@@ -1,0 +1,378 @@
+{
+  "firstState": {
+    "configVersion": 0,
+    "latest": null,
+    "rollout": {
+      "active": false,
+      "steps": [
+        0.1,
+        0.5
+      ],
+      "dataSec": 0,
+      "llrErrors": 0,
+      "llrSlow": 0,
+      "lower": 0,
+      "upper": 0
+    },
+    "viewers": 0,
+    "events": []
+  },
+  "quietTick": {
+    "latest": {
+      "second": 1000002,
+      "instances": [
+        "gw-1"
+      ],
+      "configVersions": {
+        "gw-1": 0
+      },
+      "routes": {},
+      "dimensions": []
+    },
+    "rollout": {
+      "active": false,
+      "steps": [
+        0.1,
+        0.5
+      ],
+      "dataSec": 0,
+      "llrErrors": 0,
+      "llrSlow": 0,
+      "lower": 0,
+      "upper": 0
+    },
+    "viewers": 1,
+    "chaos": {
+      "current": null,
+      "cooldownSec": 0,
+      "targets": [],
+      "incidents": []
+    }
+  },
+  "settlingTick": {
+    "latest": {
+      "second": 1000001,
+      "instances": [
+        "gw-1"
+      ],
+      "configVersions": {
+        "gw-1": 0
+      },
+      "routes": {
+        "portal": {
+          "requests": 200,
+          "limited": 1,
+          "failed": 2,
+          "stable": "v1",
+          "canary": "v2",
+          "weight": 0.01,
+          "rollout": "ro-1",
+          "versions": [
+            {
+              "attempts": 198,
+              "errors": 0,
+              "slow": 0
+            },
+            {
+              "attempts": 2,
+              "errors": 0,
+              "slow": 0
+            }
+          ],
+          "slowThresholdMs": 0
+        }
+      },
+      "dimensions": [
+        {
+          "id": "c-137",
+          "version": "v1",
+          "attempts": 198,
+          "errors": 1,
+          "p50Ms": 3,
+          "p99Ms": 40,
+          "inflight": 0,
+          "healthy": true,
+          "outlier": "closed"
+        },
+        {
+          "id": "d-99",
+          "version": "v2",
+          "attempts": 2,
+          "errors": 0,
+          "p50Ms": 0,
+          "p99Ms": 900,
+          "inflight": 0,
+          "healthy": false,
+          "outlier": "ejected",
+          "ejectedForMs": 5000
+        }
+      ]
+    },
+    "rollout": {
+      "active": true,
+      "rollout": {
+        "id": "ro-19700112-134640",
+        "route": "api",
+        "stable": "v1",
+        "canary": "v2",
+        "startedAt": "1970-01-12T13:46:40Z"
+      },
+      "step": {
+        "step": 1,
+        "weight": 0.5,
+        "startedAt": "1970-01-12T13:46:52Z",
+        "endedAt": "1970-01-12T13:46:58Z",
+        "decision": "promote",
+        "reason": "both tests accepted the canary",
+        "llrErrors": -3.533491069691501,
+        "llrSlow": -17.66745534845751,
+        "stableRequests": 3000,
+        "canaryRequests": 3000,
+        "stableErrors": 30,
+        "canaryErrors": 30
+      },
+      "steps": [
+        0.1,
+        0.5
+      ],
+      "dataSec": 6,
+      "llrErrors": -3.533491069691501,
+      "llrSlow": -17.66745534845751,
+      "lower": -2.9932291433358724,
+      "upper": 5.940171252720432,
+      "pending": "promoted"
+    },
+    "viewers": 2
+  },
+  "state": {
+    "configVersion": 4,
+    "latest": {
+      "second": 1000001,
+      "instances": [
+        "gw-1"
+      ],
+      "configVersions": {
+        "gw-1": 0
+      },
+      "routes": {
+        "portal": {
+          "requests": 200,
+          "limited": 1,
+          "failed": 2,
+          "stable": "v1",
+          "canary": "v2",
+          "weight": 0.01,
+          "rollout": "ro-1",
+          "versions": [
+            {
+              "attempts": 198,
+              "errors": 0,
+              "slow": 0
+            },
+            {
+              "attempts": 2,
+              "errors": 0,
+              "slow": 0
+            }
+          ],
+          "slowThresholdMs": 0
+        }
+      },
+      "dimensions": [
+        {
+          "id": "c-137",
+          "version": "v1",
+          "attempts": 198,
+          "errors": 1,
+          "p50Ms": 3,
+          "p99Ms": 40,
+          "inflight": 0,
+          "healthy": true,
+          "outlier": "closed"
+        },
+        {
+          "id": "d-99",
+          "version": "v2",
+          "attempts": 2,
+          "errors": 0,
+          "p50Ms": 0,
+          "p99Ms": 900,
+          "inflight": 0,
+          "healthy": false,
+          "outlier": "ejected",
+          "ejectedForMs": 5000
+        }
+      ]
+    },
+    "rollout": {
+      "active": true,
+      "rollout": {
+        "id": "ro-19700112-134640",
+        "route": "api",
+        "stable": "v1",
+        "canary": "v2",
+        "startedAt": "1970-01-12T13:46:40Z"
+      },
+      "step": {
+        "step": 0,
+        "weight": 0.1,
+        "startedAt": "1970-01-12T13:46:40Z",
+        "llrErrors": 1.6028906426582115,
+        "llrSlow": -1.2997730874165234,
+        "stableRequests": 900,
+        "canaryRequests": 100,
+        "stableErrors": 2,
+        "canaryErrors": 3
+      },
+      "steps": [
+        0.1,
+        0.5
+      ],
+      "dataSec": 1,
+      "llrErrors": 1.6028906426582115,
+      "llrSlow": -1.2997730874165234,
+      "lower": -2.9932291433358724,
+      "upper": 5.940171252720432
+    },
+    "viewers": 2,
+    "events": [
+      {
+        "type": "config",
+        "at": "2026-10-25T12:00:00Z",
+        "message": "config v4 by admin: edited",
+        "actor": "admin"
+      },
+      {
+        "type": "chaos",
+        "at": "2026-10-25T12:00:00Z",
+        "message": "crash on dim-a cleared: the fault ran its course"
+      },
+      {
+        "type": "rollout",
+        "at": "2026-10-25T12:00:00Z",
+        "message": "rollout ro-1: v2 at 1% of portal"
+      }
+    ]
+  },
+  "tick": {
+    "latest": {
+      "second": 1000001,
+      "instances": [
+        "gw-1"
+      ],
+      "configVersions": {
+        "gw-1": 0
+      },
+      "routes": {
+        "portal": {
+          "requests": 200,
+          "limited": 1,
+          "failed": 2,
+          "stable": "v1",
+          "canary": "v2",
+          "weight": 0.01,
+          "rollout": "ro-1",
+          "versions": [
+            {
+              "attempts": 198,
+              "errors": 0,
+              "slow": 0
+            },
+            {
+              "attempts": 2,
+              "errors": 0,
+              "slow": 0
+            }
+          ],
+          "slowThresholdMs": 0
+        }
+      },
+      "dimensions": [
+        {
+          "id": "c-137",
+          "version": "v1",
+          "attempts": 198,
+          "errors": 1,
+          "p50Ms": 3,
+          "p99Ms": 40,
+          "inflight": 0,
+          "healthy": true,
+          "outlier": "closed"
+        },
+        {
+          "id": "d-99",
+          "version": "v2",
+          "attempts": 2,
+          "errors": 0,
+          "p50Ms": 0,
+          "p99Ms": 900,
+          "inflight": 0,
+          "healthy": false,
+          "outlier": "ejected",
+          "ejectedForMs": 5000
+        }
+      ]
+    },
+    "rollout": {
+      "active": true,
+      "rollout": {
+        "id": "ro-19700112-134640",
+        "route": "api",
+        "stable": "v1",
+        "canary": "v2",
+        "startedAt": "1970-01-12T13:46:40Z"
+      },
+      "step": {
+        "step": 0,
+        "weight": 0.1,
+        "startedAt": "1970-01-12T13:46:40Z",
+        "llrErrors": 1.6028906426582115,
+        "llrSlow": -1.2997730874165234,
+        "stableRequests": 900,
+        "canaryRequests": 100,
+        "stableErrors": 2,
+        "canaryErrors": 3
+      },
+      "steps": [
+        0.1,
+        0.5
+      ],
+      "dataSec": 1,
+      "llrErrors": 1.6028906426582115,
+      "llrSlow": -1.2997730874165234,
+      "lower": -2.9932291433358724,
+      "upper": 5.940171252720432
+    },
+    "viewers": 2,
+    "chaos": {
+      "current": {
+        "fault": {
+          "mode": "crash",
+          "target": "dim-a"
+        },
+        "actor": "visitor",
+        "startedAt": "2026-10-25T12:00:00.3Z",
+        "until": "2026-10-25T12:00:20.3Z"
+      },
+      "cooldownSec": 0,
+      "targets": [
+        "dim-a",
+        "dim-b"
+      ],
+      "incidents": [
+        {
+          "fault": {
+            "mode": "crash",
+            "target": "dim-a"
+          },
+          "actor": "visitor",
+          "injectedAt": "2026-10-25T12:00:00.3Z",
+          "detectedAfterSec": 1.7,
+          "movedAfterSec": 1.7,
+          "lostRequests": 0,
+          "closed": false
+        }
+      ]
+    }
+  }
+}

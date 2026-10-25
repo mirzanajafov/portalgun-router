@@ -1,28 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import type { Merged } from '@/lib/types'
-
-type Burst = { sent: number; allowed: number; limited: number; failed: number; ms: number }
+import { useAction } from '@/lib/action'
+import { Burst, type Merged } from '@/lib/types'
 
 export function FluidPanel({ latest }: { latest: Merged | null }) {
   const [burst, setBurst] = useState<Burst | null>(null)
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
+  const { busy, message, send } = useAction()
   const fluid = latest?.routes.fluid
-
-  async function fire() {
-    setBusy(true)
-    setMessage('')
-    try {
-      const res = await fetch('/api/burst', { method: 'POST' })
-      const body = await res.json().catch(() => ({}))
-      if (res.ok) setBurst(body as Burst)
-      else setMessage(body.error ?? `refused (${res.status})`)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const cells = burst
     ? Array.from({ length: burst.sent }, (_, i) => (i < burst.allowed ? 'allowed' : i < burst.allowed + burst.limited ? 'limited' : 'failed'))
@@ -38,7 +23,11 @@ export function FluidPanel({ latest }: { latest: Merged | null }) {
         100 ms) a client they haven&apos;t seen gets half the burst on each.
       </p>
       <div className="flex items-center gap-3">
-        <button className="btn btn-primary" onClick={fire} disabled={busy}>
+        <button
+          className="btn btn-primary"
+          onClick={() => send('/api/burst', { method: 'POST' }, async (res) => setBurst(Burst.parse(await res.json())))}
+          disabled={busy}
+        >
           Fire 60 requests
         </button>
         {burst && (

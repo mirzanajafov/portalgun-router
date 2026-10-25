@@ -89,7 +89,7 @@ func (m *ConfigManager) saveLocked(ctx context.Context, c store.ConfigChange, sa
 		m.logger.Warn("the config is saved but not published yet, the next republish sends it", "err", err)
 	}
 	if m.notify != nil {
-		m.notify(Event{Type: "config", Message: fmt.Sprintf("config v%d by %s: %s", saved.Version, c.Author, c.Reason)})
+		m.notify(Event{Type: EventConfig, Message: fmt.Sprintf("config v%d by %s: %s", saved.Version, c.Author, c.Reason), Actor: c.Author})
 	}
 	return nil
 }

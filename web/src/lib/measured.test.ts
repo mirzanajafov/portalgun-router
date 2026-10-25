@@ -66,8 +66,8 @@ describe('proxy results', () => {
   it('leaves out the direct baseline and keeps the order of the proxies', () => {
     const rows = proxyRows(report, 1000, 1000)
     expect(rows.map((r) => r.key)).toEqual(['stdlib', 'envoy'])
-    expect(rows[0].top?.rate).toBe(6000)
-    expect(rows[1].low?.overheadP50Us).toBe(50)
+    expect(rows[0]?.top?.rate).toBe(6000)
+    expect(rows[1]?.low?.overheadP50Us).toBe(50)
   })
 })
 
@@ -118,8 +118,8 @@ describe('limiter results', () => {
       ['over-even-2gw', 'over-shift-2gw'],
     )
     expect(rows.map((r) => r.key)).toEqual(['redis-exact', 'lease-20ms'])
-    expect(rows[1].cells[0]).toBeUndefined()
-    expect(rows[1].cells[1]?.overAdmission.median).toBe(-0.01)
+    expect(rows[1]?.cells[0]).toBeUndefined()
+    expect(rows[1]?.cells[1]?.overAdmission.median).toBe(-0.01)
   })
 
   it('pairs each design measured on both sides of a change, load by load', () => {
@@ -132,8 +132,8 @@ describe('limiter results', () => {
     ]
     const rows = beforeAfter(before, after, ['over-even-2gw', 'zipf-10k-2gw'])
     expect(rows.map((r) => r.key)).toEqual(['redis-exact', 'lease-5ms'])
-    expect(rows[0].before.map((c) => c?.overAdmission.median)).toEqual([0.116, undefined])
-    expect(rows[0].after.map((c) => c?.overAdmission.median)).toEqual([-0.002, 0.004])
+    expect(rows[0]?.before.map((c) => c?.overAdmission.median)).toEqual([0.116, undefined])
+    expect(rows[0]?.after.map((c) => c?.overAdmission.median)).toEqual([-0.002, 0.004])
   })
 
   it('treats a cell without a valid run as missing', () => {
@@ -143,12 +143,32 @@ describe('limiter results', () => {
   })
 })
 
+function failover(cell: string): FailoverSummary {
+  const s = stat(10)
+  return {
+    cell,
+    runs: 3,
+    invalidRuns: 0,
+    detected: 3,
+    moved: 3,
+    recovered: 3,
+    detectMs: s,
+    moveMs: s,
+    lost: s,
+    lostAfter: s,
+    p99BeforeMs: s,
+    p99FaultMs: s,
+    attemptsFault: s,
+    recoverMs: s,
+    falseEjections: s,
+  }
+}
+
 describe('failover results', () => {
   it('builds the fault by detection matrix', () => {
-    const f = (c: string) => ({ cell: c, runs: 3, invalidRuns: 0, lost: stat(10) }) as FailoverSummary
-    const rows = failoverMatrix([f('crash/both'), f('crash/both-retries'), f('slow/probes'), f('crash/both-retries-refused')])
+    const rows = failoverMatrix([failover('crash/both'), failover('crash/both-retries'), failover('slow/probes'), failover('crash/both-retries-refused')])
     expect(rows.map((r) => r.key)).toEqual(['crash', 'slow'])
-    expect(rows[0].cells.map((c) => c?.cell)).toEqual([undefined, undefined, 'crash/both', 'crash/both-retries'])
+    expect(rows[0]?.cells.map((c) => c?.cell)).toEqual([undefined, undefined, 'crash/both', 'crash/both-retries'])
   })
 })
 

@@ -1,5 +1,3 @@
-'use client'
-
 import { dimensionName, errorRate, health, ms, pct, share, type Health } from '@/lib/format'
 import type { Merged } from '@/lib/types'
 
@@ -22,28 +20,24 @@ const H = 400
 const CX = W / 2
 const CY = H / 2
 
-export function positions(n: number): { x: number; y: number }[] {
-  return Array.from({ length: n }, (_, i) => {
-    const angle = ((-135 + (i * 360) / n) * Math.PI) / 180
-    return { x: CX + Math.cos(angle) * 220, y: CY + Math.sin(angle) * 135 }
-  })
+export function position(i: number, n: number): { x: number; y: number } {
+  const angle = ((-135 + (i * 360) / n) * Math.PI) / 180
+  return { x: CX + Math.cos(angle) * 220, y: CY + Math.sin(angle) * 135 }
 }
 
 export function DimensionMap({ latest, canary }: { latest: Merged | null; canary?: string }) {
-  const dims = latest?.dimensions ?? []
-  const pos = positions(dims.length)
+  const placed = (latest?.dimensions ?? []).map((d, i, all) => ({ d, h: health(d), ...position(i, all.length) }))
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Traffic from the gateway to each dimension">
-      {dims.map((d, i) => {
+      {placed.map(({ d, h, x, y }) => {
         const s = share(latest, d.id)
-        const h = health(d)
         return (
           <line
             key={`edge-${d.id}`}
             x1={CX}
             y1={CY}
-            x2={pos[i].x}
-            y2={pos[i].y}
+            x2={x}
+            y2={y}
             stroke={s > 0 ? COLORS[h] : 'var(--line)'}
             strokeWidth={1.5 + s * 22}
             strokeLinecap="round"
@@ -59,9 +53,7 @@ export function DimensionMap({ latest, canary }: { latest: Merged | null; canary
           gateway{latest ? ` x${latest.instances.length}` : ''}
         </text>
       </g>
-      {dims.map((d, i) => {
-        const h = health(d)
-        const { x, y } = pos[i]
+      {placed.map(({ d, h, x, y }) => {
         const isCanary = canary && d.version === canary
         return (
           <g key={d.id}>
