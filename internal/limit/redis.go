@@ -19,7 +19,7 @@ type exact struct {
 	timeout   time.Duration
 	fallback  *Buckets
 	now       Clock
-	guard     breaker
+	guard     *breaker
 	debts     *ledger
 }
 
@@ -36,7 +36,7 @@ func NewRedisExact(rdb Redis, prefix string, rule Rule, instances int, timeout t
 		timeout:   timeout,
 		fallback:  NewBuckets(split(rule, instances)),
 		now:       now,
-		guard:     breaker{now: now},
+		guard:     newBreaker(now),
 		debts:     newLedger(),
 	}, nil
 }

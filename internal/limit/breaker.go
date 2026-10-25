@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/stats"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -29,24 +30,29 @@ func ClientOptions(addr string) *redis.Options {
 	}
 }
 
-type slot struct {
-	at       int64
-	calls    int
-	failures int
-}
+type breakerState int
 
 const (
-	closed = iota
+	closed breakerState = iota
 	tripped
 	probing
 )
 
+type callCount struct {
+	calls    int
+	failures int
+}
+
 type breaker struct {
 	now       Clock
 	mu        sync.Mutex
-	state     int
+	state     breakerState
 	openUntil int64
-	slots     [windowSlots]slot
+	window    stats.Slots[callCount]
+}
+
+func newBreaker(now Clock) *breaker {
+	return &breaker{now: now, window: stats.NewSlots[callCount](windowSlots, slotLen)}
 }
 
 func (b *breaker) allow() bool {
@@ -75,7 +81,7 @@ func (b *breaker) record(ctx context.Context, err error) {
 		switch {
 		case err == nil:
 			b.state = closed
-			b.slots = [windowSlots]slot{}
+			b.window.Reset()
 		case gone:
 			b.state, b.openUntil = tripped, now
 		default:
@@ -93,20 +99,14 @@ func (b *breaker) record(ctx context.Context, err error) {
 }
 
 func (b *breaker) count(now int64, failed bool) (calls, failures int) {
-	at := now / int64(slotLen)
-	s := &b.slots[at%windowSlots]
-	if s.at != at {
-		*s = slot{at: at}
-	}
-	s.calls++
+	slot := b.window.At(now)
+	slot.calls++
 	if failed {
-		s.failures++
+		slot.failures++
 	}
-	for _, s := range b.slots {
-		if at-s.at < windowSlots {
-			calls += s.calls
-			failures += s.failures
-		}
+	for c := range b.window.Recent(now) {
+		calls += c.calls
+		failures += c.failures
 	}
 	return calls, failures
 }

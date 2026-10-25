@@ -34,17 +34,14 @@ type routeStats struct {
 	threshold atomic.Int64
 	rolling   *stats.Rolling
 
-	brakeOn  atomic.Bool
-	brakeMu  sync.Mutex
-	rollout  string
-	ring     [brakeWindow]bool
-	ringIdx  int
-	ringLen  int
-	ringFail int
+	brakeOn       atomic.Bool
+	brakeMu       sync.Mutex
+	rollout       string
+	brakeOutcomes stats.Outcomes
 }
 
 func newRouteStats() *routeStats {
-	return &routeStats{rolling: stats.NewRolling(slowWindow)}
+	return &routeStats{rolling: stats.NewRolling(slowWindow), brakeOutcomes: stats.NewOutcomes(brakeWindow)}
 }
 
 func (rs *routeStats) observe(slot int, failed bool, latency time.Duration) {
@@ -67,19 +64,8 @@ func (rs *routeStats) observe(slot int, failed bool, latency time.Duration) {
 func (rs *routeStats) brake(failed bool) {
 	rs.brakeMu.Lock()
 	defer rs.brakeMu.Unlock()
-	if rs.ringLen == brakeWindow {
-		if rs.ring[rs.ringIdx] {
-			rs.ringFail--
-		}
-	} else {
-		rs.ringLen++
-	}
-	rs.ring[rs.ringIdx] = failed
-	rs.ringIdx = (rs.ringIdx + 1) % brakeWindow
-	if failed {
-		rs.ringFail++
-	}
-	if rs.ringLen == brakeWindow && rs.ringFail >= brakeFailing {
+	rs.brakeOutcomes.Add(failed)
+	if rs.brakeOutcomes.Full() && rs.brakeOutcomes.Failures() >= brakeFailing {
 		rs.brakeOn.Store(true)
 	}
 }
@@ -91,8 +77,7 @@ func (rs *routeStats) resetBrake(rollout string) {
 		return
 	}
 	rs.rollout = rollout
-	rs.ring = [brakeWindow]bool{}
-	rs.ringIdx, rs.ringLen, rs.ringFail = 0, 0, 0
+	rs.brakeOutcomes.Reset()
 	rs.brakeOn.Store(false)
 }
 

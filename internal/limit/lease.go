@@ -50,7 +50,7 @@ type lease struct {
 	timeout  time.Duration
 	fallback *Buckets
 	now      Clock
-	guard    breaker
+	guard    *breaker
 
 	mu      sync.Mutex
 	keys    map[string]*leaseKey
@@ -71,7 +71,7 @@ func NewLease(rdb Redis, prefix string, rule Rule, instances int, target, ttl, t
 		timeout:  timeout,
 		fallback: NewBuckets(split(rule, instances)),
 		now:      now,
-		guard:    breaker{now: now},
+		guard:    newBreaker(now),
 		keys:     map[string]*leaseKey{},
 	}, nil
 }

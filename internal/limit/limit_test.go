@@ -199,7 +199,7 @@ var errStall = errors.New("i/o timeout")
 
 func TestBreakerIgnoresAStallThatFailsAFewCallsAmongMany(t *testing.T) {
 	var clk fakeClock
-	b := breaker{now: clk.now}
+	b := newBreaker(clk.now)
 	for i := range 200 {
 		var err error
 		if i >= 100 && i < 100+tripFailures+2 {
@@ -215,7 +215,7 @@ func TestBreakerIgnoresAStallThatFailsAFewCallsAmongMany(t *testing.T) {
 
 func TestBreakerOpensWhenMostCallsFailAndProbesOneAtATime(t *testing.T) {
 	var clk fakeClock
-	b := breaker{now: clk.now}
+	b := newBreaker(clk.now)
 	ctx := context.Background()
 	for range tripFailures - 1 {
 		b.allow()
@@ -253,7 +253,7 @@ func TestBreakerOpensWhenMostCallsFailAndProbesOneAtATime(t *testing.T) {
 
 func TestBreakerSkipsCallsTheClientGaveUpOn(t *testing.T) {
 	var clk fakeClock
-	b := breaker{now: clk.now}
+	b := newBreaker(clk.now)
 	gone, cancel := context.WithCancel(context.Background())
 	cancel()
 	for range 2 * tripFailures {
@@ -278,7 +278,7 @@ func TestBreakerSkipsCallsTheClientGaveUpOn(t *testing.T) {
 
 func TestBreakerForgetsFailuresOutsideItsWindow(t *testing.T) {
 	var clk fakeClock
-	b := breaker{now: clk.now}
+	b := newBreaker(clk.now)
 	for range tripFailures - 1 {
 		b.allow()
 		b.record(context.Background(), errStall)
