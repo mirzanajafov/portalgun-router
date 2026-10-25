@@ -40,9 +40,11 @@ function resultsDir(): string {
 }
 
 function read<T>(file: string, schema: ZodType<T>): T {
-  const parsed = schema.safeParse(JSON.parse(readFileSync(file, 'utf8')))
-  if (!parsed.success) throw new Error(`${file} is not what the Results page reads:\n${z.prettifyError(parsed.error)}`)
-  return parsed.data
+  try {
+    return schema.parse(JSON.parse(readFileSync(file, 'utf8')))
+  } catch (err) {
+    throw new Error(`${file} is not what the Results page reads`, { cause: err })
+  }
 }
 
 export type Run<T> = { name: string; summary: T }
