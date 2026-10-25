@@ -41,12 +41,12 @@ func TestConsecutiveFailuresEject(t *testing.T) {
 	for i := range 4 {
 		o.Record(int64(i), true, false, false)
 	}
-	if o.State() != Closed {
+	if o.StateAt(3) != Closed {
 		t.Fatal("ejected before the fifth failure")
 	}
 	o.Record(10, true, false, false)
-	if o.State() != Ejected || o.Eligible(11) || o.Until() != 10+5*sec {
-		t.Fatalf("state %v until %d", o.State(), o.Until())
+	if o.StateAt(10) != Ejected || o.Eligible(11) || o.Until() != 10+5*sec {
+		t.Fatalf("state %v until %d", o.StateAt(10), o.Until())
 	}
 	if len(rec.ts) != 1 || rec.ts[0].Reason != "consecutive failures" {
 		t.Fatalf("transitions %+v", rec.ts)
@@ -62,9 +62,9 @@ func TestStateAtSeesTheEndOfAnEjectionWithoutTraffic(t *testing.T) {
 	if o.StateAt(4+5*sec-1) != Ejected {
 		t.Fatalf("not ejected before the ejection ends: %v", o.StateAt(4+5*sec-1))
 	}
-	if o.StateAt(4+5*sec) != HalfOpen || o.State() != Ejected || len(rec.ts) != 1 {
-		t.Fatalf("StateAt %v, State %v, %d transitions: StateAt should report half-open without changing anything",
-			o.StateAt(4+5*sec), o.State(), len(rec.ts))
+	if o.StateAt(4+5*sec) != HalfOpen || o.StateAt(4+5*sec-1) != Ejected || len(rec.ts) != 1 {
+		t.Fatalf("StateAt %v, then %v a nanosecond earlier, %d transitions: StateAt should report half-open without changing anything",
+			o.StateAt(4+5*sec), o.StateAt(4+5*sec-1), len(rec.ts))
 	}
 }
 
@@ -72,7 +72,7 @@ func TestSuccessBreaksTheStreak(t *testing.T) {
 	o := NewOutlier(outlierConfig(), nil)
 	for i := range 19 {
 		o.Record(int64(i), i%3 != 0, false, false)
-		if o.State() != Closed {
+		if o.StateAt(int64(i)) != Closed {
 			t.Fatalf("ejected after %d attempts with a 2/3 failure rate, no streak of five and fewer than 20 samples", i+1)
 		}
 	}
@@ -81,11 +81,11 @@ func TestSuccessBreaksTheStreak(t *testing.T) {
 func TestFailureRatioEjects(t *testing.T) {
 	o := NewOutlier(outlierConfig(), nil)
 	n := 0
-	for o.State() == Closed && n < 100 {
+	for o.StateAt(int64(n)) == Closed && n < 100 {
 		o.Record(int64(n), n%2 == 0, false, false)
 		n++
 	}
-	if o.State() != Ejected || n != 20 {
+	if o.StateAt(int64(n)) != Ejected || n != 20 {
 		t.Fatalf("ejected after %d attempts, want 20 (the minimum sample at 50%%)", n)
 	}
 }
@@ -95,12 +95,12 @@ func TestRefusedEjectsWhenConfigured(t *testing.T) {
 	cfg.EjectOnRefused = true
 	o := NewOutlier(cfg, nil)
 	o.Record(0, true, true, false)
-	if o.State() != Ejected {
+	if o.StateAt(0) != Ejected {
 		t.Fatal("a refused connection did not eject")
 	}
 	plain := NewOutlier(outlierConfig(), nil)
 	plain.Record(0, true, true, false)
-	if plain.State() != Closed {
+	if plain.StateAt(0) != Closed {
 		t.Fatal("refusal ejected without the option")
 	}
 }
@@ -118,8 +118,8 @@ func TestHalfOpenLimitsTrialsAndCloses(t *testing.T) {
 	if !o.Eligible(5 * sec) {
 		t.Fatal("not eligible after the ejection ended")
 	}
-	if o.State() != HalfOpen {
-		t.Fatalf("state %v", o.State())
+	if o.StateAt(5*sec) != HalfOpen {
+		t.Fatalf("state %v", o.StateAt(5*sec))
 	}
 	for range 3 {
 		if !o.Begin() {
@@ -132,8 +132,8 @@ func TestHalfOpenLimitsTrialsAndCloses(t *testing.T) {
 	for range 3 {
 		o.Record(6*sec, false, false, true)
 	}
-	if o.State() != Closed {
-		t.Fatalf("state %v after three good trials", o.State())
+	if o.StateAt(6*sec) != Closed {
+		t.Fatalf("state %v after three good trials", o.StateAt(6*sec))
 	}
 	got := []State{}
 	for _, tr := range rec.ts {
