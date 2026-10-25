@@ -7,7 +7,7 @@ import type { ChaosView } from '@/lib/types'
 
 type Action = { label: string; hint: string; body: Record<string, unknown> }
 
-export const ACTIONS: Action[] = [
+const ACTIONS: Action[] = [
   { label: 'Kill', hint: 'listener closed, new connections refused', body: { mode: 'crash' } },
   { label: 'Blackhole', hint: 'connections stay open, nothing comes back', body: { mode: 'blackhole' } },
   { label: '+500 ms', hint: 'every response half a second late', body: { mode: 'slow', latencyMs: 500 } },
