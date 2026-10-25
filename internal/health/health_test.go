@@ -118,8 +118,8 @@ func TestHalfOpenLimitsTrialsAndCloses(t *testing.T) {
 	if !o.Eligible(5 * sec) {
 		t.Fatal("not eligible after the ejection ended")
 	}
-	if o.StateAt(5*sec) != HalfOpen {
-		t.Fatalf("state %v", o.StateAt(5*sec))
+	if len(rec.ts) != 2 || rec.ts[1].To != HalfOpen {
+		t.Fatalf("transitions once the ejection ended: %+v", rec.ts)
 	}
 	for range 3 {
 		if !o.Begin() {
