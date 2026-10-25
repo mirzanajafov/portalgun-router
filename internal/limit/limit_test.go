@@ -102,13 +102,23 @@ func (c *countedScripts) EvalSha(ctx context.Context, sha1 string, keys []string
 	return c.Client.EvalSha(ctx, sha1, keys, args...)
 }
 
-func synced(t *testing.T, rdb *redis.Client, key, instance string) bool {
-	t.Helper()
-	ok, err := rdb.HExists(context.Background(), key+":demand", instance).Result()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ok
+func (c *countedScripts) Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd {
+	c.runs.Add(1)
+	return c.Client.Eval(ctx, script, keys, args...)
+}
+
+func (c *countedScripts) Pipeline() redis.Pipeliner {
+	return countedPipeline{Pipeliner: c.Client.Pipeline(), runs: &c.runs}
+}
+
+type countedPipeline struct {
+	redis.Pipeliner
+	runs *atomic.Int64
+}
+
+func (p countedPipeline) EvalSha(ctx context.Context, sha1 string, keys []string, args ...any) *redis.Cmd {
+	p.runs.Add(1)
+	return p.Pipeliner.EvalSha(ctx, sha1, keys, args...)
 }
 
 func prefix(t *testing.T) string {
@@ -641,8 +651,11 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	p := prefix(t)
 	rule := Rule{Rate: 300, Burst: 30}
 	var ls []Limiter
+	var clients []*countedScripts
 	for i := range 2 {
-		l, err := NewLocalSync(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 20 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
+		client := &countedScripts{Client: rdb}
+		clients = append(clients, client)
+		l, err := NewLocalSync(Options{Redis: client, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 20 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -655,7 +668,7 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	if float64(allowed) > 1.2*ceiling || float64(allowed) < 0.6*ceiling {
 		t.Fatalf("admitted %d against an exact %.0f", allowed, ceiling)
 	}
-	if !synced(t, rdb, p+"k", "gw-0") {
+	if clients[0].runs.Load() == 0 {
 		t.Fatal("never synced")
 	}
 }
@@ -689,8 +702,11 @@ func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 	p := prefix(t)
 	rule := Rule{Rate: 200, Burst: 20}
 	var ls []Limiter
+	var clients []*countedScripts
 	for i := range 2 {
-		l, err := NewLocalSync(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 20 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
+		client := &countedScripts{Client: rdb}
+		clients = append(clients, client)
+		l, err := NewLocalSync(Options{Redis: client, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 20 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -720,7 +736,7 @@ func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 	if float64(allowed) < 0.85*exact || float64(allowed) > 1.15*exact {
 		t.Fatalf("admitted %d against an exact %.0f; a static split would admit about two thirds at 90/10", allowed, exact)
 	}
-	if !synced(t, rdb, p+"k", "gw-0") || !synced(t, rdb, p+"k", "gw-1") {
+	if clients[0].runs.Load() == 0 || clients[1].runs.Load() == 0 {
 		t.Fatal("an instance never synced")
 	}
 }
