@@ -254,7 +254,7 @@ func (c *ChaosService) Stop(ctx context.Context) error {
 
 func (c *ChaosService) emit(msg string) {
 	if c.notify != nil {
-		c.notify(Event{Type: "chaos", Message: msg})
+		c.notify(Event{Type: EventChaos, Message: msg})
 	}
 }
 
