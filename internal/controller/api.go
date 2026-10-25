@@ -42,7 +42,7 @@ type API struct {
 	history        History
 	hub            *Hub
 	chaos          *ChaosService
-	visitors       *visitorLimit
+	rolloutLimit   *visitorLimit
 	rolloutAddress *visitorAddress
 	chaosAddress   *visitorAddress
 	token          string
@@ -59,7 +59,7 @@ var ErrRolloutLimit = errors.New("that is enough rollouts from this address for 
 func NewAPI(o APIOptions) *API {
 	a := &API{cfgs: o.Configs, engine: o.Engine, history: o.History, hub: o.Hub, chaos: o.Chaos, token: o.Token, logger: o.Logger}
 	if o.VisitorRolloutsPerHour > 0 {
-		a.visitors = newVisitorLimit("rollout", o.VisitorRolloutsPerHour, o.Counter, o.Logger)
+		a.rolloutLimit = newVisitorLimit("rollout", o.VisitorRolloutsPerHour, o.Counter, o.Logger)
 		a.rolloutAddress = newVisitorAddress("rollout", o.ProxyToken, o.Logger)
 	}
 	if o.Chaos != nil {
@@ -178,7 +178,7 @@ func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
 func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 	author := store.ActorAdmin
 	if !httpx.Authorized(r, a.token) {
-		if a.visitors == nil {
+		if a.rolloutLimit == nil {
 			httpx.WriteError(w, http.StatusUnauthorized, adminOnly)
 			return
 		}
@@ -196,7 +196,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusConflict, ErrBusy.Error())
 			return
 		}
-		exceeded, err := a.visitors.exceeded(r.Context(), a.rolloutAddress.of(r))
+		exceeded, err := a.rolloutLimit.exceeded(r.Context(), a.rolloutAddress.of(r))
 		if err != nil {
 			retryLater(w, http.StatusServiceUnavailable, ErrLimitUnchecked, recountAfter)
 			return
