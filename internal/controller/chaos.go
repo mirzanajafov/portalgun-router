@@ -79,14 +79,14 @@ var (
 )
 
 type ChaosService struct {
-	inj      Injector
-	store    ChaosLog
-	visitors *visitorLimit
-	notify   func(Event)
-	limits   ChaosLimits
-	targets  []string
-	logger   *slog.Logger
-	now      func() time.Time
+	inj        Injector
+	store      ChaosLog
+	chaosLimit *visitorLimit
+	notify     func(Event)
+	limits     ChaosLimits
+	targets    []string
+	logger     *slog.Logger
+	now        func() time.Time
 
 	actions sync.Mutex
 	timer   *time.Timer
@@ -110,14 +110,14 @@ type ChaosOptions struct {
 
 func NewChaosService(o ChaosOptions) *ChaosService {
 	return &ChaosService{
-		inj:      o.Injector,
-		store:    o.Store,
-		visitors: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.Logger),
-		notify:   o.Notify,
-		limits:   o.Limits,
-		targets:  o.Targets,
-		logger:   o.Logger,
-		now:      time.Now,
+		inj:        o.Injector,
+		store:      o.Store,
+		chaosLimit: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.Logger),
+		notify:     o.Notify,
+		limits:     o.Limits,
+		targets:    o.Targets,
+		logger:     o.Logger,
+		now:        time.Now,
 	}
 }
 
@@ -171,7 +171,7 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 	c.setStarting(inc)
 	defer c.setStarting(nil)
 	if !admin {
-		exceeded, err := c.visitors.exceeded(ctx, client)
+		exceeded, err := c.chaosLimit.exceeded(ctx, client)
 		if err != nil {
 			return Running{}, 0, err
 		}

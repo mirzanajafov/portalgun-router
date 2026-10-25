@@ -188,7 +188,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
 	var elapsed atomic.Int64
 	start := time.Now()
-	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
+	svc.chaosLimit.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
 	srv := httptest.NewServer(chaosAPI(svc))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
