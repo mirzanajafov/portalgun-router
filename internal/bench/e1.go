@@ -171,21 +171,16 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Rates) == 0 || len(plan.Systems) == 0 {
 		return "", errors.New("the plan needs systems, rates and at least one repetition")
 	}
-	dir = filepath.Join(r.Out, plan.Workload.Name, time.Now().UTC().Format("20060102-150405"))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir, err = runDir(filepath.Join(r.Out, plan.Workload.Name), "")
+	if err != nil {
 		return "", err
 	}
-	compose := r.Compose
-	compose.Env = append(slices.Clone(compose.Env), plan.Workload.env()...)
-	r.Log.Printf("starting the stack for %s", plan.Workload.Name)
-	if err := compose.Up(ctx); err != nil {
+	compose := r.Compose.withEnv(plan.Workload.env()...)
+	down, err := r.startStack(ctx, compose, "the stack for "+plan.Workload.Name)
+	if err != nil {
 		return "", err
 	}
-	defer func() {
-		if err := compose.Down(context.Background()); err != nil {
-			r.Log.Printf("tearing down: %v", err)
-		}
-	}()
+	defer down()
 	if err := r.waitReady(ctx, compose, plan); err != nil {
 		return "", err
 	}
@@ -210,10 +205,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 		"startedAt": time.Now().UTC(),
 		"env":       compose.Env,
 	}
-	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
-		return "", err
-	}
-	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
+	f, err := startRuns(dir, meta)
 	if err != nil {
 		return "", err
 	}
@@ -230,43 +222,16 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 				if l, ok := limit[sys.Name]; ok && rate > l && !plan.Overload {
 					continue
 				}
-				confirmations := []bool{false, true}
-				if plan.Overload {
-					confirmations = confirmations[:1]
-				}
-				if plan.Overload {
-					if err := r.restart(ctx, compose, plan, sys); err != nil {
-						return dir, err
-					}
-				}
-				saturated := true
-				for _, confirmation := range confirmations {
-					p, err := r.measure(ctx, compose, plan, sys, rate, rep, slot)
-					if err != nil || p.Saturated {
-						died, rerr := r.revive(ctx, compose, plan, sys)
-						switch {
-						case rerr != nil:
-							return dir, errors.Join(err, rerr)
-						case died != "":
-							p.Died, p.Saturated = died, true
-							p.Reasons = append(p.Reasons, sys.Name+" "+died)
-						case err != nil:
-							return dir, err
-						}
-					}
-					p.Confirmation = confirmation
+				saturated, err := r.saturates(ctx, compose, plan, sys, rate, rep, slot, func(p Point) error {
 					if err := enc.Encode(p); err != nil {
-						return dir, err
+						return err
 					}
 					r.Log.Printf("[%d/%d] rep %d %-8s %7.0f rps  p50 %7.1f us  p99 %8.1f us  cpu %6.1f us/req  %s",
 						done, total, rep+1, sys.Name, rate, p.Loadgen.LatencyUs.P50, p.Loadgen.LatencyUs.P99, p.CPUPerRequestUs, strings.Join(p.Reasons, ", "))
-					if p.Died != "" {
-						break
-					}
-					if !p.Saturated {
-						saturated = false
-						break
-					}
+					return nil
+				})
+				if err != nil {
+					return dir, err
 				}
 				if saturated {
 					limit[sys.Name] = rate
@@ -275,6 +240,42 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 		}
 	}
 	return dir, nil
+}
+
+func (r *Runner) saturates(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int, record func(Point) error) (bool, error) {
+	confirmations := []bool{false, true}
+	if plan.Overload {
+		confirmations = confirmations[:1]
+		if err := r.restart(ctx, compose, plan, sys); err != nil {
+			return false, err
+		}
+	}
+	for _, confirmation := range confirmations {
+		p, err := r.measure(ctx, compose, plan, sys, rate, rep, slot)
+		if err != nil || p.Saturated {
+			died, rerr := r.revive(ctx, compose, plan, sys)
+			switch {
+			case rerr != nil:
+				return false, errors.Join(err, rerr)
+			case died != "":
+				p.Died, p.Saturated = died, true
+				p.Reasons = append(p.Reasons, sys.Name+" "+died)
+			case err != nil:
+				return false, err
+			}
+		}
+		p.Confirmation = confirmation
+		if err := record(p); err != nil {
+			return false, err
+		}
+		if p.Died != "" {
+			return true, nil
+		}
+		if !p.Saturated {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (r *Runner) measure(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int) (Point, error) {
@@ -309,14 +310,14 @@ func (r *Runner) point(ctx context.Context, compose Compose, plan Plan, sys Syst
 		p.DimensionCPU[d] = w.Seconds
 		p.DimensionUtil = max(p.DimensionUtil, w.Utilization)
 	}
-	if w, ok := sum.Watched["system"]; ok && sum.Completed > 0 {
-		served := float64(sum.Completed)
-		p.SystemCPUSec = w.Seconds
-		p.CPUPerRequestUs = w.Seconds / served * 1e6
-		p.UserPerRequestUs = w.UserSeconds / served * 1e6
-		p.KernelPerRequestUs = w.SystemSeconds / served * 1e6
-	}
 	if w, ok := sum.Watched["system"]; ok {
+		if sum.Completed > 0 {
+			served := float64(sum.Completed)
+			p.SystemCPUSec = w.Seconds
+			p.CPUPerRequestUs = w.Seconds / served * 1e6
+			p.UserPerRequestUs = w.UserSeconds / served * 1e6
+			p.KernelPerRequestUs = w.SystemSeconds / served * 1e6
+		}
 		p.MemoryPeakMB, p.SwapPeakMB = w.MemoryPeakMB, w.SwapPeakMB
 		p.AnonPeakMB, p.SockPeakMB = w.AnonPeakMB, w.SockPeakMB
 	}

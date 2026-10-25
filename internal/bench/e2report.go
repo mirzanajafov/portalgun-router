@@ -1,13 +1,9 @@
 package bench
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -37,23 +33,11 @@ type LimiterSummary struct {
 }
 
 func LoadLimiterRuns(dir string) ([]LimiterRun, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
+	runs, err := loadRuns[LimiterRun](dir)
 	if err != nil {
 		return nil, err
 	}
-	var runs []LimiterRun
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 1<<20), 1<<26)
-	for sc.Scan() {
-		var r LimiterRun
-		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
-			return nil, err
-		}
-		if r.Report != nil {
-			runs = append(runs, r)
-		}
-	}
-	return runs, sc.Err()
+	return slices.DeleteFunc(runs, func(r LimiterRun) bool { return r.Report == nil }), nil
 }
 
 func baselineOf(cell string) string {

@@ -58,7 +58,7 @@ func TestATotalFailureIsCaughtFast(t *testing.T) {
 }
 
 func TestSPRTKeepsItsPromiseOnAA(t *testing.T) {
-	cfg := Config{Step: 5 * time.Minute, MinStep: 30 * time.Second, Seed: 11, Alpha: 0.01, Beta: 0.05, Rho: 2}
+	cfg := Config{Step: canary.DefaultMaxStep, MinStep: canary.DefaultMinStep, Seed: 11, Alpha: canary.DefaultAlpha, Beta: canary.DefaultBeta, Rho: canary.DefaultRho}
 	res := Run([]Cell{{BaseError: 0.005, Share: 0.05, Rho: 1, RPS: 2000, Trials: 600}}, cfg)
 	sprt := res[0].Policies[0]
 	if sprt.Policy != "sprt" || sprt.RollbackRate > 0.02 {

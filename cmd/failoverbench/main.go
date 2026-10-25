@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
-	"github.com/mirzanajafov/portalgun-router/internal/failover"
+	"github.com/mirzanajafov/portalgun-router/internal/failoverbench"
 )
 
 func main() {
-	c := failover.Cell{Controls: map[string]string{}, Token: os.Getenv("PORTAL_CONTROL_TOKEN"), Options: failover.DefaultOptions()}
+	c := failoverbench.Cell{Controls: map[string]string{}, Token: os.Getenv("PORTAL_CONTROL_TOKEN"), Options: failoverbench.DefaultOptions()}
 	flag.StringVar(&c.Label, "label", "", "label copied into the report")
 	flag.Func("url", "gateway traffic URL, repeatable", func(v string) error {
 		c.Gateways = append(c.Gateways, v)
@@ -56,22 +56,22 @@ func main() {
 	c.Options.Settle = c.Settle
 	if *background != "" {
 		if err := json.Unmarshal([]byte(*background), &c.Background); err != nil {
-			fmt.Fprintln(os.Stderr, "failover: -background:", err)
+			fmt.Fprintln(os.Stderr, "failoverbench: -background:", err)
 			os.Exit(2)
 		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	rep, err := failover.Run(ctx, c)
+	rep, err := failoverbench.Run(ctx, c)
+	stop()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "failover:", err)
+		fmt.Fprintln(os.Stderr, "failoverbench:", err)
 		os.Exit(1)
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(rep); err != nil {
-		fmt.Fprintln(os.Stderr, "failover:", err)
+		fmt.Fprintln(os.Stderr, "failoverbench:", err)
 		os.Exit(1)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/mirzanajafov/portalgun-router/internal/canary"
 	"github.com/mirzanajafov/portalgun-router/internal/canary/sim"
 )
 
@@ -19,10 +20,10 @@ func main() {
 	aaTrials := flag.Int("aa-trials", 2000, "trials per A/A cell")
 	trials := flag.Int("trials", 500, "trials per regression cell")
 	seed := flag.Uint64("seed", 1, "seed")
-	step := flag.Duration("step", 5*time.Minute, "length of one canary step")
+	step := flag.Duration("step", canary.DefaultMaxStep, "length of one canary step")
 	flag.Parse()
 
-	cfg := sim.Config{Step: *step, MinStep: 30 * time.Second, Seed: *seed, Alpha: 0.01, Beta: 0.05, Rho: 2}
+	cfg := sim.Config{Step: *step, MinStep: canary.DefaultMinStep, Seed: *seed, Alpha: canary.DefaultAlpha, Beta: canary.DefaultBeta, Rho: canary.DefaultRho}
 	began := time.Now()
 	results := sim.Run(sim.Grid(*aaTrials, *trials), cfg)
 	elapsed := time.Since(began)
@@ -43,13 +44,13 @@ func main() {
 	if err := os.WriteFile(filepath.Join(dir, "results.json"), append(b, '\n'), 0o644); err != nil {
 		fail(err)
 	}
-	if err := print(results); err != nil {
+	if err := printResults(results); err != nil {
 		fail(err)
 	}
 	fmt.Printf("\n%d cells in %v, written to %s\n", len(results), elapsed.Round(time.Millisecond), dir)
 }
 
-func print(results []sim.CellResult) error {
+func printResults(results []sim.CellResult) error {
 	var b strings.Builder
 	fmt.Fprintln(&b, "group\tbase\tshare\trps\tcanary\tblip\tsprt (undecided)\tfixed-absolute\tfixed-relative\tpeeking-z\tfixed-horizon\tsprt+terminal\t")
 	for _, r := range results {

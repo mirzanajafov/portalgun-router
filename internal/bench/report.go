@@ -1,13 +1,8 @@
 package bench
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -87,23 +82,7 @@ type Report struct {
 	MaxRate  map[string]float64 `json:"maxRate"`
 }
 
-func LoadPoints(dir string) ([]Point, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
-	if err != nil {
-		return nil, err
-	}
-	var points []Point
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 1<<20), 1<<24)
-	for sc.Scan() {
-		var p Point
-		if err := json.Unmarshal(sc.Bytes(), &p); err != nil {
-			return nil, err
-		}
-		points = append(points, p)
-	}
-	return points, sc.Err()
-}
+func LoadPoints(dir string) ([]Point, error) { return loadRuns[Point](dir) }
 
 func Summarize(points []Point) Report {
 	type key struct {
@@ -219,7 +198,7 @@ func Summarize(points []Point) Report {
 	return rep
 }
 
-func (r Report) WriteText(w io.Writer) error {
+func WriteReportText(w io.Writer, r Report) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rate\tsystem\truns\tsat\tdied\tp50 us\t+p50\tp99 us (min-max)\t+p99\tp99.9 us\tcpu us/req\tuser\tmem MB\t\n")
 	for _, c := range r.Cells {
@@ -241,7 +220,7 @@ func (r Report) WriteText(w io.Writer) error {
 	return writeTable(w, b.String(), tabwriter.AlignRight)
 }
 
-func (r Report) WriteOverloadText(w io.Writer) error {
+func WriteOverloadText(w io.Writer, r Report) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rate\tsystem\truns\tcollapsed\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")
 	for _, c := range r.Cells {

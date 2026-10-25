@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -26,7 +27,6 @@ func main() {
 		usage()
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	var err error
 	switch os.Args[1] {
 	case "e1":
@@ -59,6 +59,7 @@ func main() {
 	default:
 		usage()
 	}
+	stop()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bench:", err)
 		os.Exit(1)
@@ -128,36 +129,6 @@ func e1(ctx context.Context, args []string) error {
 	return err
 }
 
-func report(args []string) error {
-	if len(args) != 1 {
-		return errors.New("report needs a results directory")
-	}
-	points, err := bench.LoadPoints(args[0])
-	if err != nil {
-		return err
-	}
-	rep := bench.Summarize(points)
-	if err := rep.WriteText(os.Stdout); err != nil {
-		return err
-	}
-	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), rep)
-}
-
-func reportOverload(args []string) error {
-	if len(args) != 1 {
-		return errors.New("report-overload needs a results directory")
-	}
-	points, err := bench.LoadPoints(args[0])
-	if err != nil {
-		return err
-	}
-	rep := bench.Summarize(points)
-	if err := rep.WriteOverloadText(os.Stdout); err != nil {
-		return err
-	}
-	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), rep)
-}
-
 func e5(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("e5", flag.ExitOnError)
 	plan := bench.RegistryPlan{Image: cmp.Or(os.Getenv("FF_IMAGE"), "fivefamilies-node"), ImageCommit: os.Getenv("FF_COMMIT")}
@@ -183,21 +154,6 @@ func e5(ctx context.Context, args []string) error {
 	return err
 }
 
-func reportE5(args []string) error {
-	if len(args) != 1 {
-		return errors.New("report-e5 needs a results directory")
-	}
-	runs, err := bench.LoadRegistryRuns(args[0])
-	if err != nil {
-		return err
-	}
-	sums := bench.SummarizeE5(runs)
-	if err := bench.WriteRegistryText(os.Stdout, sums); err != nil {
-		return err
-	}
-	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sums)
-}
-
 func e3(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("e3", flag.ExitOnError)
 	studies := fs.String("studies", "detect,per-try,refused,balancers,slow-start", "studies to run: "+strings.Join(bench.StudyNames(), ", "))
@@ -217,25 +173,12 @@ func e3(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	if *only != "" {
-		keep := map[string]bool{}
-		for c := range strings.SplitSeq(*only, ",") {
-			keep[strings.TrimSpace(c)] = true
-		}
-		cells = slices.DeleteFunc(cells, func(c bench.FailoverCell) bool { return !keep[c.Name] })
-		if len(cells) != len(keep) {
-			return fmt.Errorf("only %d of the %d requested cells are in the chosen studies", len(cells), len(keep))
-		}
+	name := func(c bench.FailoverCell) string { return c.Name }
+	if cells, err = keepCells(cells, *only, name); err != nil {
+		return err
 	}
-	var each time.Duration
-	for _, c := range cells {
-		each += c.Settle + c.Before + c.During + c.After + 5*time.Second
-	}
-	fmt.Printf("%d cells x %d reps, about %v\n", len(cells), *reps, (each * time.Duration(*reps)).Round(time.Minute))
+	announce(cells, *reps, *dry, name, func(c bench.FailoverCell) time.Duration { return c.Settle + c.Before + c.During + c.After })
 	if *dry {
-		for _, c := range cells {
-			fmt.Println(" ", c.Name)
-		}
 		return nil
 	}
 	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: progress}
@@ -246,21 +189,6 @@ func e3(ctx context.Context, args []string) error {
 		}
 	}
 	return err
-}
-
-func reportE3(args []string) error {
-	if len(args) != 1 {
-		return errors.New("report-e3 needs a results directory")
-	}
-	runs, err := bench.LoadFailoverRuns(args[0])
-	if err != nil {
-		return err
-	}
-	sums := bench.SummarizeFailover(runs)
-	if err := bench.WriteFailoverText(os.Stdout, sums); err != nil {
-		return err
-	}
-	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sums)
 }
 
 func e2(ctx context.Context, args []string) error {
@@ -278,25 +206,12 @@ func e2(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	if *only != "" {
-		keep := map[string]bool{}
-		for c := range strings.SplitSeq(*only, ",") {
-			keep[strings.TrimSpace(c)] = true
-		}
-		cells = slices.DeleteFunc(cells, func(c bench.LimiterCell) bool { return !keep[c.Name] })
-		if len(cells) != len(keep) {
-			return fmt.Errorf("only %d of the %d requested cells are in the chosen studies", len(cells), len(keep))
-		}
+	name := func(c bench.LimiterCell) string { return c.Name }
+	if cells, err = keepCells(cells, *only, name); err != nil {
+		return err
 	}
-	var each time.Duration
-	for _, c := range cells {
-		each += c.Warmup + c.Duration + 5*time.Second
-	}
-	fmt.Printf("%d cells x %d reps, about %v\n", len(cells), *reps, (each * time.Duration(*reps)).Round(time.Minute))
+	announce(cells, *reps, *dry, name, func(c bench.LimiterCell) time.Duration { return c.Warmup + c.Duration })
 	if *dry {
-		for _, c := range cells {
-			fmt.Println(" ", c.Name)
-		}
 		return nil
 	}
 	runner := &bench.Runner{Compose: bench.Compose{File: *compose}, Out: *out, Log: progress}
@@ -307,21 +222,6 @@ func e2(ctx context.Context, args []string) error {
 		}
 	}
 	return err
-}
-
-func reportE2(args []string) error {
-	if len(args) != 1 {
-		return errors.New("report-e2 needs a results directory")
-	}
-	runs, err := bench.LoadLimiterRuns(args[0])
-	if err != nil {
-		return err
-	}
-	sums := bench.SummarizeLimiter(runs)
-	if err := bench.WriteLimiterText(os.Stdout, sums); err != nil {
-		return err
-	}
-	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sums)
 }
 
 func hotpath(ctx context.Context, args []string) error {
@@ -340,17 +240,56 @@ func hotpath(ctx context.Context, args []string) error {
 	return err
 }
 
-func reportHotpath(args []string) error {
-	if len(args) != 1 {
-		return errors.New("report-hotpath needs a results directory")
+var (
+	report         = reporter("report", bench.LoadPoints, bench.Summarize, bench.WriteReportText)
+	reportOverload = reporter("report-overload", bench.LoadPoints, bench.Summarize, bench.WriteOverloadText)
+	reportE2       = reporter("report-e2", bench.LoadLimiterRuns, bench.SummarizeLimiter, bench.WriteLimiterText)
+	reportE3       = reporter("report-e3", bench.LoadFailoverRuns, bench.SummarizeFailover, bench.WriteFailoverText)
+	reportE5       = reporter("report-e5", bench.LoadRegistryRuns, bench.SummarizeRegistry, bench.WriteRegistryText)
+	reportHotpath  = reporter("report-hotpath", bench.LoadHotpathRows, bench.SummarizeHotpath, bench.WriteHotpathText)
+)
+
+func reporter[R, S any](name string, load func(string) (R, error), summarize func(R) S, write func(io.Writer, S) error) func([]string) error {
+	return func(args []string) error {
+		if len(args) != 1 {
+			return fmt.Errorf("%s needs a results directory", name)
+		}
+		runs, err := load(args[0])
+		if err != nil {
+			return err
+		}
+		sum := summarize(runs)
+		if err := write(os.Stdout, sum); err != nil {
+			return err
+		}
+		return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sum)
 	}
-	rows, err := bench.LoadHotpathRows(args[0])
-	if err != nil {
-		return err
+}
+
+func keepCells[C any](cells []C, only string, name func(C) string) ([]C, error) {
+	if only == "" {
+		return cells, nil
 	}
-	sum := bench.SummarizeHotpath(rows)
-	if err := bench.WriteHotpathText(os.Stdout, sum); err != nil {
-		return err
+	keep := map[string]bool{}
+	for c := range strings.SplitSeq(only, ",") {
+		keep[strings.TrimSpace(c)] = true
 	}
-	return bench.WriteJSON(filepath.Join(args[0], "summary.json"), sum)
+	cells = slices.DeleteFunc(cells, func(c C) bool { return !keep[name(c)] })
+	if len(cells) != len(keep) {
+		return nil, fmt.Errorf("only %d of the %d requested cells are in the chosen studies", len(cells), len(keep))
+	}
+	return cells, nil
+}
+
+func announce[C any](cells []C, reps int, list bool, name func(C) string, length func(C) time.Duration) {
+	var each time.Duration
+	for _, c := range cells {
+		each += length(c) + 5*time.Second
+	}
+	fmt.Printf("%d cells x %d reps, about %v\n", len(cells), reps, (each * time.Duration(reps)).Round(time.Minute))
+	if list {
+		for _, c := range cells {
+			fmt.Println(" ", name(c))
+		}
+	}
 }

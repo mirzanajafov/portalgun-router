@@ -19,7 +19,7 @@ func TestParseInfoSumsCommandsButNotItself(t *testing.T) {
 		"cmdstat_info:calls=7,usec=900,usec_per_call=128.57,rejected_calls=0,failed_calls=0\r\n" +
 		"cmdstat_publish:calls=30,usec=60,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\n" +
 		"\r\n# CPU\r\nused_cpu_sys:1.250000\r\nused_cpu_user:0.750000\r\nused_cpu_sys_children:9.0\r\n"
-	u, err := ParseInfo(info)
+	u, err := parseInfo(info)
 	if err != nil {
 		t.Fatal(err)
 	}

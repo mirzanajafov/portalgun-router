@@ -48,7 +48,7 @@ func TestErrorsAndServerFailuresAreLostWhileDroppedRequestsAreCountedApart(t *te
 
 func TestTheSummaryCountsLossesInFailedAndInvalidRunsButNotTheirTimings(t *testing.T) {
 	ten, twenty, nine := 10.0, 20.0, 9000.0
-	sums := SummarizeE5([]RegistryRun{
+	sums := SummarizeRegistry([]RegistryRun{
 		{Cell: "join", Requests: 100, JoinMs: &ten},
 		{Cell: "join", Requests: 100, Lost: 1, JoinMs: &nine, Invalid: []string{"lag"}},
 		{Cell: "join", Requests: 100, Lost: 4, JoinMs: &nine, Error: "dim-e served nothing"},

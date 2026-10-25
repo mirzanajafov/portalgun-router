@@ -1,4 +1,4 @@
-package failover
+package failoverbench
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
@@ -117,53 +116,65 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 		done <- outcome{res, err}
 	}()
 
-	w := Window{Mode: string(c.Fault.Mode), Target: c.Fault.Target}
-	faultErr := func() error {
-		if !sleepUntil(ctx, start.Add(c.Settle+c.Before)) {
-			return ctx.Err()
-		}
-		w.InjectAt = time.Now().UnixNano()
-		if c.Fault.Mode != NoFault {
-			if err := c.inject(ctx, inj); err != nil {
-				return fmt.Errorf("inject: %w", err)
-			}
-		}
-		w.InjectAck = time.Now().UnixNano()
-		if !sleepUntil(ctx, start.Add(c.Settle+c.Before+c.During)) {
-			return ctx.Err()
-		}
-		w.ClearAt = time.Now().UnixNano()
-		if c.Fault.Mode != NoFault {
-			if err := c.clear(ctx, inj); err != nil {
-				return fmt.Errorf("clear: %w", err)
-			}
-		}
-		w.ClearAck = time.Now().UnixNano()
-		return nil
-	}()
+	w, faultErr := c.schedule(ctx, inj, start)
 	out := <-done
 	if err := errors.Join(faultErr, out.err); err != nil {
 		return nil, err
 	}
 
-	rep := &Report{Label: c.Label, Window: w, Generator: out.res.Summary}
-	for _, admin := range c.Admins {
-		var evs []gatewayapi.DimensionEvent
-		if err := httpx.GetJSON(ctx, client, fmt.Sprintf("%s%s?since=%d", admin, gatewayapi.PathEvents, start.UnixNano()), &evs); err != nil {
-			return nil, fmt.Errorf("gateway events: %w", err)
-		}
-		rep.Events = append(rep.Events, evs...)
+	events, config, err := c.gatewayState(ctx, client, start)
+	if err != nil {
+		return nil, err
 	}
-	if err := httpx.GetJSON(ctx, client, c.Admins[0]+gatewayapi.PathConfig, &rep.Config); err != nil {
-		return nil, fmt.Errorf("gateway config: %w", err)
-	}
+	rep := &Report{Label: c.Label, Window: w, Generator: out.res.Summary, Events: events, Config: config}
 	rep.Result = Analyze(out.res.Log, w, rep.Events, c.Options)
 	if c.Records != "" {
-		if err := writeRecords(c.Records, out.res.Log); err != nil {
+		if err := loadgen.WriteLogFile(c.Records, out.res.Log); err != nil {
 			return nil, err
 		}
 	}
 	return rep, nil
+}
+
+func (c Cell) schedule(ctx context.Context, inj *chaos.Injector, start time.Time) (Window, error) {
+	w := Window{Mode: string(c.Fault.Mode), Target: c.Fault.Target}
+	if !sleepUntil(ctx, start.Add(c.Settle+c.Before)) {
+		return w, ctx.Err()
+	}
+	w.InjectAt = time.Now().UnixNano()
+	if c.Fault.Mode != NoFault {
+		if err := c.inject(ctx, inj); err != nil {
+			return w, fmt.Errorf("inject: %w", err)
+		}
+	}
+	w.InjectAck = time.Now().UnixNano()
+	if !sleepUntil(ctx, start.Add(c.Settle+c.Before+c.During)) {
+		return w, ctx.Err()
+	}
+	w.ClearAt = time.Now().UnixNano()
+	if c.Fault.Mode != NoFault {
+		if err := c.clear(ctx, inj); err != nil {
+			return w, fmt.Errorf("clear: %w", err)
+		}
+	}
+	w.ClearAck = time.Now().UnixNano()
+	return w, nil
+}
+
+func (c Cell) gatewayState(ctx context.Context, client *http.Client, since time.Time) ([]gatewayapi.DimensionEvent, json.RawMessage, error) {
+	var events []gatewayapi.DimensionEvent
+	for _, admin := range c.Admins {
+		var evs []gatewayapi.DimensionEvent
+		if err := httpx.GetJSON(ctx, client, fmt.Sprintf("%s%s?since=%d", admin, gatewayapi.PathEvents, since.UnixNano()), &evs); err != nil {
+			return nil, nil, fmt.Errorf("gateway events: %w", err)
+		}
+		events = append(events, evs...)
+	}
+	var config json.RawMessage
+	if err := httpx.GetJSON(ctx, client, c.Admins[0]+gatewayapi.PathConfig, &config); err != nil {
+		return nil, nil, fmt.Errorf("gateway config: %w", err)
+	}
+	return events, config, nil
 }
 
 func (c Cell) targets() []chaos.Fault {
@@ -234,16 +245,4 @@ func waitReady(ctx context.Context, client *http.Client, admins []string, limit 
 			return ctx.Err()
 		}
 	}
-}
-
-func writeRecords(path string, l *loadgen.Log) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	if err := loadgen.WriteLog(f, l); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
 }

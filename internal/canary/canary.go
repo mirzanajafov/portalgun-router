@@ -30,6 +30,19 @@ type Bin struct {
 	Slow     [2]int64
 }
 
+func (b Bin) Plus(o Bin) Bin { return b.add(o, 1) }
+
+func (b Bin) Minus(o Bin) Bin { return b.add(o, -1) }
+
+func (b Bin) add(o Bin, sign int64) Bin {
+	for i := range 2 {
+		b.Requests[i] += sign * o.Requests[i]
+		b.Errors[i] += sign * o.Errors[i]
+		b.Slow[i] += sign * o.Slow[i]
+	}
+	return b
+}
+
 type Decision struct {
 	Verdict Verdict
 	Reason  string
@@ -81,6 +94,14 @@ func (s *SPRT) Verdict() Verdict {
 	return Continue
 }
 
+const (
+	DefaultAlpha   = 0.01
+	DefaultBeta    = 0.05
+	DefaultRho     = 2
+	DefaultMinStep = 30 * time.Second
+	DefaultMaxStep = 5 * time.Minute
+)
+
 type Sequential struct {
 	errors      *SPRT
 	slow        *SPRT
@@ -124,113 +145,6 @@ func (s *Sequential) Finish() Decision {
 	return Decision{Promote, "undecided when the step ended: not enough evidence that the canary is worse"}
 }
 
-type window struct {
-	size  int
-	bins  []Bin
-	total Bin
-}
-
-func (w *window) push(b Bin) {
-	w.bins = append(w.bins, b)
-	add(&w.total, b, 1)
-	if len(w.bins) > w.size {
-		add(&w.total, w.bins[0], -1)
-		w.bins = w.bins[1:]
-	}
-}
-
-func add(dst *Bin, b Bin, sign int64) {
-	for i := range 2 {
-		dst.Requests[i] += sign * b.Requests[i]
-		dst.Errors[i] += sign * b.Errors[i]
-		dst.Slow[i] += sign * b.Slow[i]
-	}
-}
-
-func rate(events, requests int64) float64 {
-	if requests == 0 {
-		return 0
-	}
-	return float64(events) / float64(requests)
-}
-
-type FixedAbsolute struct {
-	w           window
-	maxRate     float64
-	minRequests int64
-}
-
-func NewFixedAbsolute(maxRate float64, span int, minRequests int64) *FixedAbsolute {
-	return &FixedAbsolute{w: window{size: span}, maxRate: maxRate, minRequests: minRequests}
-}
-
-func (f *FixedAbsolute) Name() string { return "fixed-absolute" }
-
-func (f *FixedAbsolute) Observe(b Bin, _ time.Duration) Decision {
-	f.w.push(b)
-	t := f.w.total
-	if t.Requests[1] >= f.minRequests && rate(t.Errors[1], t.Requests[1]) > f.maxRate {
-		return Decision{Rollback, fmt.Sprintf("canary error rate %.2f%% above %.2f%%", 100*rate(t.Errors[1], t.Requests[1]), 100*f.maxRate)}
-	}
-	return Decision{}
-}
-
-func (f *FixedAbsolute) Finish() Decision { return Decision{Verdict: Promote} }
-
-type FixedRelative struct {
-	w           window
-	factor      float64
-	minRequests int64
-}
-
-func NewFixedRelative(factor float64, span int, minRequests int64) *FixedRelative {
-	return &FixedRelative{w: window{size: span}, factor: factor, minRequests: minRequests}
-}
-
-func (f *FixedRelative) Name() string { return "fixed-relative" }
-
-func (f *FixedRelative) Observe(b Bin, _ time.Duration) Decision {
-	f.w.push(b)
-	t := f.w.total
-	stable, canary := rate(t.Errors[0], t.Requests[0]), rate(t.Errors[1], t.Requests[1])
-	if t.Requests[1] >= f.minRequests && t.Errors[1] > 0 && canary > f.factor*stable {
-		return Decision{Rollback, fmt.Sprintf("canary error rate %.3f%% is more than %.1fx the stable %.3f%%", 100*canary, f.factor, 100*stable)}
-	}
-	return Decision{}
-}
-
-func (f *FixedRelative) Finish() Decision { return Decision{Verdict: Promote} }
-
-type Peeking struct {
-	total       Bin
-	z           float64
-	minRequests int64
-}
-
-func NewPeeking(alpha float64, minRequests int64) *Peeking {
-	return &Peeking{z: normalQuantile(1 - alpha), minRequests: minRequests}
-}
-
-func (p *Peeking) Name() string { return "peeking-z" }
-
-func (p *Peeking) Observe(b Bin, _ time.Duration) Decision {
-	add(&p.total, b, 1)
-	t := p.total
-	n1, n2 := float64(t.Requests[0]), float64(t.Requests[1])
-	if t.Requests[1] < p.minRequests || n1 == 0 {
-		return Decision{}
-	}
-	p1, p2 := float64(t.Errors[0])/n1, float64(t.Errors[1])/n2
-	pooled := float64(t.Errors[0]+t.Errors[1]) / (n1 + n2)
-	se := math.Sqrt(pooled * (1 - pooled) * (1/n1 + 1/n2))
-	if se > 0 && (p2-p1)/se > p.z {
-		return Decision{Rollback, fmt.Sprintf("z = %.2f above %.2f", (p2-p1)/se, p.z)}
-	}
-	return Decision{}
-}
-
-func (p *Peeking) Finish() Decision { return Decision{Verdict: Promote} }
-
 type FixedHorizon struct {
 	total Bin
 	alpha float64
@@ -247,7 +161,7 @@ func (f *FixedHorizon) Observe(b Bin, _ time.Duration) Decision {
 	if f.slow {
 		b.Errors = b.Slow
 	}
-	add(&f.total, b, 1)
+	f.total = f.total.Plus(b)
 	return Decision{}
 }
 
@@ -318,8 +232,4 @@ func BinomialTail(k, n int64, p float64) float64 {
 		}
 	}
 	return min(1, sum)
-}
-
-func normalQuantile(p float64) float64 {
-	return math.Sqrt2 * math.Erfinv(2*p-1)
 }

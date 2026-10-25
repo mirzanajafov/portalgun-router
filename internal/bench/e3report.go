@@ -1,13 +1,9 @@
 package bench
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -31,23 +27,11 @@ type FailoverSummary struct {
 }
 
 func LoadFailoverRuns(dir string) ([]FailoverRun, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
+	runs, err := loadRuns[FailoverRun](dir)
 	if err != nil {
 		return nil, err
 	}
-	var runs []FailoverRun
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 1<<20), 1<<26)
-	for sc.Scan() {
-		var r FailoverRun
-		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
-			return nil, err
-		}
-		if r.Report != nil || r.Error != "" {
-			runs = append(runs, r)
-		}
-	}
-	return runs, sc.Err()
+	return slices.DeleteFunc(runs, func(r FailoverRun) bool { return r.Report == nil && r.Error == "" }), nil
 }
 
 func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
@@ -62,7 +46,7 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 	out := make([]FailoverSummary, 0, len(order))
 	for _, cell := range order {
 		s := FailoverSummary{Cell: cell}
-		var detect, move, lost, after, before, fault, attempts, recover, falseEj []float64
+		var detect, move, lost, after, before, fault, attempts, recovery, falseEj []float64
 		for _, r := range by[cell] {
 			if r.Report == nil {
 				s.Failed++
@@ -84,7 +68,7 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 			}
 			if res.RecoverMs != nil {
 				s.Recovered++
-				recover = append(recover, *res.RecoverMs)
+				recovery = append(recovery, *res.RecoverMs)
 			}
 			lost = append(lost, float64(res.Lost))
 			after = append(after, float64(res.LostAfter))
@@ -93,7 +77,7 @@ func SummarizeFailover(runs []FailoverRun) []FailoverSummary {
 			attempts = append(attempts, res.AttemptsFault)
 			falseEj = append(falseEj, float64(res.FalseEjections))
 		}
-		s.DetectMs, s.MoveMs, s.RecoverMs = statOf(detect), statOf(move), statOf(recover)
+		s.DetectMs, s.MoveMs, s.RecoverMs = statOf(detect), statOf(move), statOf(recovery)
 		s.Lost, s.LostAfter = statOf(lost), statOf(after)
 		s.P99BeforeMs, s.P99FaultMs = statOf(before), statOf(fault)
 		s.AttemptsFault, s.FalseEjections = statOf(attempts), statOf(falseEj)

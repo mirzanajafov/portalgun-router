@@ -14,7 +14,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
-	"github.com/mirzanajafov/portalgun-router/internal/failover"
+	"github.com/mirzanajafov/portalgun-router/internal/failoverbench"
 )
 
 var failoverDims = []string{"a", "b", "c"}
@@ -189,7 +189,7 @@ var Studies = map[string]func() []FailoverCell{
 		return []FailoverCell{cell(faultOf(chaos.Crash), baseVariant()), cell(faultOf(chaos.Crash), v)}
 	},
 	"false": func() []FailoverCell {
-		c := cell(chaos.Fault{Mode: failover.NoFault, Target: "a"}, baseVariant())
+		c := cell(chaos.Fault{Mode: failoverbench.NoFault, Target: "a"}, baseVariant())
 		c.Background = `{"errorRate":0.01,"delayDist":"lognormal","delayMs":5,"delaySigma":0.6}`
 		c.Before, c.During, c.After = 10*time.Minute, 0, 5*time.Second
 		return []FailoverCell{c}
@@ -246,13 +246,13 @@ type FailoverPlan struct {
 }
 
 type FailoverRun struct {
-	Cell      string           `json:"cell"`
-	Rep       int              `json:"rep"`
-	Slot      int              `json:"slot"`
-	Gateways  int              `json:"gateways"`
-	StartedAt time.Time        `json:"startedAt"`
-	Report    *failover.Report `json:"report"`
-	Error     string           `json:"error,omitempty"`
+	Cell      string                `json:"cell"`
+	Rep       int                   `json:"rep"`
+	Slot      int                   `json:"slot"`
+	Gateways  int                   `json:"gateways"`
+	StartedAt time.Time             `json:"startedAt"`
+	Report    *failoverbench.Report `json:"report"`
+	Error     string                `json:"error,omitempty"`
 }
 
 const maxFailedInARow = 3
@@ -268,50 +268,32 @@ func tryTwice(ctx context.Context, try func() (FailoverRun, error), heal func(er
 	return try()
 }
 
-func (p FailoverPlan) gatewayServices() []string {
-	gs := []string{"gateway-1"}
-	if p.Gateways == 2 {
-		gs = append(gs, "gateway-2")
-	}
-	return gs
-}
-
 func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Cells) == 0 || plan.Rate <= 0 || plan.Gateways < 1 || plan.Gateways > 2 {
 		return "", errors.New("the plan needs cells, a rate, one or two gateways and at least one repetition")
 	}
-	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = runDir(r.Out, "")
 	if err != nil {
 		return "", err
 	}
-	configs := filepath.Join(dir, "configs")
-	if err := os.MkdirAll(configs, 0o755); err != nil {
-		return "", err
-	}
+	byFile := map[string]any{}
 	for _, c := range plan.Cells {
-		if err := WriteJSON(filepath.Join(configs, c.file()+".json"), c.Variant.Config()); err != nil {
-			return "", err
-		}
+		byFile[c.file()] = c.Variant.Config()
 	}
-	compose := r.Compose
-	compose.Env = append(slices.Clone(compose.Env), "E3_CONFIGS="+configs, "E3_CELL="+plan.Cells[0].file())
-	if plan.Gateways == 2 {
-		compose.Env = append(compose.Env, "COMPOSE_PROFILES=two")
-	}
-	r.Log.Printf("starting the failover stack with %d gateway(s)", plan.Gateways)
-	if err := compose.Up(ctx); err != nil {
+	configs, err := writeConfigs(dir, byFile)
+	if err != nil {
 		return "", err
 	}
-	defer func() {
-		if err := compose.Down(context.Background()); err != nil {
-			r.Log.Printf("tearing down: %v", err)
-		}
-	}()
-	meta := map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env}
-	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
-		return dir, err
+	compose := r.Compose.withEnv("E3_CONFIGS="+configs, "E3_CELL="+plan.Cells[0].file())
+	if plan.Gateways == 2 {
+		compose = compose.withEnv("COMPOSE_PROFILES=two")
 	}
-	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
+	down, err := r.startStack(ctx, compose, fmt.Sprintf("the failover stack with %d gateway(s)", plan.Gateways))
+	if err != nil {
+		return "", err
+	}
+	defer down()
+	f, err := startRuns(dir, map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env})
 	if err != nil {
 		return dir, err
 	}
@@ -366,13 +348,13 @@ func msOrDash(v *float64) string {
 }
 
 func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan FailoverPlan, c FailoverCell, rep, slot int, dir string) (FailoverRun, error) {
-	compose.Env = append(slices.Clone(compose.Env), "E3_CELL="+c.file())
-	args := append([]string{"up", "-d", "--force-recreate", "--no-deps"}, plan.gatewayServices()...)
+	compose = compose.withEnv("E3_CELL=" + c.file())
+	args := append([]string{"up", "-d", "--force-recreate", "--no-deps"}, gatewayNames(plan.Gateways)...)
 	if _, err := compose.run(ctx, args...); err != nil {
 		return FailoverRun{}, err
 	}
 	fa := []string{
-		"exec", "-T", "loadgen", "failover",
+		"exec", "-T", "loadgen", "failoverbench",
 		"-label", c.Name,
 		"-mode", string(c.Fault.Mode),
 		"-target", c.Fault.Target,
@@ -395,7 +377,7 @@ func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan Failove
 	if c.Background != "" {
 		fa = append(fa, "-background", c.Background)
 	}
-	for _, g := range plan.gatewayServices() {
+	for _, g := range gatewayNames(plan.Gateways) {
 		fa = append(fa, "-url", "http://"+g+":8080/", "-admin", "http://"+g+":9090")
 	}
 	for _, d := range failoverDims {
@@ -413,9 +395,9 @@ func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan Failove
 	if err != nil {
 		return run, err
 	}
-	run.Report = &failover.Report{}
+	run.Report = &failoverbench.Report{}
 	if err := json.Unmarshal(out, run.Report); err != nil {
-		return run, fmt.Errorf("failover output: %w", err)
+		return run, fmt.Errorf("failoverbench output: %w", err)
 	}
 	if plan.Records {
 		raw := filepath.Join(dir, "raw")

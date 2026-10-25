@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"syscall"
 	"time"
 )
@@ -122,6 +123,18 @@ func WriteLog(w io.Writer, l *Log) error {
 		}
 	}
 	return bw.Flush()
+}
+
+func WriteLogFile(path string, l *Log) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := WriteLog(f, l); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 func ReadLog(r io.Reader) (*Log, error) {

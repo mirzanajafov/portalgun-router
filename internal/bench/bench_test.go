@@ -131,7 +131,7 @@ func TestSummarize(t *testing.T) {
 		t.Fatalf("max rates %v", r.MaxRate)
 	}
 	var buf bytes.Buffer
-	if err := r.WriteText(&buf); err != nil {
+	if err := WriteReportText(&buf, r); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "max sustained rate nginx    5000 rps") {
@@ -199,7 +199,7 @@ func TestSummarizeOverload(t *testing.T) {
 		t.Fatalf("queued cell %+v", q)
 	}
 	var buf bytes.Buffer
-	if err := r.WriteOverloadText(&buf); err != nil {
+	if err := WriteOverloadText(&buf, r); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "7750 (100-8500)") || !strings.Contains(buf.String(), "55.0 (40.0-9000.0)") {
@@ -239,5 +239,15 @@ func TestLoadgenArgs(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("args %q lack %q", got, want)
 		}
+	}
+}
+
+func TestARunsFileThatBreaksOffIsAnError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "runs.jsonl"), []byte("{\"system\":\"a\"}\n}\n{\"system\":\"b\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if points, err := LoadPoints(dir); err == nil {
+		t.Fatalf("read %d points from a broken runs file without an error", len(points))
 	}
 }

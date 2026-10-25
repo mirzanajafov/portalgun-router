@@ -19,9 +19,6 @@ linters:
         - (net.Conn).Close
         - (*github.com/redis/go-redis/v9.Client).Close
         - (*github.com/redis/go-redis/v9.PubSub).Close
-    gocritic:
-      disabled-checks:
-        - exitAfterDefer
     revive:
       enable-default-rules: true
       rules:
@@ -30,10 +27,6 @@ linters:
         - name: package-comments
           disabled: true
         - name: empty-block
-          disabled: true
-        - name: redefines-builtin-id
-          disabled: true
-        - name: unexported-return
           disabled: true
         - name: unused-parameter
           disabled: true

@@ -37,10 +37,11 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	o := options{addr: *addr, postgres: *postgres, redis: *redisAddr, bootstrap: *bootstrap, toxiproxy: *toxiproxy, targets: *targets, visitorRollouts: *visitorRollouts, registry: *registryURLs, registryPool: *registryPool, token: os.Getenv("PORTAL_ADMIN_TOKEN"), proxyToken: os.Getenv("PORTAL_PROXY_TOKEN"), controlToken: os.Getenv("PORTAL_CONTROL_TOKEN")}
-	if err := run(ctx, logger, o); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err := run(ctx, logger, o)
+	stop()
+	if err != nil {
 		logger.Error("controller stopped", "err", err)
 		os.Exit(1)
 	}
@@ -102,28 +103,27 @@ func chaosInjector(ctx context.Context, o options, logger *slog.Logger) (*chaos.
 func run(ctx context.Context, logger *slog.Logger, o options) error {
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
-	addr, postgres, redisAddr, bootstrapPath, token := o.addr, o.postgres, o.redis, o.bootstrap, o.token
-	if postgres == "" || redisAddr == "" {
+	if o.postgres == "" || o.redis == "" {
 		return errors.New("-postgres and -redis are required")
 	}
 	inj, names, err := chaosInjector(ctx, o, logger)
 	if err != nil {
 		return err
 	}
-	st, err := store.Open(ctx, postgres)
+	st, err := store.Open(ctx, o.postgres)
 	if err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
 	defer st.Close()
-	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
+	rdb := redis.NewClient(&redis.Options{Addr: o.redis})
 	defer rdb.Close()
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
 
 	var boot []byte
-	if bootstrapPath != "" {
-		if boot, err = os.ReadFile(bootstrapPath); err != nil {
+	if o.bootstrap != "" {
+		if boot, err = os.ReadFile(o.bootstrap); err != nil {
 			return err
 		}
 	}
@@ -154,7 +154,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		engine.Run(ctx)
 	}()
 	counter := controller.RedisCounter{RDB: rdb}
-	apiOpts := controller.APIOptions{Configs: cfgs, Engine: engine, History: st, Hub: hub, Counter: counter, Token: token, ProxyToken: o.proxyToken, Logger: logger}
+	apiOpts := controller.APIOptions{Configs: cfgs, Engine: engine, History: st, Hub: hub, Counter: counter, Token: o.token, ProxyToken: o.proxyToken, Logger: logger}
 	if o.visitorRollouts {
 		apiOpts.VisitorRolloutsPerHour = controller.DefaultVisitorRolloutsPerHour
 	}
@@ -163,7 +163,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	}
 	api := controller.NewAPI(apiOpts)
 	agg := controller.NewAggregator(func(m controller.Merged) { api.Observe(ctx, m) })
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", o.addr)
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	_, version := cfgs.Raw()
-	logger.Info("controller up", "addr", ln.Addr().String(), "config", version, "admin", token != "", "registry", o.registry != "")
+	logger.Info("controller up", "addr", ln.Addr().String(), "config", version, "admin", o.token != "", "registry", o.registry != "")
 	var serveErr error
 	select {
 	case <-ctx.Done():

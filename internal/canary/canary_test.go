@@ -120,37 +120,6 @@ func TestSequentialRollsBackOnSlowness(t *testing.T) {
 	}
 }
 
-func TestFixedAbsolute(t *testing.T) {
-	f := NewFixedAbsolute(0.01, 60, 100)
-	if d := f.Observe(bin(950, 50, 0, 5), 0); d.Verdict != Continue {
-		t.Fatal("decided below the minimum sample")
-	}
-	if d := f.Observe(bin(950, 50, 0, 0), 0); d.Verdict != Rollback {
-		t.Fatalf("5 errors in 100 canary requests: %+v", d)
-	}
-}
-
-func TestFixedAbsoluteWindowSlides(t *testing.T) {
-	f := NewFixedAbsolute(0.01, 3, 10)
-	f.Observe(bin(0, 100, 0, 5), 0)
-	for range 3 {
-		f.Observe(bin(0, 100, 0, 0), 0)
-	}
-	if d := f.Observe(bin(0, 100, 0, 1), 0); d.Verdict != Continue {
-		t.Fatalf("old errors still counted: %+v", d)
-	}
-}
-
-func TestFixedRelative(t *testing.T) {
-	f := NewFixedRelative(2, 60, 100)
-	if d := f.Observe(bin(1000, 100, 10, 2), 0); d.Verdict != Continue {
-		t.Fatalf("2x exactly: %+v", d)
-	}
-	if d := f.Observe(bin(1000, 100, 10, 3), 0); d.Verdict != Rollback {
-		t.Fatalf("above 2x: %+v", d)
-	}
-}
-
 func TestFixedHorizonDecidesOnlyAtTheEnd(t *testing.T) {
 	f := NewFixedHorizon(0.01)
 	for range 60 {
@@ -208,18 +177,5 @@ func TestHybridCatchesWhatTheSequentialTestLeftOpen(t *testing.T) {
 	}
 	if d := h.Finish(); d.Verdict != Rollback {
 		t.Fatalf("1.43x over five minutes: %+v", d)
-	}
-}
-
-func TestPeekingZ(t *testing.T) {
-	p := NewPeeking(0.05, 100)
-	if math.Abs(p.z-1.6449) > 1e-3 {
-		t.Fatalf("z %v", p.z)
-	}
-	if d := p.Observe(bin(10000, 1000, 50, 5), 0); d.Verdict != Continue {
-		t.Fatalf("equal rates: %+v", d)
-	}
-	if d := p.Observe(bin(10000, 1000, 50, 20), 0); d.Verdict != Rollback {
-		t.Fatalf("canary at 5x: %+v", d)
 	}
 }

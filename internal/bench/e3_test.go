@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/config"
-	"github.com/mirzanajafov/portalgun-router/internal/failover"
+	"github.com/mirzanajafov/portalgun-router/internal/failoverbench"
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
 )
 
@@ -67,9 +67,9 @@ func TestStudiesShareCellsInsteadOfRepeatingThem(t *testing.T) {
 }
 
 func run(cell string, valid bool, detect, move *float64, lost int) FailoverRun {
-	return FailoverRun{Cell: cell, Report: &failover.Report{
+	return FailoverRun{Cell: cell, Report: &failoverbench.Report{
 		Generator: loadgen.Summary{Valid: valid},
-		Result:    failover.Result{DetectMs: detect, MoveMs: move, Lost: lost, P99BeforeMs: 3, P99FaultMs: 40, AttemptsFault: 1.2},
+		Result:    failoverbench.Result{DetectMs: detect, MoveMs: move, Lost: lost, P99BeforeMs: 3, P99FaultMs: 40, AttemptsFault: 1.2},
 	}}
 }
 

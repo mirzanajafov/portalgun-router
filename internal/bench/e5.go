@@ -92,8 +92,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 	if plan.ImageCommit == "" {
 		r.Log.Printf("FF_COMMIT is not set, so the results won't say which FiveFamilies commit %s was built from", plan.Image)
 	}
-	compose := r.Compose
-	compose.Env = append(slices.Clone(compose.Env), "FF_IMAGE="+plan.Image)
+	compose := r.Compose.withEnv("FF_IMAGE=" + plan.Image)
 	down := func(ctx context.Context) error {
 		_, err := compose.run(ctx, "--profile", "join", "down", "-v", "--remove-orphans")
 		return err
@@ -110,18 +109,11 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 	if err := compose.Up(ctx); err != nil {
 		return "", err
 	}
-	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")+"-"+plan.Label))
+	dir, err = runDir(r.Out, "-"+plan.Label)
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	meta := map[string]any{"plan": plan, "commit": commit(ctx), "imageId": image, "startedAt": time.Now().UTC()}
-	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
-		return dir, err
-	}
-	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
+	f, err := startRuns(dir, map[string]any{"plan": plan, "commit": commit(ctx), "imageId": image, "startedAt": time.Now().UTC()})
 	if err != nil {
 		return dir, err
 	}
