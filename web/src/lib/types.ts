@@ -15,7 +15,7 @@ const DimensionSnapshot = z.object({
   errors: z.number(),
   p99Ms: z.number(),
   healthy: z.boolean(),
-  outlier: z.enum(['closed', 'ejected', 'half-open', 'disabled']),
+  outlier: z.string(),
 })
 export type DimensionSnapshot = z.infer<typeof DimensionSnapshot>
 
@@ -56,7 +56,7 @@ export type RolloutStatus = z.infer<typeof RolloutStatus>
 
 const Actor = z.enum(['bootstrap', 'admin', 'visitor', 'controller', 'registry'])
 
-const Fault = z.object({ mode: z.enum(['crash', 'reset', 'blackhole', 'slow', 'partial', 'flapping']), target: z.string() })
+const Fault = z.object({ mode: z.string(), target: z.string() })
 
 const Running = z.object({ fault: Fault, actor: Actor, until: z.string() })
 
