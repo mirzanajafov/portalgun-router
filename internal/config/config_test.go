@@ -1,18 +1,30 @@
 package config
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 )
 
-const valid = `{
-  "routes": [{"name": "all", "host": "Portal.Example", "pathPrefix": "/", "pool": "main", "timeout": "5s"}],
-  "pools": [{"name": "main", "dimensions": [{"id": "c-137", "address": "dim-a:8080"}]}]
-}`
+type edit func(cfg, route, pool, dim map[string]any)
+
+func configWith(t *testing.T, change edit) []byte {
+	t.Helper()
+	dim := map[string]any{"id": "a", "address": "a:1"}
+	pool := map[string]any{"name": "p", "dimensions": []any{dim}}
+	route := map[string]any{"name": "r", "pathPrefix": "/", "pool": "p"}
+	cfg := map[string]any{"routes": []any{route}, "pools": []any{pool}}
+	change(cfg, route, pool, dim)
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
 
 func TestParseAppliesDefaults(t *testing.T) {
-	c, err := Parse([]byte(valid))
+	c, err := Parse(configWith(t, func(_, r, _, _ map[string]any) { r["host"], r["timeout"] = "Portal.Example", "5s" }))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,8 +44,9 @@ func TestParseAppliesDefaults(t *testing.T) {
 }
 
 func TestRateLimitDefaults(t *testing.T) {
-	c, err := Parse([]byte(`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "local-sync", "rate": 1000, "burst": 100}}],
-		"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`))
+	c, err := Parse(configWith(t, func(_, r, _, _ map[string]any) {
+		r["rateLimit"] = map[string]any{"design": "local-sync", "rate": 1000, "burst": 100}
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,9 +57,11 @@ func TestRateLimitDefaults(t *testing.T) {
 }
 
 func TestZeroIsKeptWhereItMeansOff(t *testing.T) {
-	c, err := Parse([]byte(`{"maxInflight": 0, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 0}}],
-		"pools": [{"name": "p", "panicThreshold": 0, "slowStart": "0s", "healthCheck": {"disabled": true},
-		"dimensions": [{"id": "a", "address": "a:1"}]}]}`))
+	c, err := Parse(configWith(t, func(cfg, r, p, _ map[string]any) {
+		cfg["maxInflight"] = 0
+		r["retries"] = map[string]any{"max": 0}
+		p["panicThreshold"], p["slowStart"], p["healthCheck"] = 0, "0s", map[string]any{"disabled": true}
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,56 +71,42 @@ func TestZeroIsKeptWhereItMeansOff(t *testing.T) {
 }
 
 func TestParseRejectsBadConfigs(t *testing.T) {
-	for name, tc := range map[string]struct{ json, want string }{
-		"unknown field": {`{"routes": [], "pools": [], "colour": 1}`, "unknown field"},
-		"no routes":     {`{"routes": [], "pools": []}`, "no routes"},
-		"unknown pool": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "x"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, `unknown pool "x"`},
-		"bad prefix": {`{"routes": [{"name": "r", "pathPrefix": "api", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "must start with /"},
-		"bad address": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "nohost"}]}]}`, "not host:port"},
-		"port zero": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:0"}]}]}`, "not host:port"},
-		"port over 65535": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:65536"}]}]}`, "not host:port"},
-		"named port": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:http"}]}]}`, "not host:port"},
-		"NUL in a version": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1", "version": "v\u0000"}]}]}`, "NUL"},
-		"duplicate dimension": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]},
-			          {"name": "q", "dimensions": [{"id": "a", "address": "b:1"}]}]}`, `appears in pools`},
-		"unknown balancer": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "balancer": "dice", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "unknown balancer"},
-		"per-try over total": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "timeout": "1s", "perTryTimeout": "2s"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "perTryTimeout"},
-		"bad duration": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "timeout": 5}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "duration"},
-		"too many retries": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "retries": {"max": 9}}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "retries.max"},
-		"panic above one": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "panicThreshold": 1.5, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "panicThreshold"},
-		"probe slower than interval": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "healthCheck": {"interval": "1s", "timeout": "2s"}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "healthCheck"},
-		"unknown limiter": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "vibes", "rate": 1, "burst": 1}}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "unknown rate limit design"},
-		"limiter burst": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "lease", "rate": 10, "burst": 0.5}}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "burst of at least 1"},
-		"limiter key": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p", "rateLimit": {"design": "lease", "rate": 10, "burst": 5, "key": "cookie:id"}}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "key must be"},
-		"trusted hops": {`{"trustedHops": -1, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "trustedHops"},
-		"negative cap": {`{"maxInflight": -1, "routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "maxInflight"},
-		"tiny decay": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "ewmaDecay": "10ms", "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "ewmaDecay"},
-		"outlier ratio": {`{"routes": [{"name": "r", "pathPrefix": "/", "pool": "p"}],
-			"pools": [{"name": "p", "outlier": {"failureRatio": 2}, "dimensions": [{"id": "a", "address": "a:1"}]}]}`, "failureRatio"},
+	address := func(a string) edit { return func(_, _, _, d map[string]any) { d["address"] = a } }
+	limiter := func(l map[string]any) edit { return func(_, r, _, _ map[string]any) { r["rateLimit"] = l } }
+	for name, tc := range map[string]struct {
+		change edit
+		want   string
+	}{
+		"unknown field":    {func(c, _, _, _ map[string]any) { c["colour"] = 1 }, "unknown field"},
+		"no routes":        {func(c, _, _, _ map[string]any) { c["routes"] = []any{} }, "no routes"},
+		"unknown pool":     {func(_, r, _, _ map[string]any) { r["pool"] = "x" }, `unknown pool "x"`},
+		"bad prefix":       {func(_, r, _, _ map[string]any) { r["pathPrefix"] = "api" }, "must start with /"},
+		"bad address":      {address("nohost"), "not host:port"},
+		"port zero":        {address("a:0"), "not host:port"},
+		"port over 65535":  {address("a:65536"), "not host:port"},
+		"named port":       {address("a:http"), "not host:port"},
+		"NUL in a version": {func(_, _, _, d map[string]any) { d["version"] = "v\x00" }, "NUL"},
+		"duplicate dimension": {func(c, _, _, _ map[string]any) {
+			c["pools"] = append(c["pools"].([]any), map[string]any{"name": "q", "dimensions": []any{map[string]any{"id": "a", "address": "b:1"}}})
+		}, "appears in pools"},
+		"unknown balancer":           {func(_, _, p, _ map[string]any) { p["balancer"] = "dice" }, "unknown balancer"},
+		"per-try over total":         {func(_, r, _, _ map[string]any) { r["timeout"], r["perTryTimeout"] = "1s", "2s" }, "perTryTimeout"},
+		"bad duration":               {func(_, r, _, _ map[string]any) { r["timeout"] = 5 }, "duration"},
+		"too many retries":           {func(_, r, _, _ map[string]any) { r["retries"] = map[string]any{"max": 9} }, "retries.max"},
+		"panic above one":            {func(_, _, p, _ map[string]any) { p["panicThreshold"] = 1.5 }, "panicThreshold"},
+		"probe slower than interval": {func(_, _, p, _ map[string]any) { p["healthCheck"] = map[string]any{"interval": "1s", "timeout": "2s"} }, "healthCheck"},
+		"unknown limiter":            {limiter(map[string]any{"design": "vibes", "rate": 1, "burst": 1}), "unknown rate limit design"},
+		"limiter burst":              {limiter(map[string]any{"design": "lease", "rate": 10, "burst": 0.5}), "burst of at least 1"},
+		"limiter key":                {limiter(map[string]any{"design": "lease", "rate": 10, "burst": 5, "key": "cookie:id"}), "key must be"},
+		"trusted hops":               {func(c, _, _, _ map[string]any) { c["trustedHops"] = -1 }, "trustedHops"},
+		"negative cap":               {func(c, _, _, _ map[string]any) { c["maxInflight"] = -1 }, "maxInflight"},
+		"tiny decay":                 {func(_, _, p, _ map[string]any) { p["ewmaDecay"] = "10ms" }, "ewmaDecay"},
+		"outlier ratio":              {func(_, _, p, _ map[string]any) { p["outlier"] = map[string]any{"failureRatio": 2} }, "failureRatio"},
 	} {
-		_, err := Parse([]byte(tc.json))
-		if err == nil || !strings.Contains(err.Error(), tc.want) {
-			t.Errorf("%s: got %v, want an error mentioning %q", name, err, tc.want)
-		}
+		t.Run(name, func(t *testing.T) {
+			if _, err := Parse(configWith(t, tc.change)); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v, want an error mentioning %q", err, tc.want)
+			}
+		})
 	}
 }
