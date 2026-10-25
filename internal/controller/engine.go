@@ -235,7 +235,7 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 		e.finish(ctx, store.OutcomeRolledBack, reason)
 		return
 	}
-	bin := canary.Bin{Stable: counts(rs.Versions[gatewayapi.StableSlot]), Canary: counts(rs.Versions[gatewayapi.CanarySlot])}
+	bin := canary.Bin{Stable: canaryCounts(rs.Versions[gatewayapi.StableSlot]), Canary: canaryCounts(rs.Versions[gatewayapi.CanarySlot])}
 	a.seconds++
 	a.step.StableRequests += bin.Stable.Requests
 	a.step.CanaryRequests += bin.Canary.Requests
@@ -256,6 +256,10 @@ func (e *Engine) Observe(ctx context.Context, m Merged) {
 			e.saveStep(ctx)
 		}
 	}
+}
+
+func canaryCounts(v gatewayapi.VersionSnapshot) canary.Counts {
+	return canary.Counts{Requests: v.Attempts, Errors: v.Errors, Slow: v.Slow}
 }
 
 func (a *active) countDead(m Merged) {
@@ -288,10 +292,6 @@ func alive(dims []gatewayapi.DimensionSnapshot, version string) bool {
 		}
 	}
 	return !seen
-}
-
-func counts(v gatewayapi.VersionSnapshot) canary.Counts {
-	return canary.Counts{Requests: v.Attempts, Errors: v.Errors, Slow: v.Slow}
 }
 
 func (e *Engine) closeStep(decision store.Decision, reason string) {

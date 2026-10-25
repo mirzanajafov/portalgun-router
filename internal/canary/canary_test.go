@@ -86,7 +86,7 @@ func TestSilenceIsEnoughWhenNothingFails(t *testing.T) {
 	sec := 0
 	for ; sec < 600 && d.Verdict == Continue; sec++ {
 		b := bin(198, 2, 0, 0)
-		b.Stable.Slow, b.Canary.Slow = 10, 0
+		b.Stable.Slow = 10
 		d = s.Observe(b, time.Duration(sec+1)*time.Second)
 	}
 	if d.Verdict != Promote || sec != SilentRequests/2 {
@@ -96,9 +96,9 @@ func TestSilenceIsEnoughWhenNothingFails(t *testing.T) {
 	for i := range 200 {
 		b := bin(198, 2, 0, 0)
 		if i == 100 {
-			b.Stable.Errors, b.Canary.Errors = 0, 1
+			b.Canary.Errors = 1
 		}
-		b.Stable.Slow, b.Canary.Slow = 10, 0
+		b.Stable.Slow = 10
 		if d = broken.Observe(b, time.Duration(i+1)*time.Second); d.Verdict == Promote {
 			t.Fatalf("promoted at %ds although the canary failed once and the stable never did", i+1)
 		}
