@@ -52,6 +52,8 @@ type API struct {
 	stateLog       everyMinute
 }
 
+const DefaultVisitorRolloutsPerHour = 3
+
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
 func NewAPI(o APIOptions) *API {

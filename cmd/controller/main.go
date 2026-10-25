@@ -22,10 +22,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const (
-	registryWait           = 10 * time.Second
-	visitorRolloutsPerHour = 3
-)
+const registryWait = 10 * time.Second
 
 func main() {
 	addr := flag.String("addr", ":9100", "API listener")
@@ -159,7 +156,7 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 	counter := controller.RedisCounter{RDB: rdb}
 	apiOpts := controller.APIOptions{Configs: cfgs, Engine: engine, History: st, Hub: hub, Counter: counter, Token: token, ProxyToken: o.proxyToken, Logger: logger}
 	if o.visitorRollouts {
-		apiOpts.VisitorRolloutsPerHour = visitorRolloutsPerHour
+		apiOpts.VisitorRolloutsPerHour = controller.DefaultVisitorRolloutsPerHour
 	}
 	if inj != nil {
 		apiOpts.Chaos = controller.NewChaosService(controller.ChaosOptions{Injector: inj, Log: st, Counter: counter, Limits: controller.DefaultChaosLimits(), Targets: names, Notify: hub.Event, Logger: logger})

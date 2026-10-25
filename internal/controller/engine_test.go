@@ -544,7 +544,7 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
-	api := r.visitorAPI(3, downCounter(), slog.New(slog.NewTextHandler(logs, nil)))
+	api := r.visitorAPI(DefaultVisitorRolloutsPerHour, downCounter(), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -575,7 +575,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	logs := &logSink{}
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
-	api := r.visitorAPI(3, counter, slog.New(slog.NewTextHandler(logs, nil)))
+	api := r.visitorAPI(DefaultVisitorRolloutsPerHour, counter, slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup
