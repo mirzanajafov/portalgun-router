@@ -26,7 +26,6 @@ func main() {
 		usage()
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	var err error
 	switch os.Args[1] {
 	case "e1":
@@ -59,6 +58,7 @@ func main() {
 	default:
 		usage()
 	}
+	stop()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bench:", err)
 		os.Exit(1)

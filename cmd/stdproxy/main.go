@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -44,7 +44,8 @@ func main() {
 		}
 	}
 	if len(targets) == 0 {
-		log.Fatal("stdproxy: -upstreams is required")
+		fmt.Fprintln(os.Stderr, "stdproxy: -upstreams is required")
+		os.Exit(2)
 	}
 
 	var next atomic.Uint64
@@ -61,5 +62,7 @@ func main() {
 		BufferPool: &bufferPool{p: sync.Pool{New: func() any { return new([bufferSize]byte) }}},
 	}
 	srv := &http.Server{Addr: *addr, Handler: proxy, ReadHeaderTimeout: 10 * time.Second}
-	log.Fatal(srv.ListenAndServe())
+	err := srv.ListenAndServe()
+	fmt.Fprintln(os.Stderr, "stdproxy:", err)
+	os.Exit(1)
 }

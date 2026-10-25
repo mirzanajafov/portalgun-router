@@ -62,8 +62,8 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	rep, err := failover.Run(ctx, c)
+	stop()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failover:", err)
 		os.Exit(1)

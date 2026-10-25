@@ -19,9 +19,6 @@ linters:
         - (net.Conn).Close
         - (*github.com/redis/go-redis/v9.Client).Close
         - (*github.com/redis/go-redis/v9.PubSub).Close
-    gocritic:
-      disabled-checks:
-        - exitAfterDefer
     revive:
       enable-default-rules: true
       rules:

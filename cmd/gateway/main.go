@@ -30,10 +30,11 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	redis.SetLogger(redisLog{logger})
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	opts := options{config: *configPath, addr: *addr, admin: *adminAddr, token: os.Getenv("PORTAL_ADMIN_TOKEN"), redis: *redisAddr, instance: *instance, decisions: *decisions}
-	if err := run(ctx, logger, opts); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err := run(ctx, logger, opts)
+	stop()
+	if err != nil {
 		logger.Error("gateway stopped", "err", err)
 		os.Exit(1)
 	}

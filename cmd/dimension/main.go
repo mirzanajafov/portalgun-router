@@ -40,8 +40,6 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	var keep func(context.Context, func(bool))
 	if *endpoints != "" {
 		c, inst, err := registration(registrationFlags{endpoints: *endpoints, service: *service, id: *id, version: *version, advertise: *advertise, maxInflight: *maxInflight, ttl: *ttl})
@@ -60,7 +58,11 @@ func main() {
 	if controlToken == "" {
 		logger.Warn("no control token, so the control port answers only /ready")
 	}
-	if err := run(ctx, logger, *id, *version, *addr, control, controlToken, b, keep); err != nil {
+	o := options{id: *id, version: *version, addr: *addr, control: control, controlToken: controlToken, behavior: b, keep: keep}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err = run(ctx, logger, o)
+	stop()
+	if err != nil {
 		logger.Error("dimension stopped", "err", err)
 		os.Exit(1)
 	}
@@ -106,35 +108,43 @@ func registration(f registrationFlags) (*registry.Client, registry.Instance, err
 
 const leaveDrain = time.Second
 
-func run(ctx context.Context, logger *slog.Logger, id, version, addr string, cl net.Listener, controlToken string, b dimension.Behavior, keep func(context.Context, func(bool))) error {
-	s, err := dimension.New(id, version, b)
+type options struct {
+	id, version, addr string
+	control           net.Listener
+	controlToken      string
+	behavior          dimension.Behavior
+	keep              func(context.Context, func(bool))
+}
+
+func run(ctx context.Context, logger *slog.Logger, o options) error {
+	s, err := dimension.New(o.id, o.version, o.behavior)
 	if err != nil {
-		cl.Close()
+		o.control.Close()
 		return err
 	}
-	if err := s.Listen(addr); err != nil {
-		cl.Close()
+	if err := s.Listen(o.addr); err != nil {
+		o.control.Close()
 		return err
 	}
 	kctx, stopKeeping := context.WithCancel(ctx)
 	defer stopKeeping()
 	kept := make(chan struct{})
-	if keep == nil {
+	if o.keep == nil {
 		close(kept)
 	} else {
 		s.SetLeased(false)
 		go func() {
-			keep(kctx, s.SetLeased)
+			o.keep(kctx, s.SetLeased)
 			close(kept)
 		}()
 	}
 	control := &http.Server{
-		Handler:           s.ControlHandler(controlToken),
+		Handler:           s.ControlHandler(o.controlToken),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
-	go func() { errc <- control.Serve(cl) }()
-	logger.Info("dimension up", "id", id, "version", version, "addr", s.Addr(), "control", cl.Addr().String())
+	go func() { errc <- control.Serve(o.control) }()
+	logger.Info("dimension up", "id", o.id, "version", o.version, "addr", s.Addr(), "control", o.control.Addr().String())
 
 	select {
 	case <-ctx.Done():
@@ -145,7 +155,7 @@ func run(ctx context.Context, logger *slog.Logger, id, version, addr string, cl 
 		return err
 	}
 	<-kept
-	if keep != nil {
+	if o.keep != nil {
 		time.Sleep(leaveDrain)
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
