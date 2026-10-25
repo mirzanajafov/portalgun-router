@@ -13,17 +13,27 @@ type routeLimiter struct {
 }
 
 func (g *Gateway) newLimiter(route string, c config.RateLimit) (limit.Limiter, error) {
-	rule := limit.Rule{Rate: c.Rate, Burst: c.Burst}
-	prefix := "pf:" + route + ":"
+	o := limit.Options{
+		Rule:         limit.Rule{Rate: c.Rate, Burst: c.Burst},
+		Instances:    c.Instances,
+		Now:          g.now,
+		Redis:        g.redis,
+		Prefix:       "pf:" + route + ":",
+		InstanceName: g.instance,
+		RedisTimeout: c.RedisTimeout.D(),
+		SyncInterval: c.SyncInterval.D(),
+		LeaseTarget:  c.LeaseTarget.D(),
+		LeaseTTL:     c.LeaseTTL.D(),
+	}
 	switch c.Design {
 	case config.LimitStaticSplit:
-		return limit.NewStatic(rule, c.Instances, g.now), nil
+		return limit.NewStatic(o), nil
 	case config.LimitRedisExact:
-		return limit.NewRedisExact(g.redis, prefix, rule, c.Instances, c.RedisTimeout.D(), g.now)
+		return limit.NewRedisExact(o)
 	case config.LimitLocalSync:
-		return limit.NewLocalSync(g.redis, prefix, rule, c.Instances, g.instance, c.SyncInterval.D(), c.RedisTimeout.D(), g.now)
+		return limit.NewLocalSync(o)
 	case config.LimitLease:
-		return limit.NewLease(g.redis, prefix, rule, c.Instances, c.LeaseTarget.D(), c.LeaseTTL.D(), c.RedisTimeout.D(), g.now)
+		return limit.NewLease(o)
 	}
 	return nil, fmt.Errorf("unknown rate limit design %q", c.Design)
 }

@@ -21,7 +21,6 @@ linters:
         - (*github.com/redis/go-redis/v9.PubSub).Close
     gocritic:
       disabled-checks:
-        - appendAssign
         - exitAfterDefer
     revive:
       enable-default-rules: true

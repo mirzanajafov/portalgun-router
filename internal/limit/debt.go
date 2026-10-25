@@ -1,13 +1,8 @@
 package limit
 
 import (
-	"context"
-	"errors"
-	"hash/maphash"
 	"math/rand/v2"
-	"net"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -15,11 +10,6 @@ const (
 	forgetDebt = time.Minute
 	debtTTL    = 10 * time.Minute
 )
-
-func TimedOut(err error) bool {
-	var ne net.Error
-	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout())
-}
 
 type debt struct {
 	epoch string
@@ -65,51 +55,24 @@ func debtKeys(key, epoch string) []string {
 	return []string{key, key + ":debt:" + epoch}
 }
 
-type ledgerShard struct {
-	mu      sync.Mutex
-	m       map[string]*debt
-	sweepAt int
-}
-
 type ledger struct {
-	shards [shardCount]ledgerShard
-}
-
-func newLedger() *ledger {
-	l := &ledger{}
-	for i := range l.shards {
-		l.shards[i].m = map[string]*debt{}
-		l.shards[i].sweepAt = minSweep
-	}
-	return l
-}
-
-func (l *ledger) shard(key string) *ledgerShard {
-	return &l.shards[maphash.String(seed, key)%shardCount]
+	debts shards[debt]
 }
 
 func (l *ledger) add(key string, n float64, now int64) {
-	sh := l.shard(key)
+	sh := l.debts.of(key)
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	d, ok := sh.m[key]
 	if !ok {
-		if len(sh.m) >= sh.sweepAt {
-			for k, old := range sh.m {
-				if now-old.at >= int64(forgetDebt) {
-					delete(sh.m, k)
-				}
-			}
-			sh.sweepAt = max(minSweep, 2*len(sh.m))
-		}
 		d = &debt{}
-		sh.m[key] = d
+		sh.add(key, d, func(old *debt) bool { return now-old.at >= int64(forgetDebt) })
 	}
 	d.add(n, now)
 }
 
 func (l *ledger) unpaid(key string) (string, float64) {
-	sh := l.shard(key)
+	sh := l.debts.of(key)
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	if d, ok := sh.m[key]; ok {
@@ -122,7 +85,7 @@ func (l *ledger) settle(key, epoch string, total float64) {
 	if epoch == "" {
 		return
 	}
-	sh := l.shard(key)
+	sh := l.debts.of(key)
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	if d, ok := sh.m[key]; ok {
@@ -133,13 +96,4 @@ func (l *ledger) settle(key, epoch string, total float64) {
 	}
 }
 
-func (l *ledger) size() int {
-	n := 0
-	for i := range l.shards {
-		sh := &l.shards[i]
-		sh.mu.Lock()
-		n += len(sh.m)
-		sh.mu.Unlock()
-	}
-	return n
-}
+func (l *ledger) size() int { return l.debts.size() }

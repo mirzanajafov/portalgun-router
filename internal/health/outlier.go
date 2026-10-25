@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mirzanajafov/portalgun-router/internal/stats"
 )
 
 type State int32
@@ -79,17 +81,14 @@ type Outlier struct {
 	probing atomic.Int32
 
 	mu          sync.Mutex
-	ring        []bool
-	idx         int
-	n           int
-	failures    int
+	recent      stats.Outcomes
 	consecutive int
 	successes   int
 	ejections   []int64
 }
 
 func NewOutlier(cfg OutlierConfig, onChange func(Transition)) *Outlier {
-	return &Outlier{cfg: cfg, onChange: onChange, ring: make([]bool, cfg.Window)}
+	return &Outlier{cfg: cfg, onChange: onChange, recent: stats.NewOutcomes(cfg.Window)}
 }
 
 func (o *Outlier) State() State { return State(o.state.Load()) }
@@ -152,17 +151,8 @@ func (o *Outlier) Record(now int64, failed, refused, trial bool) {
 }
 
 func (o *Outlier) observeLocked(now int64, failed, refused bool) *Transition {
-	if o.n == len(o.ring) {
-		if o.ring[o.idx] {
-			o.failures--
-		}
-	} else {
-		o.n++
-	}
-	o.ring[o.idx] = failed
-	o.idx = (o.idx + 1) % len(o.ring)
+	o.recent.Add(failed)
 	if failed {
-		o.failures++
 		o.consecutive++
 	} else {
 		o.consecutive = 0
@@ -172,20 +162,15 @@ func (o *Outlier) observeLocked(now int64, failed, refused bool) *Transition {
 		return o.ejectLocked(now, "connection refused")
 	case o.consecutive >= o.cfg.Consecutive:
 		return o.ejectLocked(now, "consecutive failures")
-	case o.n >= o.cfg.MinRequests && float64(o.failures) >= o.cfg.FailureRatio*float64(o.n):
+	case o.recent.Len() >= o.cfg.MinRequests && float64(o.recent.Failures()) >= o.cfg.FailureRatio*float64(o.recent.Len()):
 		return o.ejectLocked(now, "failure ratio")
 	}
 	return nil
 }
 
 func (o *Outlier) ejectLocked(now int64, reason string) *Transition {
-	recent := o.ejections[:0]
-	for _, at := range o.ejections {
-		if now-at < ejectionMemory {
-			recent = append(recent, at)
-		}
-	}
-	o.ejections = append(recent, now)
+	o.ejections = slices.DeleteFunc(o.ejections, func(at int64) bool { return now-at >= ejectionMemory })
+	o.ejections = append(o.ejections, now)
 	d := o.cfg.BaseEjection << (len(o.ejections) - 1)
 	if d > o.cfg.MaxEjection || d <= 0 {
 		d = o.cfg.MaxEjection
@@ -205,8 +190,8 @@ func (o *Outlier) closeLocked(now int64) *Transition {
 }
 
 func (o *Outlier) resetLocked() {
-	clear(o.ring)
-	o.idx, o.n, o.failures, o.consecutive, o.successes = 0, 0, 0, 0, 0
+	o.recent.Reset()
+	o.consecutive, o.successes = 0, 0
 }
 
 func (o *Outlier) enterHalfOpen(now int64) {

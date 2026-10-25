@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type leaseKey struct {
@@ -42,7 +44,7 @@ func (k *leaseKey) take(now int64) bool {
 }
 
 type lease struct {
-	rdb      Redis
+	rdb      redis.Scripter
 	prefix   string
 	rule     Rule
 	target   time.Duration
@@ -50,7 +52,7 @@ type lease struct {
 	timeout  time.Duration
 	fallback *Buckets
 	now      Clock
-	guard    breaker
+	guard    *breaker
 
 	mu      sync.Mutex
 	keys    map[string]*leaseKey
@@ -58,20 +60,20 @@ type lease struct {
 	sweeps  int
 }
 
-func NewLease(rdb Redis, prefix string, rule Rule, instances int, target, ttl, timeout time.Duration, now Clock) (Limiter, error) {
-	if err := validate(rule); err != nil {
+func NewLease(o Options) (Limiter, error) {
+	if err := validate(o.Rule); err != nil {
 		return nil, err
 	}
 	return &lease{
-		rdb:      rdb,
-		prefix:   prefix,
-		rule:     rule,
-		target:   target,
-		ttl:      ttl,
-		timeout:  timeout,
-		fallback: NewBuckets(split(rule, instances)),
-		now:      now,
-		guard:    breaker{now: now},
+		rdb:      o.Redis,
+		prefix:   o.Prefix,
+		rule:     o.Rule,
+		target:   o.LeaseTarget,
+		ttl:      o.LeaseTTL,
+		timeout:  o.RedisTimeout,
+		fallback: NewBuckets(split(o.Rule, o.Instances)),
+		now:      o.Now,
+		guard:    newBreaker(o.Now),
 		keys:     map[string]*leaseKey{},
 	}, nil
 }
@@ -125,7 +127,9 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 			continue
 		}
 		if !l.guard.allow() {
-			return l.degraded(st, key, now)
+			d := l.degraded(st, key, now)
+			st.mu.Unlock()
+			return d
 		}
 		want := math.Ceil(max(st.thisSecond, st.lastSecond) * l.target.Seconds())
 		want = min(max(want, 1), l.rule.Burst)
@@ -141,7 +145,9 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 		close(done)
 		now = l.now()
 		if err != nil {
-			return l.degraded(st, key, now)
+			d := l.degraded(st, key, now)
+			st.mu.Unlock()
+			return d
 		}
 		st.debt.settle(epoch, owed)
 		st.tokens = grant
@@ -157,7 +163,6 @@ func (l *lease) degraded(st *leaseKey, key string, now int64) Decision {
 	if ok {
 		st.debt.add(1, now)
 	}
-	st.mu.Unlock()
 	return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
 }
 
