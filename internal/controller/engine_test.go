@@ -521,8 +521,8 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 		t.Fatalf("second visitor start: %d", got)
 	}
 	abort()
-	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor).StatusCode; got != 429 {
-		t.Fatalf("third visitor start in the hour: %d", got)
+	if resp := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, visitor); resp.StatusCode != 429 || resp.Header.Get("Retry-After") != "3600" {
+		t.Fatalf("third visitor start in the hour: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if got := send(t, http.MethodPost, srv.URL+"/api/rollouts", start, admin).StatusCode; got != 201 {
 		t.Fatalf("admin start after the visitor limit: %d", got)
@@ -903,7 +903,7 @@ func TestTheDashboardsAreAnsweredWhileARolloutWaitsOnPostgres(t *testing.T) {
 	}
 }
 
-func TestEverySecondTheDashboardsGetATickWithChaosOnlyWhenChaosIsOn(t *testing.T) {
+func TestATickCarriesTheChaosViewOnlyWhenChaosIsOn(t *testing.T) {
 	for _, withChaos := range []bool{false, true} {
 		r := newRig(t)
 		o := r.apiOptions()
@@ -916,7 +916,13 @@ func TestEverySecondTheDashboardsGetATickWithChaosOnlyWhenChaosIsOn(t *testing.T
 		frames, done := o.Hub.Subscribe()
 		api.Observe(context.Background(), Merged{Second: 42})
 		done()
-		kind, data, _ := strings.Cut(string(<-frames), "\ndata: ")
+		var frame []byte
+		select {
+		case frame = <-frames:
+		default:
+			t.Fatal("no tick went out")
+		}
+		kind, data, _ := strings.Cut(string(frame), "\ndata: ")
 		var tick map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(data), &tick); err != nil || kind != "event: tick" {
 			t.Fatalf("%s %q: %v", kind, data, err)

@@ -313,6 +313,7 @@ func TestWhileAFaultIsBeingInjectedTheViewAnswersAndTheSecondCounts(t *testing.T
 
 func TestChaosEndpoints(t *testing.T) {
 	svc, _, counter := newChaos(DefaultChaosLimits())
+	svc.now = func() time.Time { return time.Unix(2_000_000, 0) }
 	srv := httptest.NewServer(chaosAPI(svc))
 	t.Cleanup(srv.Close)
 	url, visitor := srv.URL+"/api/chaos", viaProxy("9.9.9.9")
@@ -322,8 +323,8 @@ func TestChaosEndpoints(t *testing.T) {
 	if n := counter.hits["chaos:ip:9.9.9.9"]; n != 1 || len(counter.hits) != 1 {
 		t.Fatalf("counts %v, want the fault on the address the dashboard forwarded", counter.hits)
 	}
-	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-b"}`, visitor).StatusCode; got != 409 {
-		t.Fatalf("second fault: %d", got)
+	if resp := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-b"}`, visitor); resp.StatusCode != 409 || resp.Header.Get("Retry-After") != "20" {
+		t.Fatalf("second fault: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	if got := send(t, http.MethodDelete, url, "", visitor).StatusCode; got != 401 {
 		t.Fatalf("visitor stop: %d", got)
@@ -331,8 +332,8 @@ func TestChaosEndpoints(t *testing.T) {
 	if got := send(t, http.MethodDelete, url, "", asAdmin("9.9.9.9")).StatusCode; got != 200 {
 		t.Fatalf("admin stop: %d", got)
 	}
-	if got := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor).StatusCode; got != 429 {
-		t.Fatalf("during the cooldown: %d", got)
+	if resp := send(t, http.MethodPost, url, `{"mode":"crash","target":"dim-a"}`, visitor); resp.StatusCode != 429 || resp.Header.Get("Retry-After") != "120" {
+		t.Fatalf("during the cooldown: %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 }
 
