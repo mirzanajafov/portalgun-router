@@ -1,13 +1,8 @@
 package bench
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -87,23 +82,7 @@ type Report struct {
 	MaxRate  map[string]float64 `json:"maxRate"`
 }
 
-func LoadPoints(dir string) ([]Point, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
-	if err != nil {
-		return nil, err
-	}
-	var points []Point
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 1<<20), 1<<24)
-	for sc.Scan() {
-		var p Point
-		if err := json.Unmarshal(sc.Bytes(), &p); err != nil {
-			return nil, err
-		}
-		points = append(points, p)
-	}
-	return points, sc.Err()
-}
+func LoadPoints(dir string) ([]Point, error) { return loadRuns[Point](dir) }
 
 func Summarize(points []Point) Report {
 	type key struct {

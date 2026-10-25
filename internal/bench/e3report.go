@@ -1,13 +1,9 @@
 package bench
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -31,23 +27,11 @@ type FailoverSummary struct {
 }
 
 func LoadFailoverRuns(dir string) ([]FailoverRun, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
+	runs, err := loadRuns[FailoverRun](dir)
 	if err != nil {
 		return nil, err
 	}
-	var runs []FailoverRun
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 1<<20), 1<<26)
-	for sc.Scan() {
-		var r FailoverRun
-		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
-			return nil, err
-		}
-		if r.Report != nil || r.Error != "" {
-			runs = append(runs, r)
-		}
-	}
-	return runs, sc.Err()
+	return slices.DeleteFunc(runs, func(r FailoverRun) bool { return r.Report == nil && r.Error == "" }), nil
 }
 
 func SummarizeFailover(runs []FailoverRun) []FailoverSummary {

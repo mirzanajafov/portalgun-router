@@ -177,22 +177,7 @@ func (plan HotpathPlan) benchOnce(ctx context.Context, bin, group, sys string, r
 	return nil
 }
 
-func LoadHotpathRows(dir string) ([]HotpathRow, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
-	if err != nil {
-		return nil, err
-	}
-	var rows []HotpathRow
-	dec := json.NewDecoder(bytes.NewReader(data))
-	for dec.More() {
-		var r HotpathRow
-		if err := dec.Decode(&r); err != nil {
-			return nil, err
-		}
-		rows = append(rows, r)
-	}
-	return rows, nil
-}
+func LoadHotpathRows(dir string) ([]HotpathRow, error) { return loadRuns[HotpathRow](dir) }
 
 type HotpathCell struct {
 	Group       string  `json:"group"`

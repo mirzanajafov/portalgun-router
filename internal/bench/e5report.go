@@ -1,13 +1,8 @@
 package bench
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -33,23 +28,7 @@ type RegistrySummary struct {
 	KillToFirst       *Stat  `json:"killToFirstMs,omitempty"`
 }
 
-func LoadRegistryRuns(dir string) ([]RegistryRun, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
-	if err != nil {
-		return nil, err
-	}
-	var runs []RegistryRun
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 1<<16), 1<<20)
-	for sc.Scan() {
-		var r RegistryRun
-		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
-			return nil, err
-		}
-		runs = append(runs, r)
-	}
-	return runs, sc.Err()
-}
+func LoadRegistryRuns(dir string) ([]RegistryRun, error) { return loadRuns[RegistryRun](dir) }
 
 func SummarizeRegistry(runs []RegistryRun) []RegistrySummary {
 	var order []string

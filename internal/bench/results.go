@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -51,4 +52,21 @@ func startRuns(dir string, meta map[string]any) (*os.File, error) {
 		return nil, err
 	}
 	return os.Create(filepath.Join(dir, "runs.jsonl"))
+}
+
+func loadRuns[T any](dir string) ([]T, error) {
+	data, err := os.ReadFile(filepath.Join(dir, "runs.jsonl"))
+	if err != nil {
+		return nil, err
+	}
+	var runs []T
+	dec := json.NewDecoder(bytes.NewReader(data))
+	for dec.More() {
+		var r T
+		if err := dec.Decode(&r); err != nil {
+			return nil, err
+		}
+		runs = append(runs, r)
+	}
+	return runs, nil
 }
