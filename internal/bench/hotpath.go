@@ -131,43 +131,50 @@ func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
 	for rep := range plan.Reps {
 		for _, g := range hotpathGroups {
 			for _, sys := range rotate(g.systems, rep) {
-				pattern := fmt.Sprintf("^Benchmark%s$/^%s$", g.name, sys)
-				cmd := exec.CommandContext(ctx, bin, "-test.run", "^$", "-test.bench", pattern,
-					"-test.benchtime", plan.BenchTime, "-test.cpu", "1", "-test.benchmem")
-				var out bytes.Buffer
-				cmd.Stdout, cmd.Stderr = &out, &out
-				if err := cmd.Run(); err != nil {
-					return dir, fmt.Errorf("%s: %w\n%s", pattern, err, out.String())
-				}
-				found := false
-				sc := bufio.NewScanner(&out)
-				for sc.Scan() {
-					line := sc.Text()
-					if line == "PASS" || strings.HasPrefix(line, "ok ") {
-						continue
-					}
-					if _, err := fmt.Fprintln(raw, line); err != nil {
-						return dir, err
-					}
-					row, ok := parseBenchLine(line)
-					if !ok {
-						continue
-					}
-					row.Rep = rep
-					found = true
-					if err := enc.Encode(row); err != nil {
-						return dir, err
-					}
-					plan.Log.Printf("rep %d  %-10s %-15s %8.0f ns/op %8.0f cpu-ns/op %4.0f allocs/op",
-						rep+1, row.Group, row.System, row.NsPerOp, row.CPUNsPerOp, row.AllocsPerOp)
-				}
-				if !found {
-					return dir, fmt.Errorf("%s: no benchmark result in the output", pattern)
+				if err := plan.benchOnce(ctx, bin, g.name, sys, rep, raw, enc); err != nil {
+					return dir, err
 				}
 			}
 		}
 	}
 	return dir, nil
+}
+
+func (plan HotpathPlan) benchOnce(ctx context.Context, bin, group, sys string, rep int, raw io.Writer, rows *json.Encoder) error {
+	pattern := fmt.Sprintf("^Benchmark%s$/^%s$", group, sys)
+	cmd := exec.CommandContext(ctx, bin, "-test.run", "^$", "-test.bench", pattern,
+		"-test.benchtime", plan.BenchTime, "-test.cpu", "1", "-test.benchmem")
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s: %w\n%s", pattern, err, out.String())
+	}
+	found := false
+	sc := bufio.NewScanner(&out)
+	for sc.Scan() {
+		line := sc.Text()
+		if line == "PASS" || strings.HasPrefix(line, "ok ") {
+			continue
+		}
+		if _, err := fmt.Fprintln(raw, line); err != nil {
+			return err
+		}
+		row, ok := parseBenchLine(line)
+		if !ok {
+			continue
+		}
+		row.Rep = rep
+		found = true
+		if err := rows.Encode(row); err != nil {
+			return err
+		}
+		plan.Log.Printf("rep %d  %-10s %-15s %8.0f ns/op %8.0f cpu-ns/op %4.0f allocs/op",
+			rep+1, row.Group, row.System, row.NsPerOp, row.CPUNsPerOp, row.AllocsPerOp)
+	}
+	if !found {
+		return fmt.Errorf("%s: no benchmark result in the output", pattern)
+	}
+	return nil
 }
 
 func LoadHotpathRows(dir string) ([]HotpathRow, error) {
