@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -245,6 +246,57 @@ func TestFlappingTogglesUntilCleared(t *testing.T) {
 	time.Sleep(3 * f.Period)
 	if d, u := fake.toggles("dim-a"); d != downs || u != ups {
 		t.Fatalf("still flapping after the clear: %d downs and %d ups, then %d and %d", downs, ups, d, u)
+	}
+}
+
+func TestClearingAFlapWaitsForTheToggleOnItsWayAndSendsNoOther(t *testing.T) {
+	arrived, gate := make(chan struct{}), make(chan struct{})
+	release := sync.OnceFunc(func() { close(gate) })
+	var calls atomic.Int32
+	var mu sync.Mutex
+	enabled := true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/proxies/dim-a" {
+			http.Error(w, "unexpected", http.StatusTeapot)
+			return
+		}
+		var body struct{ Enabled bool }
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if calls.Add(1) == 1 {
+			close(arrived)
+			<-gate
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		enabled = body.Enabled
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(release)
+
+	in := NewInjector(NewToxiproxy(srv.URL), nil)
+	f := Fault{Mode: Flapping, Target: "dim-a", Period: 100 * time.Millisecond}
+	if err := in.Inject(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	<-arrived
+	cleared := make(chan error, 1)
+	go func() { cleared <- in.Clear(context.Background(), f) }()
+	select {
+	case err := <-cleared:
+		t.Fatalf("the clear returned (%v) while the flap's last toggle was still on its way", err)
+	case <-time.After(3 * f.Period):
+	}
+	release()
+	if err := <-cleared; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !enabled {
+		t.Fatal("the flap's last toggle landed after the clear and left the dimension down")
+	}
+	if n := calls.Load(); n != 2 {
+		t.Fatalf("%d toggles reached Toxiproxy, want the flap's first and the clear's", n)
 	}
 }
 
