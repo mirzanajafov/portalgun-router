@@ -41,9 +41,9 @@ type Config struct {
 func (c Config) Policies(cell Cell) []canary.Policy {
 	return []canary.Policy{
 		canary.NewSequential(c.Alpha, c.Beta, c.Rho, c.MinStep),
-		canary.NewFixedAbsolute(2*cell.BaseError, 60, 100),
-		canary.NewFixedRelative(2, 60, 100),
-		canary.NewPeeking(0.05, 100),
+		newFixedAbsolute(2*cell.BaseError, 60, 100),
+		newFixedRelative(2, 60, 100),
+		newPeeking(0.05, 100),
 		canary.NewFixedHorizon(c.Alpha),
 		canary.NewHybrid(c.Alpha, c.Beta, c.Rho, c.MinStep),
 	}
