@@ -25,12 +25,20 @@ func TestTheDashboardReadsWhatTheControllerSends(t *testing.T) {
 	}
 	r.feed(bin{stable: 900, canary: 100, stableErr: 2, canaryErr: 3, stableSlow: 45, canarySlow: 5})
 	running := r.engine.Status()
+	settling := newRig(t)
+	settling.pendingPromotion(t)
 
 	at := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 	broken, _, _ := newChaos(DefaultChaosLimits())
-	broken.now = func() time.Time { return at }
+	broken.now = func() time.Time { return at.Add(300 * time.Millisecond) }
 	if _, _, err := broken.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "203.0.113.7"); err != nil {
 		t.Fatal(err)
+	}
+	for sec, outlier := range []health.State{health.Closed, health.Ejected} {
+		broken.Observe(Merged{Second: at.Unix() + int64(sec), Dimensions: []gatewayapi.DimensionSnapshot{
+			{ID: "dim-a", Attempts: int64(300 - 296*sec), Healthy: true, Outlier: outlier},
+			{ID: "dim-b", Attempts: int64(600 + 296*sec), Healthy: true, Outlier: health.Closed},
+		}})
 	}
 	t.Cleanup(func() { _ = broken.Stop(context.Background()) })
 	untouched := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Limits: DefaultChaosLimits(), Logger: quiet})
@@ -55,10 +63,11 @@ func TestTheDashboardReadsWhatTheControllerSends(t *testing.T) {
 	brokenView, untouchedView := broken.View(), untouched.View()
 
 	got, err := json.MarshalIndent(map[string]any{
-		"state":      State{ConfigVersion: 4, Latest: &busy, Rollout: running, Viewers: 2, Events: events},
-		"firstState": State{Rollout: idle, Events: NewHub(quiet).Events()},
-		"tick":       Tick{Latest: busy, Rollout: running, Viewers: 2, Chaos: &brokenView},
-		"quietTick":  Tick{Latest: quietSecond, Rollout: idle, Viewers: 1, Chaos: &untouchedView},
+		"state":        State{ConfigVersion: 4, Latest: &busy, Rollout: running, Viewers: 2, Events: events},
+		"firstState":   State{Rollout: idle, Events: NewHub(quiet).Events()},
+		"tick":         Tick{Latest: busy, Rollout: running, Viewers: 2, Chaos: &brokenView},
+		"quietTick":    Tick{Latest: quietSecond, Rollout: idle, Viewers: 1, Chaos: &untouchedView},
+		"settlingTick": Tick{Latest: busy, Rollout: settling.engine.Status(), Viewers: 2},
 	}, "", "  ")
 	if err != nil {
 		t.Fatal(err)
