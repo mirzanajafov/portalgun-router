@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { GATEWAY, VISITOR_COOKIE } from '@/lib/server'
-import type { Burst } from '@/lib/types'
+import type { Burst, Refusal } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,7 @@ export async function POST() {
   const now = Date.now()
   const last = lastBurst.get(visitor) ?? 0
   if (now - last < GAP_MS) {
-    return Response.json({ error: 'one burst every three seconds' }, { status: 429, headers: { 'Retry-After': '3' } })
+    return Response.json({ error: 'one burst every three seconds' } satisfies Refusal, { status: 429, headers: { 'Retry-After': '3' } })
   }
   lastBurst.set(visitor, now)
   if (lastBurst.size > 10000) {

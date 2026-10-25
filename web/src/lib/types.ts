@@ -122,8 +122,10 @@ export const State = z.object({
 })
 
 export const Session = z.object({ admin: z.boolean() })
+export type Session = z.infer<typeof Session>
 
 export const Burst = z.object({ sent: z.number(), allowed: z.number(), limited: z.number(), failed: z.number(), ms: z.number() })
 export type Burst = z.infer<typeof Burst>
 
 export const Refusal = z.object({ error: z.string() })
+export type Refusal = z.infer<typeof Refusal>
