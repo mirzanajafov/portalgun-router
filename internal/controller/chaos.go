@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/gatewayapi"
 	"github.com/mirzanajafov/portalgun-router/internal/health"
-	"github.com/mirzanajafov/portalgun-router/internal/httpx"
 	"github.com/mirzanajafov/portalgun-router/internal/store"
 )
 
@@ -84,7 +82,7 @@ type ChaosService struct {
 	inj      Injector
 	log      ChaosLog
 	visitors *visitorLimit
-	hub      *Hub
+	notify   func(Event)
 	limits   ChaosLimits
 	targets  []string
 	logger   *slog.Logger
@@ -97,8 +95,28 @@ type ChaosService struct {
 	incidents []*Incident
 }
 
-func NewChaosService(inj Injector, log ChaosLog, counter Counter, hub *Hub, limits ChaosLimits, targets []string, proxyToken string, logger *slog.Logger) *ChaosService {
-	return &ChaosService{inj: inj, log: log, visitors: newVisitorLimit("chaos", limits.PerHour, counter, proxyToken, logger), hub: hub, limits: limits, targets: targets, logger: logger, now: time.Now}
+type ChaosOptions struct {
+	Injector   Injector
+	Log        ChaosLog
+	Counter    Counter
+	Limits     ChaosLimits
+	Targets    []string
+	ProxyToken string
+	Notify     func(Event)
+	Logger     *slog.Logger
+}
+
+func NewChaosService(o ChaosOptions) *ChaosService {
+	return &ChaosService{
+		inj:      o.Injector,
+		log:      o.Log,
+		visitors: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.ProxyToken, o.Logger),
+		notify:   o.Notify,
+		limits:   o.Limits,
+		targets:  o.Targets,
+		logger:   o.Logger,
+		now:      time.Now,
+	}
 }
 
 func (c *ChaosService) fault(req ChaosRequest, admin bool) (chaos.Fault, time.Duration, error) {
@@ -162,7 +180,7 @@ func (c *ChaosService) Start(ctx context.Context, req ChaosRequest, admin bool, 
 		c.incidents = c.incidents[len(c.incidents)-20:]
 	}
 	c.record(ctx, actor, f, "inject")
-	c.hub.Event(Event{Type: "chaos", Message: fmt.Sprintf("%s: %s on %s for %v", actor, f.Mode, f.Target, d)})
+	c.emit(fmt.Sprintf("%s: %s on %s for %v", actor, f.Mode, f.Target, d))
 	return run, 0, nil
 }
 
@@ -191,7 +209,7 @@ func (c *ChaosService) clearLocked(ctx context.Context, why string) {
 	}
 	c.current = nil
 	c.record(ctx, run.Actor, run.Fault, "clear")
-	c.hub.Event(Event{Type: "chaos", Message: fmt.Sprintf("%s on %s cleared: %s", run.Fault.Mode, run.Fault.Target, why)})
+	c.emit(fmt.Sprintf("%s on %s cleared: %s", run.Fault.Mode, run.Fault.Target, why))
 }
 
 func (c *ChaosService) Stop(ctx context.Context) error {
@@ -203,6 +221,12 @@ func (c *ChaosService) Stop(ctx context.Context) error {
 	c.timer.Stop()
 	c.clearLocked(ctx, "stopped by an admin")
 	return nil
+}
+
+func (c *ChaosService) emit(msg string) {
+	if c.notify != nil {
+		c.notify(Event{Type: "chaos", Message: msg})
+	}
 }
 
 func (c *ChaosService) record(ctx context.Context, actor store.Actor, f chaos.Fault, action string) {
@@ -267,43 +291,4 @@ func (c *ChaosService) View() ChaosView {
 		v.Incidents = append(v.Incidents, *c.incidents[i])
 	}
 	return v
-}
-
-func (c *ChaosService) Routes(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc, token string) {
-	mux.HandleFunc("GET /api/chaos", func(w http.ResponseWriter, _ *http.Request) { httpx.WriteJSON(w, http.StatusOK, c.View()) })
-	mux.HandleFunc("POST /api/chaos", func(w http.ResponseWriter, r *http.Request) {
-		var req ChaosRequest
-		if err := decode(w, r, &req); err != nil {
-			return
-		}
-		authorized, client := httpx.Authorized(r, token), ""
-		if !authorized {
-			client = c.visitors.client(r)
-		}
-		run, wait, err := c.Start(r.Context(), req, authorized, client)
-		switch {
-		case errors.Is(err, ErrChaosBusy), errors.Is(err, ErrChaosCooldown), errors.Is(err, ErrChaosLimit):
-			w.Header().Set("Retry-After", fmt.Sprint(max(1, int(wait.Seconds()+0.5))))
-			status := http.StatusTooManyRequests
-			if errors.Is(err, ErrChaosBusy) {
-				status = http.StatusConflict
-			}
-			httpx.WriteJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
-		case errors.Is(err, ErrLimitUnchecked):
-			uncounted(w)
-		case errors.Is(err, ErrChaosFailed):
-			unavailable(w, c.logger, authorized, ErrChaosFailed, err, "mode", req.Mode, "target", req.Target)
-		case err != nil:
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
-		default:
-			httpx.WriteJSON(w, http.StatusCreated, run)
-		}
-	})
-	mux.HandleFunc("DELETE /api/chaos", admin(func(w http.ResponseWriter, r *http.Request) {
-		if err := c.Stop(r.Context()); err != nil {
-			httpx.WriteError(w, http.StatusConflict, err.Error())
-			return
-		}
-		httpx.WriteJSON(w, http.StatusOK, c.View())
-	}))
 }

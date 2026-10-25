@@ -184,6 +184,16 @@ func newRig(t *testing.T) *rig {
 	return r
 }
 
+func (r *rig) apiOptions() APIOptions {
+	return APIOptions{Configs: r.cfgs, Engine: r.engine, History: r.store, Hub: NewHub(quiet), Token: adminToken, ProxyToken: proxyToken, Logger: quiet}
+}
+
+func (r *rig) visitorAPI(perHour int64, counter Counter, logger *slog.Logger) *API {
+	o := r.apiOptions()
+	o.VisitorRolloutsPerHour, o.Counter, o.Logger = perHour, counter, logger
+	return NewAPI(o)
+}
+
 type bin struct {
 	stable, canary, stableErr, canaryErr, stableSlow, canarySlow int64
 }
@@ -403,7 +413,7 @@ func TestARestartClosesTheRolloutItInterruptedAndTakesTheCanaryOff(t *testing.T)
 
 func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
+	api := NewAPI(r.apiOptions())
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	for _, tc := range []struct {
@@ -444,9 +454,8 @@ func TestAPIRequiresTheTokenToChangeThings(t *testing.T) {
 
 func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 2}, proxyToken, quiet)
+	api := r.visitorAPI(2, counter, quiet)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	visitor, admin := viaProxy("9.9.9.9"), asAdmin("9.9.9.9")
@@ -495,8 +504,7 @@ func TestVisitorsCanStartAFewRolloutsAnHourButNotAbortThem(t *testing.T) {
 func TestVisitorsCannotStartARolloutWhenItCannotBeCounted(t *testing.T) {
 	r := newRig(t)
 	logs := &logSink{}
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
-	api.LetVisitorsRollOut(downCounter(), DefaultRolloutLimits(), proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	api := r.visitorAPI(3, downCounter(), slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -527,8 +535,7 @@ func TestABurstOfVisitorsDuringAnOutageIsLoggedOnce(t *testing.T) {
 	logs := &logSink{}
 	counter := &barrierCounter{}
 	counter.arrived.Add(5)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
-	api.LetVisitorsRollOut(counter, DefaultRolloutLimits(), proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	api := r.visitorAPI(3, counter, slog.New(slog.NewTextHandler(logs, nil)))
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	var wg sync.WaitGroup
@@ -579,8 +586,7 @@ func TestAStartTheStoreRefusesLeavesNothingBehind(t *testing.T) {
 
 func TestAStoreFailureIsA503AndOnlyTheAdminSeesWhy(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
-	api.LetVisitorsRollOut(&fakeCounter{hits: map[string]int64{}}, RolloutLimits{PerHour: 10}, proxyToken, quiet)
+	api := r.visitorAPI(10, &fakeCounter{hits: map[string]int64{}}, quiet)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	admin := asAdmin("9.9.9.9")
@@ -740,7 +746,7 @@ func TestReasonsAreCheckedAtTheDoor(t *testing.T) {
 	if _, err := r.engine.Start(context.Background(), "api", "v2", store.ActorAdmin); err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet).Handler())
+	srv := httptest.NewServer(NewAPI(r.apiOptions()).Handler())
 	t.Cleanup(srv.Close)
 	for _, reason := range []string{"stop\u0000", strings.Repeat("x", maxReason+1)} {
 		body, err := json.Marshal(map[string]string{"reason": reason})
@@ -800,8 +806,9 @@ func TestAnAbortKeepsARollbackThatIsAlreadyDecided(t *testing.T) {
 
 func TestClosingTheHubEndsEveryStream(t *testing.T) {
 	r := newRig(t)
-	hub := NewHub(quiet)
-	srv := httptest.NewServer(NewAPI(r.cfgs, r.engine, r.store, hub, adminToken, quiet).Handler())
+	o := r.apiOptions()
+	hub := o.Hub
+	srv := httptest.NewServer(NewAPI(o).Handler())
 	t.Cleanup(srv.Close)
 	resp, err := http.Get(srv.URL + "/api/events")
 	if err != nil {

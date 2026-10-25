@@ -115,9 +115,8 @@ func TestTheWebServerSendsTheTokenUnderTheHeaderTheLimitsRead(t *testing.T) {
 
 func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T) {
 	r := newRig(t)
-	api := NewAPI(r.cfgs, r.engine, r.store, NewHub(quiet), adminToken, quiet)
 	counter := &fakeCounter{hits: map[string]int64{}}
-	api.LetVisitorsRollOut(counter, RolloutLimits{PerHour: 1}, proxyToken, quiet)
+	api := r.visitorAPI(1, counter, quiet)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	url, start := srv.URL+"/api/rollouts", `{"route":"api","canary":"v2"}`
@@ -138,10 +137,8 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 
 func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) {
 	counter := &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(&fakeInjector{}, nil, counter, NewHub(quiet), DefaultChaosLimits(), []string{"dim-a"}, proxyToken, quiet)
-	mux := http.NewServeMux()
-	svc.Routes(mux, (&API{token: adminToken}).admin, adminToken)
-	srv := httptest.NewServer(mux)
+	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, ProxyToken: proxyToken, Logger: quiet})
+	srv := httptest.NewServer(chaosAPI(svc))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
 	if got := send(t, http.MethodPost, srv.URL+"/api/chaos", `{"mode":"crash","target":"dim-a"}`, http.Header{"X-Forwarded-For": {"9.9.9.1"}}).StatusCode; got != http.StatusCreated {

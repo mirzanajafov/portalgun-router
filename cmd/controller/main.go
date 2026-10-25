@@ -22,7 +22,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const registryWait = 10 * time.Second
+const (
+	registryWait           = 10 * time.Second
+	visitorRolloutsPerHour = 3
+)
 
 func main() {
 	addr := flag.String("addr", ":9100", "API listener")
@@ -153,24 +156,22 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		defer close(settled)
 		engine.Run(ctx)
 	}()
-	api := controller.NewAPI(cfgs, engine, st, hub, token, logger)
+	counter := controller.RedisCounter{RDB: rdb}
+	apiOpts := controller.APIOptions{Configs: cfgs, Engine: engine, History: st, Hub: hub, Counter: counter, Token: token, ProxyToken: o.proxyToken, Logger: logger}
 	if o.visitorRollouts {
-		api.LetVisitorsRollOut(controller.RedisCounter{RDB: rdb}, controller.DefaultRolloutLimits(), o.proxyToken, logger)
+		apiOpts.VisitorRolloutsPerHour = visitorRolloutsPerHour
 	}
-	var chaosSvc *controller.ChaosService
 	if inj != nil {
-		chaosSvc = controller.NewChaosService(inj, st, controller.RedisCounter{RDB: rdb}, hub, controller.DefaultChaosLimits(), names, o.proxyToken, logger)
-		api.Extend(func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc) {
-			chaosSvc.Routes(mux, admin, token)
-		})
+		apiOpts.Chaos = controller.NewChaosService(controller.ChaosOptions{Injector: inj, Log: st, Counter: counter, Limits: controller.DefaultChaosLimits(), Targets: names, ProxyToken: o.proxyToken, Notify: hub.Event, Logger: logger})
 	}
+	api := controller.NewAPI(apiOpts)
 	agg := controller.NewAggregator(func(m controller.Merged) {
 		api.SetLatest(m)
 		engine.Observe(ctx, m)
 		tick := map[string]any{"latest": m, "rollout": engine.Status(), "viewers": hub.Viewers()}
-		if chaosSvc != nil {
-			chaosSvc.Observe(m)
-			tick["chaos"] = chaosSvc.View()
+		if apiOpts.Chaos != nil {
+			apiOpts.Chaos.Observe(m)
+			tick["chaos"] = apiOpts.Chaos.View()
 		}
 		hub.Broadcast("tick", tick)
 	})

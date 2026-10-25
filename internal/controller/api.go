@@ -22,42 +22,41 @@ type History interface {
 	Rollouts(ctx context.Context, limit int) ([]store.Rollout, error)
 }
 
+type APIOptions struct {
+	Configs                *ConfigManager
+	Engine                 *Engine
+	History                History
+	Hub                    *Hub
+	Chaos                  *ChaosService
+	Counter                Counter
+	VisitorRolloutsPerHour int64
+	Token                  string
+	ProxyToken             string
+	Logger                 *slog.Logger
+}
+
 type API struct {
 	cfgs       *ConfigManager
 	engine     *Engine
 	history    History
 	hub        *Hub
+	chaos      *ChaosService
+	visitors   *visitorLimit
 	token      string
 	latest     atomic.Pointer[Merged]
-	extra      func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)
-	visitors   *visitorLimit
 	logger     *slog.Logger
 	historyLog everyMinute
 	stateLog   everyMinute
 }
 
-type RolloutLimits struct {
-	PerHour int64
-}
-
-func DefaultRolloutLimits() RolloutLimits {
-	return RolloutLimits{PerHour: 3}
-}
-
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
 
-func NewAPI(cfgs *ConfigManager, engine *Engine, history History, hub *Hub, token string, logger *slog.Logger) *API {
-	return &API{cfgs: cfgs, engine: engine, history: history, hub: hub, token: token, logger: logger}
-}
-
-func (a *API) LetVisitorsRollOut(counter Counter, limits RolloutLimits, proxyToken string, logger *slog.Logger) {
-	a.visitors = newVisitorLimit("rollout", limits.PerHour, counter, proxyToken, logger)
-}
-
-func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
-
-func (a *API) Extend(fn func(mux *http.ServeMux, admin func(http.HandlerFunc) http.HandlerFunc)) {
-	a.extra = fn
+func NewAPI(o APIOptions) *API {
+	a := &API{cfgs: o.Configs, engine: o.Engine, history: o.History, hub: o.Hub, chaos: o.Chaos, token: o.Token, logger: o.Logger}
+	if o.VisitorRolloutsPerHour > 0 {
+		a.visitors = newVisitorLimit("rollout", o.VisitorRolloutsPerHour, o.Counter, o.ProxyToken, o.Logger)
+	}
+	return a
 }
 
 type State struct {
@@ -72,6 +71,8 @@ func (a *API) State() State {
 	_, v := a.cfgs.Raw()
 	return State{ConfigVersion: v, Latest: a.latest.Load(), Rollout: a.engine.Status(), Viewers: a.hub.Viewers(), Events: a.hub.Events()}
 }
+
+func (a *API) SetLatest(m Merged) { a.latest.Store(&m) }
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -96,8 +97,10 @@ func (a *API) Handler() http.Handler {
 	}))
 	mux.HandleFunc("POST /api/rollouts", a.startRollout)
 	mux.HandleFunc("POST /api/rollouts/abort", a.admin(a.abortRollout))
-	if a.extra != nil {
-		a.extra(mux, a.admin)
+	if a.chaos != nil {
+		mux.HandleFunc("GET /api/chaos", func(w http.ResponseWriter, _ *http.Request) { httpx.WriteJSON(w, http.StatusOK, a.chaos.View()) })
+		mux.HandleFunc("POST /api/chaos", a.startChaos)
+		mux.HandleFunc("DELETE /api/chaos", a.admin(a.stopChaos))
 	}
 	return mux
 }
@@ -214,6 +217,43 @@ func (a *API) abortRollout(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.WriteJSON(w, http.StatusOK, a.engine.Status())
 	}
+}
+
+func (a *API) startChaos(w http.ResponseWriter, r *http.Request) {
+	var req ChaosRequest
+	if err := decode(w, r, &req); err != nil {
+		return
+	}
+	authorized, client := httpx.Authorized(r, a.token), ""
+	if !authorized {
+		client = a.chaos.visitors.client(r)
+	}
+	run, wait, err := a.chaos.Start(r.Context(), req, authorized, client)
+	switch {
+	case errors.Is(err, ErrChaosBusy), errors.Is(err, ErrChaosCooldown), errors.Is(err, ErrChaosLimit):
+		w.Header().Set("Retry-After", fmt.Sprint(max(1, int(wait.Seconds()+0.5))))
+		status := http.StatusTooManyRequests
+		if errors.Is(err, ErrChaosBusy) {
+			status = http.StatusConflict
+		}
+		httpx.WriteJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
+	case errors.Is(err, ErrLimitUnchecked):
+		uncounted(w)
+	case errors.Is(err, ErrChaosFailed):
+		unavailable(w, a.logger, authorized, ErrChaosFailed, err, "mode", req.Mode, "target", req.Target)
+	case err != nil:
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+	default:
+		httpx.WriteJSON(w, http.StatusCreated, run)
+	}
+}
+
+func (a *API) stopChaos(w http.ResponseWriter, r *http.Request) {
+	if err := a.chaos.Stop(r.Context()); err != nil {
+		httpx.WriteError(w, http.StatusConflict, err.Error())
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, a.chaos.View())
 }
 
 func (a *API) events(w http.ResponseWriter, r *http.Request) {
