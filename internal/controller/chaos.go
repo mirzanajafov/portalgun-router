@@ -200,7 +200,7 @@ func (c *ChaosService) running() *Running {
 func (c *ChaosService) expire(run Running) {
 	c.actions.Lock()
 	defer c.actions.Unlock()
-	if current := c.running(); current == nil || current.Started != run.Started {
+	if current := c.running(); current == nil || !current.Started.Equal(run.Started) {
 		return
 	}
 	c.clearLocked(context.Background(), "the fault ran its course")
@@ -214,7 +214,7 @@ func (c *ChaosService) clearLocked(ctx context.Context, why string) {
 	now := c.now()
 	c.mu.Lock()
 	for _, inc := range c.incidents {
-		if inc.InjectedAt == run.Started {
+		if inc.InjectedAt.Equal(run.Started) {
 			inc.ClearedAt = &now
 		}
 	}
