@@ -261,9 +261,9 @@ func (a *attempt) try(req *http.Request, u *upstream, body []byte) (*http.Respon
 		if u.outlier != nil {
 			u.outlier.Record(finished, f != failNone, errors.Is(err, syscall.ECONNREFUSED), trial)
 		}
-		slot := stableSlot
+		slot := gatewayapi.StableSlot
 		if r.canary != nil && u.spec.version == r.canaryVersion {
-			slot = canarySlot
+			slot = gatewayapi.CanarySlot
 		}
 		latency := time.Duration(finished - started)
 		r.stats.observe(slot, f != failNone, latency)

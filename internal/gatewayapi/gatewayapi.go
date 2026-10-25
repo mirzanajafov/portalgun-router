@@ -22,6 +22,11 @@ type VersionSnapshot struct {
 	Slow     int64 `json:"slow"`
 }
 
+const (
+	StableSlot = 0
+	CanarySlot = 1
+)
+
 type RouteSnapshot struct {
 	Requests        int64              `json:"requests"`
 	Limited         int64              `json:"limited"`
