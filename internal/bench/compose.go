@@ -58,6 +58,18 @@ func (c Compose) Down(ctx context.Context) error {
 	return err
 }
 
+func (r *Runner) up(ctx context.Context, compose Compose, what string) (func(), error) {
+	r.Log.Printf("starting %s", what)
+	if err := compose.Up(ctx); err != nil {
+		return nil, err
+	}
+	return func() {
+		if err := compose.Down(context.Background()); err != nil {
+			r.Log.Printf("tearing down: %v", err)
+		}
+	}, nil
+}
+
 func (c Compose) Exec(ctx context.Context, service string, args ...string) (string, error) {
 	out, err := c.run(ctx, append([]string{"exec", "-T", service}, args...)...)
 	return strings.TrimSpace(string(out)), err
@@ -89,4 +101,12 @@ func (c Compose) Loadgen(ctx context.Context, args ...string) (loadgen.Summary, 
 		return sum, fmt.Errorf("loadgen output: %w", err)
 	}
 	return sum, nil
+}
+
+func gatewayNames(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("gateway-%d", i+1)
+	}
+	return out
 }

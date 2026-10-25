@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"text/tabwriter"
+	"time"
 )
 
 func WriteJSON(path string, v any) error {
@@ -21,4 +23,32 @@ func writeTable(w io.Writer, text string, flags uint) error {
 		return err
 	}
 	return tw.Flush()
+}
+
+func runDir(parent, suffix string) (string, error) {
+	dir, err := filepath.Abs(filepath.Join(parent, time.Now().UTC().Format("20060102-150405")+suffix))
+	if err != nil {
+		return "", err
+	}
+	return dir, os.MkdirAll(dir, 0o755)
+}
+
+func writeConfigs(dir string, configs map[string]any) (string, error) {
+	path := filepath.Join(dir, "configs")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return "", err
+	}
+	for name, cfg := range configs {
+		if err := WriteJSON(filepath.Join(path, name+".json"), cfg); err != nil {
+			return "", err
+		}
+	}
+	return path, nil
+}
+
+func startRuns(dir string, meta map[string]any) (*os.File, error) {
+	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
+		return nil, err
+	}
+	return os.Create(filepath.Join(dir, "runs.jsonl"))
 }

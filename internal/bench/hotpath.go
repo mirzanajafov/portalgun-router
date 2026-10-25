@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 )
 
 const HotpathGate = 1.5
@@ -96,11 +95,8 @@ func parseBenchLine(line string) (HotpathRow, bool) {
 }
 
 func RunHotpath(ctx context.Context, plan HotpathPlan) (dir string, err error) {
-	dir, err = filepath.Abs(filepath.Join(plan.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = runDir(plan.Out, "")
 	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	tmp, err := os.MkdirTemp("", "hotpath")

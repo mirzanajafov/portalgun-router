@@ -171,20 +171,16 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Rates) == 0 || len(plan.Systems) == 0 {
 		return "", errors.New("the plan needs systems, rates and at least one repetition")
 	}
-	dir = filepath.Join(r.Out, plan.Workload.Name, time.Now().UTC().Format("20060102-150405"))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir, err = runDir(filepath.Join(r.Out, plan.Workload.Name), "")
+	if err != nil {
 		return "", err
 	}
 	compose := r.Compose.with(plan.Workload.env()...)
-	r.Log.Printf("starting the stack for %s", plan.Workload.Name)
-	if err := compose.Up(ctx); err != nil {
+	down, err := r.up(ctx, compose, "the stack for "+plan.Workload.Name)
+	if err != nil {
 		return "", err
 	}
-	defer func() {
-		if err := compose.Down(context.Background()); err != nil {
-			r.Log.Printf("tearing down: %v", err)
-		}
-	}()
+	defer down()
 	if err := r.waitReady(ctx, compose, plan); err != nil {
 		return "", err
 	}
@@ -209,10 +205,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 		"startedAt": time.Now().UTC(),
 		"env":       compose.Env,
 	}
-	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
-		return "", err
-	}
-	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
+	f, err := startRuns(dir, meta)
 	if err != nil {
 		return "", err
 	}

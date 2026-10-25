@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -232,51 +230,33 @@ type LimiterRun struct {
 	Report    *limitbench.Report `json:"report"`
 }
 
-func gatewayNames(n int) []string {
-	out := make([]string, n)
-	for i := range out {
-		out[i] = fmt.Sprintf("gateway-%d", i+1)
-	}
-	return out
-}
-
 func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Cells) == 0 {
 		return "", errors.New("the plan needs cells and at least one repetition")
 	}
-	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = runDir(r.Out, "")
 	if err != nil {
 		return "", err
 	}
-	configs := filepath.Join(dir, "configs")
-	if err := os.MkdirAll(configs, 0o755); err != nil {
-		return "", err
-	}
-	most := 0
+	most, byFile := 0, map[string]any{}
 	for _, c := range plan.Cells {
 		most = max(most, c.Instances)
-		if err := WriteJSON(filepath.Join(configs, c.file()+".json"), c.Config()); err != nil {
-			return "", err
-		}
+		byFile[c.file()] = c.Config()
+	}
+	configs, err := writeConfigs(dir, byFile)
+	if err != nil {
+		return "", err
 	}
 	compose := r.Compose.with("E2_CONFIGS="+configs, "E2_CELL="+plan.Cells[0].file())
 	if most > 2 {
 		compose = compose.with("COMPOSE_PROFILES=four")
 	}
-	r.Log.Printf("starting the limiter stack")
-	if err := compose.Up(ctx); err != nil {
+	down, err := r.up(ctx, compose, "the limiter stack")
+	if err != nil {
 		return "", err
 	}
-	defer func() {
-		if err := compose.Down(context.Background()); err != nil {
-			r.Log.Printf("tearing down: %v", err)
-		}
-	}()
-	meta := map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env}
-	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
-		return dir, err
-	}
-	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
+	defer down()
+	f, err := startRuns(dir, map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env})
 	if err != nil {
 		return dir, err
 	}

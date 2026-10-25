@@ -268,49 +268,32 @@ func tryTwice(ctx context.Context, try func() (FailoverRun, error), heal func(er
 	return try()
 }
 
-func (p FailoverPlan) gatewayServices() []string {
-	gs := []string{"gateway-1"}
-	if p.Gateways == 2 {
-		gs = append(gs, "gateway-2")
-	}
-	return gs
-}
-
 func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (dir string, err error) {
 	if plan.Reps < 1 || len(plan.Cells) == 0 || plan.Rate <= 0 || plan.Gateways < 1 || plan.Gateways > 2 {
 		return "", errors.New("the plan needs cells, a rate, one or two gateways and at least one repetition")
 	}
-	dir, err = filepath.Abs(filepath.Join(r.Out, time.Now().UTC().Format("20060102-150405")))
+	dir, err = runDir(r.Out, "")
 	if err != nil {
 		return "", err
 	}
-	configs := filepath.Join(dir, "configs")
-	if err := os.MkdirAll(configs, 0o755); err != nil {
-		return "", err
-	}
+	byFile := map[string]any{}
 	for _, c := range plan.Cells {
-		if err := WriteJSON(filepath.Join(configs, c.file()+".json"), c.Variant.Config()); err != nil {
-			return "", err
-		}
+		byFile[c.file()] = c.Variant.Config()
+	}
+	configs, err := writeConfigs(dir, byFile)
+	if err != nil {
+		return "", err
 	}
 	compose := r.Compose.with("E3_CONFIGS="+configs, "E3_CELL="+plan.Cells[0].file())
 	if plan.Gateways == 2 {
 		compose = compose.with("COMPOSE_PROFILES=two")
 	}
-	r.Log.Printf("starting the failover stack with %d gateway(s)", plan.Gateways)
-	if err := compose.Up(ctx); err != nil {
+	down, err := r.up(ctx, compose, fmt.Sprintf("the failover stack with %d gateway(s)", plan.Gateways))
+	if err != nil {
 		return "", err
 	}
-	defer func() {
-		if err := compose.Down(context.Background()); err != nil {
-			r.Log.Printf("tearing down: %v", err)
-		}
-	}()
-	meta := map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env}
-	if err := WriteJSON(filepath.Join(dir, "meta.json"), meta); err != nil {
-		return dir, err
-	}
-	f, err := os.Create(filepath.Join(dir, "runs.jsonl"))
+	defer down()
+	f, err := startRuns(dir, map[string]any{"plan": plan, "commit": commit(ctx), "startedAt": time.Now().UTC(), "env": compose.Env})
 	if err != nil {
 		return dir, err
 	}
@@ -366,7 +349,7 @@ func msOrDash(v *float64) string {
 
 func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan FailoverPlan, c FailoverCell, rep, slot int, dir string) (FailoverRun, error) {
 	compose = compose.with("E3_CELL=" + c.file())
-	args := append([]string{"up", "-d", "--force-recreate", "--no-deps"}, plan.gatewayServices()...)
+	args := append([]string{"up", "-d", "--force-recreate", "--no-deps"}, gatewayNames(plan.Gateways)...)
 	if _, err := compose.run(ctx, args...); err != nil {
 		return FailoverRun{}, err
 	}
@@ -394,7 +377,7 @@ func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan Failove
 	if c.Background != "" {
 		fa = append(fa, "-background", c.Background)
 	}
-	for _, g := range plan.gatewayServices() {
+	for _, g := range gatewayNames(plan.Gateways) {
 		fa = append(fa, "-url", "http://"+g+":8080/", "-admin", "http://"+g+":9090")
 	}
 	for _, d := range failoverDims {
