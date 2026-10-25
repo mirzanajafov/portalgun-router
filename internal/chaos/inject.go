@@ -207,10 +207,13 @@ func (in *Injector) startFlapping(f Fault) error {
 		defer close(done)
 		t := time.NewTicker(f.Period)
 		defer t.Stop()
-		up := false
-		for {
+		for up := false; ; up = !up {
+			select {
+			case <-stop:
+				return
+			default:
+			}
 			_ = in.toxi.SetEnabled(context.Background(), f.Target, up)
-			up = !up
 			select {
 			case <-stop:
 				return
