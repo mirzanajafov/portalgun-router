@@ -106,8 +106,8 @@ describe('panels', () => {
   })
 
   it('hides config lines the controller writes for its own decisions', () => {
-    expect(worthShowing({ type: 'config', at: '', message: 'config v5 by controller: step 2' })).toBe(false)
-    expect(worthShowing({ type: 'config', at: '', message: 'config v4 by admin: rollout starts' })).toBe(true)
+    expect(worthShowing({ type: 'config', at: '', message: 'config v5 by controller: step 2', actor: 'controller' })).toBe(false)
+    expect(worthShowing({ type: 'config', at: '', message: 'config v4 by admin: rollout starts', actor: 'admin' })).toBe(true)
     expect(worthShowing({ type: 'rollout', at: '', message: 'rollout promoted' })).toBe(true)
   })
 
