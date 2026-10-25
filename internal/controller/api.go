@@ -37,17 +37,19 @@ type APIOptions struct {
 }
 
 type API struct {
-	cfgs       *ConfigManager
-	engine     *Engine
-	history    History
-	hub        *Hub
-	chaos      *ChaosService
-	visitors   *visitorLimit
-	token      string
-	latest     atomic.Pointer[Merged]
-	logger     *slog.Logger
-	historyLog everyMinute
-	stateLog   everyMinute
+	cfgs           *ConfigManager
+	engine         *Engine
+	history        History
+	hub            *Hub
+	chaos          *ChaosService
+	visitors       *visitorLimit
+	rolloutAddress *visitorAddress
+	chaosAddress   *visitorAddress
+	token          string
+	latest         atomic.Pointer[Merged]
+	logger         *slog.Logger
+	historyLog     everyMinute
+	stateLog       everyMinute
 }
 
 var ErrRolloutLimit = errors.New("that is enough rollouts from this address for an hour")
@@ -55,7 +57,11 @@ var ErrRolloutLimit = errors.New("that is enough rollouts from this address for 
 func NewAPI(o APIOptions) *API {
 	a := &API{cfgs: o.Configs, engine: o.Engine, history: o.History, hub: o.Hub, chaos: o.Chaos, token: o.Token, logger: o.Logger}
 	if o.VisitorRolloutsPerHour > 0 {
-		a.visitors = newVisitorLimit("rollout", o.VisitorRolloutsPerHour, o.Counter, o.ProxyToken, o.Logger)
+		a.visitors = newVisitorLimit("rollout", o.VisitorRolloutsPerHour, o.Counter, o.Logger)
+		a.rolloutAddress = newVisitorAddress("rollout", o.ProxyToken, o.Logger)
+	}
+	if o.Chaos != nil {
+		a.chaosAddress = newVisitorAddress("chaos", o.ProxyToken, o.Logger)
 	}
 	return a
 }
@@ -188,7 +194,7 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusConflict, ErrBusy.Error())
 			return
 		}
-		exceeded, err := a.visitors.exceeded(r.Context(), a.visitors.client(r))
+		exceeded, err := a.visitors.exceeded(r.Context(), a.rolloutAddress.of(r))
 		if err != nil {
 			retryLater(w, http.StatusServiceUnavailable, ErrLimitUnchecked, recountAfter)
 			return
@@ -243,7 +249,7 @@ func (a *API) startChaos(w http.ResponseWriter, r *http.Request) {
 	}
 	authorized, client := httpx.Authorized(r, a.token), ""
 	if !authorized {
-		client = a.chaos.visitors.client(r)
+		client = a.chaosAddress.of(r)
 	}
 	run, wait, err := a.chaos.Start(r.Context(), req, authorized, client)
 	switch {

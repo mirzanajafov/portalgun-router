@@ -98,21 +98,20 @@ type ChaosService struct {
 }
 
 type ChaosOptions struct {
-	Injector   Injector
-	Log        ChaosLog
-	Counter    Counter
-	Limits     ChaosLimits
-	Targets    []string
-	ProxyToken string
-	Notify     func(Event)
-	Logger     *slog.Logger
+	Injector Injector
+	Log      ChaosLog
+	Counter  Counter
+	Limits   ChaosLimits
+	Targets  []string
+	Notify   func(Event)
+	Logger   *slog.Logger
 }
 
 func NewChaosService(o ChaosOptions) *ChaosService {
 	return &ChaosService{
 		inj:      o.Injector,
 		log:      o.Log,
-		visitors: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.ProxyToken, o.Logger),
+		visitors: newVisitorLimit("chaos", o.Limits.PerHour, o.Counter, o.Logger),
 		notify:   o.Notify,
 		limits:   o.Limits,
 		targets:  o.Targets,

@@ -102,12 +102,12 @@ func (l *logSink) String() string {
 
 func newChaos(limits ChaosLimits) (*ChaosService, *fakeInjector, *fakeCounter) {
 	inj, counter := &fakeInjector{}, &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: limits, Targets: []string{"dim-a", "dim-b"}, ProxyToken: proxyToken, Logger: quiet})
+	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: limits, Targets: []string{"dim-a", "dim-b"}, Logger: quiet})
 	return svc, inj, counter
 }
 
 func chaosAPI(svc *ChaosService) http.Handler {
-	return NewAPI(APIOptions{Chaos: svc, Token: adminToken, Logger: quiet}).Handler()
+	return NewAPI(APIOptions{Chaos: svc, Token: adminToken, ProxyToken: proxyToken, Logger: quiet}).Handler()
 }
 
 func TestVisitorsGetBoundedChaos(t *testing.T) {
@@ -183,7 +183,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 	logs := &logSink{}
 	counter := downCounter()
 	inj := &fakeInjector{}
-	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, ProxyToken: proxyToken, Logger: slog.New(slog.NewTextHandler(logs, nil))})
+	svc := NewChaosService(ChaosOptions{Injector: inj, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
 	var elapsed atomic.Int64
 	start := time.Now()
 	svc.visitors.now = func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
@@ -225,7 +225,7 @@ func TestVisitorsAreRefusedWhileTheirFaultsCannotBeCounted(t *testing.T) {
 func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	logs := &logSink{}
 	counter := &fakeCounter{hits: map[string]int64{}, err: context.Canceled}
-	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, ProxyToken: proxyToken, Logger: slog.New(slog.NewTextHandler(logs, nil))})
+	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, _, err := svc.Start(ctx, ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "1.2.3.4"); !errors.Is(err, ErrLimitUnchecked) {

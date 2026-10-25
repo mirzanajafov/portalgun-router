@@ -66,7 +66,7 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 			if c.sent != "" {
 				req.Header.Set(proxyTokenHeader, c.sent)
 			}
-			if got := newVisitorLimit("chaos", 3, nil, c.configured, quiet).client(req); got != c.want {
+			if got := newVisitorAddress("chaos", c.configured, quiet).of(req); got != c.want {
 				t.Fatalf("counted as %s, want %s", got, c.want)
 			}
 		})
@@ -75,8 +75,8 @@ func TestOnlyARequestWithTheProxyTokenNamesTheVisitor(t *testing.T) {
 
 func TestALimitWithoutTheProxyTokenSaysSoAtStart(t *testing.T) {
 	logs := &logSink{}
-	newVisitorLimit("chaos", 3, nil, "", slog.New(slog.NewTextHandler(logs, nil)))
-	newVisitorLimit("rollout", 3, nil, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	newVisitorAddress("chaos", "", slog.New(slog.NewTextHandler(logs, nil)))
+	newVisitorAddress("rollout", proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
 	if strings.Count(logs.String(), "no proxy token") != 1 || !strings.Contains(logs.String(), "limit=chaos") {
 		t.Fatalf("want one warning, for the chaos limit: %q", logs.String())
 	}
@@ -84,20 +84,20 @@ func TestALimitWithoutTheProxyTokenSaysSoAtStart(t *testing.T) {
 
 func TestAWrongProxyTokenIsLoggedOnceAMinuteWithoutTheAddress(t *testing.T) {
 	logs := &logSink{}
-	limit := newVisitorLimit("rollout", 3, nil, proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
+	address := newVisitorAddress("rollout", proxyToken, slog.New(slog.NewTextHandler(logs, nil)))
 	start := time.Now()
 	var elapsed time.Duration
-	limit.now = func() time.Time { return start.Add(elapsed) }
+	address.now = func() time.Time { return start.Add(elapsed) }
 	req := httptest.NewRequest(http.MethodPost, "/api/rollouts", nil)
 	req.RemoteAddr = "192.0.2.1:4000"
 	req.Header = http.Header{"X-Forwarded-For": {"9.9.9.9"}, proxyTokenHeader: {"an-old-token"}}
 	for range 2 {
-		if got := limit.client(req); got != "192.0.2.1" {
+		if got := address.of(req); got != "192.0.2.1" {
 			t.Fatalf("counted as %s, want the peer", got)
 		}
 	}
 	elapsed = time.Minute
-	limit.client(req)
+	address.of(req)
 	if n := strings.Count(logs.String(), "doesn't match"); n != 2 || !strings.Contains(logs.String(), "limit=rollout") || strings.Contains(logs.String(), "9.9.9.9") {
 		t.Fatalf("want two warnings a minute apart, naming the limit and not the visitor: %q", logs.String())
 	}
@@ -137,7 +137,7 @@ func TestACallerWithoutTheProxyTokenCannotRotatePastTheVisitorLimit(t *testing.T
 
 func TestAChaosCallerWithoutTheProxyTokenIsCountedByItsOwnAddress(t *testing.T) {
 	counter := &fakeCounter{hits: map[string]int64{}}
-	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, ProxyToken: proxyToken, Logger: quiet})
+	svc := NewChaosService(ChaosOptions{Injector: &fakeInjector{}, Counter: counter, Limits: DefaultChaosLimits(), Targets: []string{"dim-a"}, Logger: quiet})
 	srv := httptest.NewServer(chaosAPI(svc))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { _ = svc.Stop(context.Background()) })
