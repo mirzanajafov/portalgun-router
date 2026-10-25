@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { positions } from '@/components/DimensionMap'
+import { position } from '@/components/DimensionMap'
 import { worthShowing } from '@/components/EventLog'
 import { scale } from '@/components/LlrChart'
 import { candidate } from './canary'
@@ -73,7 +73,7 @@ describe('live state', () => {
     let h: Record<string, number[]> = {}
     for (let i = 0; i < 70; i++) h = appendHistory(h, merged([dim({ attempts: i })]))
     expect(h['c-137']).toHaveLength(60)
-    expect(h['c-137'].at(-1)).toBe(69)
+    expect(h['c-137']?.at(-1)).toBe(69)
   })
 
   it('restarts the evidence curve when a new rollout begins', () => {
@@ -93,7 +93,7 @@ describe('live state', () => {
     expect(pts).toHaveLength(2)
     pts = appendLlr(pts, status('ro-2', 0, 0.5), 3)
     expect(pts).toHaveLength(1)
-    expect(pts[0].errors).toBe(0.5)
+    expect(pts[0]?.errors).toBe(0.5)
     expect(appendLlr(pts, { ...status('ro-2', 0, 1), active: false }, 4)).toBe(pts)
   })
 })
@@ -112,10 +112,11 @@ describe('panels', () => {
   })
 
   it('places dimensions around the gateway without overlap', () => {
-    const p = positions(4)
-    for (let i = 0; i < p.length; i++) {
-      for (let j = i + 1; j < p.length; j++) {
-        expect(Math.hypot(p[i].x - p[j].x, p[i].y - p[j].y)).toBeGreaterThan(160)
+    for (let i = 0; i < 4; i++) {
+      for (let j = i + 1; j < 4; j++) {
+        const a = position(i, 4)
+        const b = position(j, 4)
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(160)
       }
     }
   })

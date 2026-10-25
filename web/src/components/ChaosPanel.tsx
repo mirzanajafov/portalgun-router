@@ -16,7 +16,7 @@ const ACTIONS: Action[] = [
 ]
 
 export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null; targets: string[]; admin: boolean }) {
-  const [target, setTarget] = useState<string>('')
+  const [target, setTarget] = useState<string | null>(null)
   const { busy, message, send } = useAction()
   const [now, setNow] = useState(() => Date.now())
 
@@ -25,7 +25,7 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
     return () => clearInterval(t)
   }, [])
 
-  const chosen = target || targets[0] || ''
+  const chosen = target ?? targets[0] ?? ''
   const current = chaos?.current
   const cooldown = Math.max(0, Math.ceil(chaos?.cooldownSec ?? 0))
 

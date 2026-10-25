@@ -26,7 +26,7 @@ export function LlrChart({ points, lower, upper }: { points: LlrPoint[]; lower: 
     return <div className="muted grid h-[150px] place-items-center text-sm">The evidence shows up here once a rollout runs.</div>
   }
   const { x, y } = scale(points, lower, upper)
-  const steps = points.map((p, i) => (i > 0 && p.step !== points[i - 1].step ? i : -1)).filter((i) => i > 0)
+  const steps = points.map((p, i) => (i > 0 && p.step !== points[i - 1]?.step ? i : -1)).filter((i) => i > 0)
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Log-likelihood ratio of the canary being worse, over time">
       <line x1={PAD} x2={W - PAD} y1={y(upper)} y2={y(upper)} stroke="var(--color-fault)" strokeDasharray="4 4" />

@@ -89,7 +89,7 @@ export function CanaryPanel({
           )}
         </p>
       )}
-      <LlrChart points={llr} lower={rollout?.lower || -3} upper={rollout?.upper || 6} />
+      <LlrChart points={llr} lower={active?.lower ?? -3} upper={active?.upper ?? 6} />
       <div className="muted flex gap-4 text-xs">
         <span>
           <span className="inline-block h-0.5 w-4 bg-[var(--color-fluid)] align-middle" /> errors
