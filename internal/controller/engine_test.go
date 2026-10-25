@@ -234,8 +234,8 @@ func (r *rig) feed(b bin, opts ...func(*Merged)) {
 		Routes: map[string]gatewayapi.RouteSnapshot{"api": {
 			Rollout: st.Rollout.ID,
 			Versions: [2]gatewayapi.VersionSnapshot{
-				{Attempts: b.stable, Errors: b.stableErr, Slow: b.stableSlow},
-				{Attempts: b.canary, Errors: b.canaryErr, Slow: b.canarySlow},
+				gatewayapi.StableSlot: {Attempts: b.stable, Errors: b.stableErr, Slow: b.stableSlow},
+				gatewayapi.CanarySlot: {Attempts: b.canary, Errors: b.canaryErr, Slow: b.canarySlow},
 			},
 		}},
 		Dimensions: []gatewayapi.DimensionSnapshot{{ID: "c1", Version: "v2", Healthy: true, Outlier: health.Closed}},
