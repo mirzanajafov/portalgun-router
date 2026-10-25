@@ -26,13 +26,11 @@ export function position(i: number, n: number): { x: number; y: number } {
 }
 
 export function DimensionMap({ latest, canary }: { latest: Merged | null; canary?: string }) {
-  const dims = latest?.dimensions ?? []
+  const placed = (latest?.dimensions ?? []).map((d, i, all) => ({ d, h: health(d), ...position(i, all.length) }))
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Traffic from the gateway to each dimension">
-      {dims.map((d, i) => {
+      {placed.map(({ d, h, x, y }) => {
         const s = share(latest, d.id)
-        const h = health(d)
-        const { x, y } = position(i, dims.length)
         return (
           <line
             key={`edge-${d.id}`}
@@ -55,9 +53,7 @@ export function DimensionMap({ latest, canary }: { latest: Merged | null; canary
           gateway{latest ? ` x${latest.instances.length}` : ''}
         </text>
       </g>
-      {dims.map((d, i) => {
-        const h = health(d)
-        const { x, y } = position(i, dims.length)
+      {placed.map(({ d, h, x, y }) => {
         const isCanary = canary && d.version === canary
         return (
           <g key={d.id}>
