@@ -14,7 +14,7 @@ import (
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
 	"github.com/mirzanajafov/portalgun-router/internal/config"
-	"github.com/mirzanajafov/portalgun-router/internal/failover"
+	"github.com/mirzanajafov/portalgun-router/internal/failoverbench"
 )
 
 var failoverDims = []string{"a", "b", "c"}
@@ -189,7 +189,7 @@ var Studies = map[string]func() []FailoverCell{
 		return []FailoverCell{cell(faultOf(chaos.Crash), baseVariant()), cell(faultOf(chaos.Crash), v)}
 	},
 	"false": func() []FailoverCell {
-		c := cell(chaos.Fault{Mode: failover.NoFault, Target: "a"}, baseVariant())
+		c := cell(chaos.Fault{Mode: failoverbench.NoFault, Target: "a"}, baseVariant())
 		c.Background = `{"errorRate":0.01,"delayDist":"lognormal","delayMs":5,"delaySigma":0.6}`
 		c.Before, c.During, c.After = 10*time.Minute, 0, 5*time.Second
 		return []FailoverCell{c}
@@ -246,13 +246,13 @@ type FailoverPlan struct {
 }
 
 type FailoverRun struct {
-	Cell      string           `json:"cell"`
-	Rep       int              `json:"rep"`
-	Slot      int              `json:"slot"`
-	Gateways  int              `json:"gateways"`
-	StartedAt time.Time        `json:"startedAt"`
-	Report    *failover.Report `json:"report"`
-	Error     string           `json:"error,omitempty"`
+	Cell      string                `json:"cell"`
+	Rep       int                   `json:"rep"`
+	Slot      int                   `json:"slot"`
+	Gateways  int                   `json:"gateways"`
+	StartedAt time.Time             `json:"startedAt"`
+	Report    *failoverbench.Report `json:"report"`
+	Error     string                `json:"error,omitempty"`
 }
 
 const maxFailedInARow = 3
@@ -372,7 +372,7 @@ func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan Failove
 		return FailoverRun{}, err
 	}
 	fa := []string{
-		"exec", "-T", "loadgen", "failover",
+		"exec", "-T", "loadgen", "failoverbench",
 		"-label", c.Name,
 		"-mode", string(c.Fault.Mode),
 		"-target", c.Fault.Target,
@@ -413,7 +413,7 @@ func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan Failove
 	if err != nil {
 		return run, err
 	}
-	run.Report = &failover.Report{}
+	run.Report = &failoverbench.Report{}
 	if err := json.Unmarshal(out, run.Report); err != nil {
 		return run, fmt.Errorf("failover output: %w", err)
 	}
