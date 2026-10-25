@@ -127,7 +127,9 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 			continue
 		}
 		if !l.guard.allow() {
-			return l.degraded(st, key, now)
+			d := l.degraded(st, key, now)
+			st.mu.Unlock()
+			return d
 		}
 		want := math.Ceil(max(st.thisSecond, st.lastSecond) * l.target.Seconds())
 		want = min(max(want, 1), l.rule.Burst)
@@ -143,7 +145,9 @@ func (l *lease) Allow(ctx context.Context, key string) Decision {
 		close(done)
 		now = l.now()
 		if err != nil {
-			return l.degraded(st, key, now)
+			d := l.degraded(st, key, now)
+			st.mu.Unlock()
+			return d
 		}
 		st.debt.settle(epoch, owed)
 		st.tokens = grant
@@ -159,7 +163,6 @@ func (l *lease) degraded(st *leaseKey, key string, now int64) Decision {
 	if ok {
 		st.debt.add(1, now)
 	}
-	st.mu.Unlock()
 	return Decision{Allowed: ok, RetryAfter: after, Degraded: true}
 }
 
