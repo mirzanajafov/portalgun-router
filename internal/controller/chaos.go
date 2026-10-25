@@ -220,6 +220,7 @@ func (c *ChaosService) expire(run Running) {
 }
 
 func (c *ChaosService) end(ctx context.Context, run *Running, why string) {
+	ctx = context.WithoutCancel(ctx)
 	if err := c.inj.Clear(ctx, run.Fault); err != nil {
 		c.logger.Error("clearing a fault", "err", err)
 	}

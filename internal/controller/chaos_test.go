@@ -38,7 +38,10 @@ func (f *fakeInjector) Inject(_ context.Context, fault chaos.Fault) error {
 	return nil
 }
 
-func (f *fakeInjector) Clear(_ context.Context, fault chaos.Fault) error {
+func (f *fakeInjector) Clear(ctx context.Context, fault chaos.Fault) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cleared = append(f.cleared, fault)
@@ -161,6 +164,18 @@ func TestOneFaultAtATimeThenCooldown(t *testing.T) {
 	}
 	if err := svc.Stop(ctx); err != nil || inj.clears() != 2 {
 		t.Fatalf("stop: %v, clears %d", err, inj.clears())
+	}
+}
+
+func TestAStopWhoseRequestWentAwayStillClearsTheFault(t *testing.T) {
+	svc, inj, _ := newChaos(DefaultChaosLimits())
+	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := svc.Stop(gone); err != nil || inj.clears() != 1 {
+		t.Fatalf("stop after the admin's request went away: %v, clears %d", err, inj.clears())
 	}
 }
 
