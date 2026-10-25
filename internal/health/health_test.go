@@ -228,11 +228,11 @@ func TestCheckerFollowsTheProbes(t *testing.T) {
 	}, func(bool) { changes.Add(1) })
 	defer c.Stop()
 
-	waitFor(t, func() bool { return c.Healthy() })
+	eventually(t, "the checker report healthy", func() bool { return c.Healthy() })
 	healthy.Store(false)
-	waitFor(t, func() bool { return !c.Healthy() })
+	eventually(t, "the checker report unhealthy", func() bool { return !c.Healthy() })
 	healthy.Store(true)
-	waitFor(t, func() bool { return c.Healthy() })
+	eventually(t, "the checker report healthy", func() bool { return c.Healthy() })
 	if changes.Load() != 2 {
 		t.Fatalf("%d changes, want 2", changes.Load())
 	}
@@ -246,15 +246,15 @@ func TestCheckerMarksADeadAddressUnhealthy(t *testing.T) {
 	srv.Close()
 	c := StartChecker(addr, ProbeConfig{Path: "/healthz", Interval: 20 * time.Millisecond, Timeout: 50 * time.Millisecond, UnhealthyAfter: 1, HealthyAfter: 1}, nil)
 	defer c.Stop()
-	waitFor(t, func() bool { return !c.Healthy() })
+	eventually(t, "the checker report unhealthy", func() bool { return !c.Healthy() })
 }
 
-func waitFor(t *testing.T, cond func() bool) {
+func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
-	for !cond() {
+	for !ok() {
 		if time.Now().After(deadline) {
-			t.Fatal("condition not reached in time")
+			t.Fatalf("never saw %s", what)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}

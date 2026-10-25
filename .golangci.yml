@@ -26,10 +26,6 @@ linters:
           disabled: true
         - name: package-comments
           disabled: true
-        - name: empty-block
-          disabled: true
-        - name: unused-parameter
-          disabled: true
     staticcheck:
       checks:
         - all
@@ -37,7 +33,6 @@ linters:
         - -ST1020
         - -ST1021
         - -ST1022
-        - -SA4000
 
 formatters:
   enable:

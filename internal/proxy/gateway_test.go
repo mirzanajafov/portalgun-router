@@ -188,7 +188,10 @@ func TestFullPoolAnswers503(t *testing.T) {
 		})
 	}
 	deadline := time.Now().Add(2 * time.Second)
-	for g.State().Upstreams[0].Inflight < 2 && time.Now().Before(deadline) {
+	for g.State().Upstreams[0].Inflight < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("the dimension holds %d requests, want 2", g.State().Upstreams[0].Inflight)
+		}
 		time.Sleep(5 * time.Millisecond)
 	}
 	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusServiceUnavailable {
@@ -209,15 +212,22 @@ type holding struct {
 
 func (h *holding) let() { h.once.Do(func() { close(h.release) }) }
 
+func raiseTo(v *atomic.Int64, n int64) {
+	for m := v.Load(); n > m; m = v.Load() {
+		if v.CompareAndSwap(m, n) {
+			return
+		}
+	}
+}
+
 func holdingDim(t *testing.T) (*holding, string) {
 	t.Helper()
 	h := &holding{release: make(chan struct{})}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		h.seen.Add(1)
 		n := h.now.Add(1)
 		defer h.now.Add(-1)
-		for m := h.most.Load(); n > m && !h.most.CompareAndSwap(m, n); m = h.most.Load() {
-		}
+		raiseTo(&h.most, n)
 		if r.URL.Path == "/hold" {
 			select {
 			case <-h.release:
@@ -237,16 +247,16 @@ func capped(t *testing.T, limit int, addr string) *config.Config {
 	return parse(t, config.Config{
 		MaxInflight: new(limit),
 		Routes:      []config.Route{{Name: "all", PathPrefix: "/", Pool: "main"}},
-		Pools:       []config.Pool{{Name: "main", Dimensions: []config.Dimension{{ID: "a", Address: addr}}}},
+		Pools:       []config.Pool{{Name: "main", HealthCheck: config.HealthCheck{Disabled: true}, Dimensions: []config.Dimension{{ID: "a", Address: addr}}}},
 	})
 }
 
-func waitHeld(t *testing.T, g *Gateway, n int64) {
+func waitHeld(t *testing.T, g *Gateway, h *holding, n int64) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
-	for g.State().Inflight < n {
+	for g.State().Inflight < n || h.now.Load() < n {
 		if time.Now().After(deadline) {
-			t.Fatalf("the gateway holds %d requests, want %d", g.State().Inflight, n)
+			t.Fatalf("the gateway holds %d requests and the dimension %d, want %d", g.State().Inflight, h.now.Load(), n)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -263,7 +273,7 @@ func TestGatewayShedsPastItsCap(t *testing.T) {
 			}
 		})
 	}
-	waitHeld(t, g, 2)
+	waitHeld(t, g, h, 2)
 
 	seen := h.seen.Load()
 	began := time.Now()
@@ -345,7 +355,7 @@ func TestGatewayCapFollowsTheConfig(t *testing.T) {
 			resp.Body.Close()
 		}
 	}()
-	waitHeld(t, g, 1)
+	waitHeld(t, g, h, 1)
 	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusServiceUnavailable {
 		t.Fatalf("got %d at a cap of 1, want 503", status)
 	}

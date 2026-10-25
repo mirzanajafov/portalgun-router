@@ -94,7 +94,7 @@ func TestKeysAreSkewedUnderZipf(t *testing.T) {
 		t.Fatalf("top key %d, distinct %d, key 100 %d", seen["run1-0"], len(seen), seen["run1-100"])
 	}
 	one, _ := newPicker(Config{KeyHeader: "X-Key", KeyPrefix: "k"}, us)
-	if one.key() != "k0" || one.key() != "k0" {
+	if first, second := one.key(), one.key(); first != "k0" || second != "k0" {
 		t.Fatal("a single key should always be the same")
 	}
 	none, _ := newPicker(Config{}, us)
