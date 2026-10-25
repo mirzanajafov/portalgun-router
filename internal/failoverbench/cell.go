@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/mirzanajafov/portalgun-router/internal/chaos"
@@ -159,7 +158,7 @@ func Run(ctx context.Context, c Cell) (*Report, error) {
 	}
 	rep.Result = Analyze(out.res.Log, w, rep.Events, c.Options)
 	if c.Records != "" {
-		if err := writeRecords(c.Records, out.res.Log); err != nil {
+		if err := loadgen.WriteLogFile(c.Records, out.res.Log); err != nil {
 			return nil, err
 		}
 	}
@@ -234,16 +233,4 @@ func waitReady(ctx context.Context, client *http.Client, admins []string, limit 
 			return ctx.Err()
 		}
 	}
-}
-
-func writeRecords(path string, l *loadgen.Log) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	if err := loadgen.WriteLog(f, l); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
 }

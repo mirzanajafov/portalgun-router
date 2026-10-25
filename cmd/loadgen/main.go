@@ -113,23 +113,11 @@ func run(cfg loadgen.Config, records string) error {
 		return err
 	}
 	if records != "" {
-		if err := writeLog(records, res.Log); err != nil {
+		if err := loadgen.WriteLogFile(records, res.Log); err != nil {
 			return err
 		}
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(res.Summary)
-}
-
-func writeLog(path string, l *loadgen.Log) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	if err := loadgen.WriteLog(f, l); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
 }
