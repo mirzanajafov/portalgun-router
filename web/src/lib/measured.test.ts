@@ -143,10 +143,30 @@ describe('limiter results', () => {
   })
 })
 
+function failover(cell: string): FailoverSummary {
+  const s = stat(10)
+  return {
+    cell,
+    runs: 3,
+    invalidRuns: 0,
+    detected: 3,
+    moved: 3,
+    recovered: 3,
+    detectMs: s,
+    moveMs: s,
+    lost: s,
+    lostAfter: s,
+    p99BeforeMs: s,
+    p99FaultMs: s,
+    attemptsFault: s,
+    recoverMs: s,
+    falseEjections: s,
+  }
+}
+
 describe('failover results', () => {
   it('builds the fault by detection matrix', () => {
-    const f = (c: string) => ({ cell: c, runs: 3, invalidRuns: 0, lost: stat(10) }) as FailoverSummary
-    const rows = failoverMatrix([f('crash/both'), f('crash/both-retries'), f('slow/probes'), f('crash/both-retries-refused')])
+    const rows = failoverMatrix([failover('crash/both'), failover('crash/both-retries'), failover('slow/probes'), failover('crash/both-retries-refused')])
     expect(rows.map((r) => r.key)).toEqual(['crash', 'slow'])
     expect(rows[0]?.cells.map((c) => c?.cell)).toEqual([undefined, undefined, 'crash/both', 'crash/both-retries'])
   })
