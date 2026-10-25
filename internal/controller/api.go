@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -136,9 +137,9 @@ func (a *API) admin(next http.HandlerFunc) http.HandlerFunc {
 	return httpx.RequireBearer(a.token, adminOnly, next)
 }
 
-func uncounted(w http.ResponseWriter) {
-	w.Header().Set("Retry-After", fmt.Sprint(int(recountAfter.Seconds())))
-	httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{"error": ErrLimitUnchecked.Error(), "retryAfterSec": recountAfter.Seconds()})
+func retryLater(w http.ResponseWriter, status int, err error, wait time.Duration) {
+	w.Header().Set("Retry-After", strconv.Itoa(max(1, int(wait.Seconds()+0.5))))
+	httpx.WriteJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
 }
 
 func (a *API) putConfig(w http.ResponseWriter, r *http.Request) {
@@ -189,12 +190,11 @@ func (a *API) startRollout(w http.ResponseWriter, r *http.Request) {
 		}
 		exceeded, err := a.visitors.exceeded(r.Context(), a.visitors.client(r))
 		if err != nil {
-			uncounted(w)
+			retryLater(w, http.StatusServiceUnavailable, ErrLimitUnchecked, recountAfter)
 			return
 		}
 		if exceeded {
-			w.Header().Set("Retry-After", fmt.Sprint(int(time.Hour.Seconds())))
-			httpx.WriteJSON(w, http.StatusTooManyRequests, map[string]any{"error": ErrRolloutLimit.Error(), "retryAfterSec": time.Hour.Seconds()})
+			retryLater(w, http.StatusTooManyRequests, ErrRolloutLimit, time.Hour)
 			return
 		}
 	}
@@ -247,15 +247,12 @@ func (a *API) startChaos(w http.ResponseWriter, r *http.Request) {
 	}
 	run, wait, err := a.chaos.Start(r.Context(), req, authorized, client)
 	switch {
-	case errors.Is(err, ErrChaosBusy), errors.Is(err, ErrChaosCooldown), errors.Is(err, ErrChaosLimit):
-		w.Header().Set("Retry-After", fmt.Sprint(max(1, int(wait.Seconds()+0.5))))
-		status := http.StatusTooManyRequests
-		if errors.Is(err, ErrChaosBusy) {
-			status = http.StatusConflict
-		}
-		httpx.WriteJSON(w, status, map[string]any{"error": err.Error(), "retryAfterSec": wait.Seconds()})
+	case errors.Is(err, ErrChaosBusy):
+		retryLater(w, http.StatusConflict, err, wait)
+	case errors.Is(err, ErrChaosCooldown), errors.Is(err, ErrChaosLimit):
+		retryLater(w, http.StatusTooManyRequests, err, wait)
 	case errors.Is(err, ErrLimitUnchecked):
-		uncounted(w)
+		retryLater(w, http.StatusServiceUnavailable, ErrLimitUnchecked, recountAfter)
 	case errors.Is(err, ErrChaosFailed):
 		unavailable(w, a.logger, authorized, ErrChaosFailed, err, "mode", req.Mode, "target", req.Target)
 	case err != nil:
