@@ -1,23 +1,13 @@
 'use client'
 
 import { postJSON, useAction } from '@/lib/action'
+import { candidate, ROUTE } from '@/lib/canary'
 import { dimensionName, pct } from '@/lib/format'
 import type { LlrPoint } from '@/lib/live'
 import type { Merged, Outcome, PortalEvent, RolloutStatus } from '@/lib/types'
 import { LlrChart } from './LlrChart'
 
-export const ROUTE = 'portal'
-
 const outcomeLabel: Record<Outcome, string> = { promoted: 'promoted', rolled_back: 'rolled back', aborted: 'aborted' }
-
-export function candidate(latest: Merged | null): { stable?: string; canary?: string; target?: string; hosts: string[] } {
-  const route = latest?.routes[ROUTE]
-  const stable = route?.stable
-  const other = latest?.dimensions.find((d) => d.version !== stable)
-  const canary = route?.canary || other?.version
-  const hosts = (latest?.dimensions ?? []).filter((d) => d.version === canary).map((d) => d.id)
-  return { stable, canary, target: hosts[0], hosts }
-}
 
 export function CanaryPanel({
   latest,
@@ -35,7 +25,7 @@ export function CanaryPanel({
   const { busy, message, send } = useAction()
   const { stable, canary, target, hosts } = candidate(latest)
   const active = rollout?.active ? rollout : null
-  const lastDecision = [...events].reverse().find((e) => e.type === 'rollout')
+  const lastDecision = events.findLast((e) => e.type === 'rollout')
 
   return (
     <section className="panel flex flex-col gap-3 p-4">
