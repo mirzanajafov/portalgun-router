@@ -1,69 +1,78 @@
-export type Stat = { median: number; min: number; max: number }
+import { z } from 'zod'
 
-export type ProxyCell = {
-  system: string
-  rate: number
-  runs: number
-  saturated: number
-  died?: number
-  generatorIssues: number
-  p50Us: Stat
-  p99Us: Stat
-  p999Us: Stat
-  throughputRps: Stat
-  cpuPerRequestUs: Stat
-  userPerRequestUs: Stat
-  memoryPeakMb?: Stat
-  swapPeakMb?: Stat
-  overheadP50Us: number
-  overheadP99Us: number
-  collapsed?: number
-  goodputRps?: Stat
-  okP99Us?: Stat
-  shedShare?: Stat
-}
+const Stat = z.object({ median: z.number(), min: z.number(), max: z.number() })
+export type Stat = z.infer<typeof Stat>
 
-export type ProxyReport = { workload: string; cells: ProxyCell[]; maxRate: Record<string, number> }
+const ProxyCell = z.object({
+  system: z.string(),
+  rate: z.number(),
+  runs: z.number(),
+  saturated: z.number(),
+  died: z.number().optional(),
+  generatorIssues: z.number(),
+  p50Us: Stat,
+  p99Us: Stat,
+  p999Us: Stat,
+  throughputRps: Stat,
+  cpuPerRequestUs: Stat,
+  userPerRequestUs: Stat,
+  memoryPeakMb: Stat.optional(),
+  swapPeakMb: Stat.optional(),
+  overheadP50Us: z.number(),
+  overheadP99Us: z.number(),
+  collapsed: z.number().optional(),
+  goodputRps: Stat.optional(),
+  okP99Us: Stat.optional(),
+  shedShare: Stat.optional(),
+})
+export type ProxyCell = z.infer<typeof ProxyCell>
 
-export type LimiterSummary = {
-  cell: string
-  baseline?: string
-  runs: number
-  invalidRuns: number
-  p50Us: Stat
-  p99Us: Stat
-  addedP50Us?: Stat
-  addedP99Us?: Stat
-  overAdmission: Stat
-  maxAhead: Stat
-  maxBehind: Stat
-  worstRatio: Stat
-  falseAdmits: Stat
-  falseRejects: Stat
-  redisRoundTripsPerRequest: Stat
-  redisCommandsPerRequest: Stat
-  redisCpuPerRequestUs: Stat
-  degraded: Stat
-  droppedDecisions: number
-}
+export const ProxyReport = z.object({ workload: z.string(), cells: z.array(ProxyCell), maxRate: z.record(z.string(), z.number()) })
+export type ProxyReport = z.infer<typeof ProxyReport>
 
-export type FailoverSummary = {
-  cell: string
-  runs: number
-  invalidRuns: number
-  detected: number
-  moved: number
-  recovered: number
-  detectMs: Stat
-  moveMs: Stat
-  lost: Stat
-  lostAfter: Stat
-  p99BeforeMs: Stat
-  p99FaultMs: Stat
-  attemptsFault: Stat
-  recoverMs: Stat
-  falseEjections: Stat
-}
+const LimiterSummary = z.object({
+  cell: z.string(),
+  baseline: z.string().optional(),
+  runs: z.number(),
+  invalidRuns: z.number(),
+  p50Us: Stat,
+  p99Us: Stat,
+  addedP50Us: Stat.optional(),
+  addedP99Us: Stat.optional(),
+  overAdmission: Stat,
+  maxAhead: Stat,
+  maxBehind: Stat,
+  worstRatio: Stat,
+  falseAdmits: Stat,
+  falseRejects: Stat,
+  redisRoundTripsPerRequest: Stat,
+  redisCommandsPerRequest: Stat,
+  redisCpuPerRequestUs: Stat,
+  degraded: Stat,
+  droppedDecisions: z.number(),
+})
+export type LimiterSummary = z.infer<typeof LimiterSummary>
+export const LimiterSummaries = z.array(LimiterSummary)
+
+const FailoverSummary = z.object({
+  cell: z.string(),
+  runs: z.number(),
+  invalidRuns: z.number(),
+  detected: z.number(),
+  moved: z.number(),
+  recovered: z.number(),
+  detectMs: Stat,
+  moveMs: Stat,
+  lost: Stat,
+  lostAfter: Stat,
+  p99BeforeMs: Stat,
+  p99FaultMs: Stat,
+  attemptsFault: Stat,
+  recoverMs: Stat,
+  falseEjections: Stat,
+})
+export type FailoverSummary = z.infer<typeof FailoverSummary>
+export const FailoverSummaries = z.array(FailoverSummary)
 
 export const PROXIES: { key: string; label: string }[] = [
   { key: 'stdlib', label: 'Go httputil.ReverseProxy' },
@@ -178,25 +187,28 @@ export function failoverMatrix(sums: FailoverSummary[]): FailoverRow[] {
   }))
 }
 
-type RegistryTimes = {
-  registerMs?: Stat
-  joinMs?: Stat
-  gatewaysMs?: Stat
-  leaveGatewaysMs?: Stat
-  killToFirstMs?: Stat
-}
+const RegistryTimes = z.object({
+  registerMs: Stat.optional(),
+  joinMs: Stat.optional(),
+  gatewaysMs: Stat.optional(),
+  leaveGatewaysMs: Stat.optional(),
+  killToFirstMs: Stat.optional(),
+})
+type RegistryTimes = z.infer<typeof RegistryTimes>
 
-export type RegistrySummary = RegistryTimes & {
-  cell: string
-  runs: number
-  failed: number
-  invalid: number
-  requests: number
-  dropped: number
-  lost: number
-  registryVersions: number
-  lostRegistrations: number
-}
+const RegistrySummary = RegistryTimes.extend({
+  cell: z.string(),
+  runs: z.number(),
+  failed: z.number(),
+  invalid: z.number(),
+  requests: z.number(),
+  dropped: z.number(),
+  lost: z.number(),
+  registryVersions: z.number(),
+  lostRegistrations: z.number(),
+})
+export type RegistrySummary = z.infer<typeof RegistrySummary>
+export const RegistrySummaries = z.array(RegistrySummary)
 
 const REGISTRY_CASES: { key: string; label: string }[] = [
   { key: 'join', label: 'A fifth dimension joins, then leaves' },

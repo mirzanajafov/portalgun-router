@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { GATEWAY, VISITOR_COOKIE } from '@/lib/server'
+import type { Burst } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,5 +42,5 @@ export async function POST() {
     limited: count((s) => s === 429),
     failed: count((s) => s === 0 || s >= 500),
     ms: Math.round(performance.now() - began),
-  })
+  } satisfies Burst)
 }

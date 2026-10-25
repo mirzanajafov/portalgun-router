@@ -123,8 +123,8 @@ describe('panels', () => {
   it('keeps the bounds of the evidence chart in view', () => {
     const { y } = scale(
       [
-        { t: 1, errors: 0, slow: 0, step: 0 },
-        { t: 2, errors: 40, slow: -50, step: 0 },
+        { t: 1, errors: 0, slow: 0, step: 0, rollout: 'ro-1' },
+        { t: 2, errors: 40, slow: -50, step: 0, rollout: 'ro-1' },
       ],
       -3,
       6,

@@ -1,102 +1,129 @@
-export type VersionCounts = { attempts: number; errors: number; slow: number }
+import { z } from 'zod'
 
-export type RouteSnapshot = {
-  requests: number
-  limited: number
-  failed: number
-  stable?: string
-  canary?: string
-  weight: number
-  rollout?: string
-  versions: [VersionCounts, VersionCounts]
-  slowThresholdMs: number
-  brake?: boolean
-}
+const VersionCounts = z.object({ attempts: z.number(), errors: z.number(), slow: z.number() })
 
-export type OutlierState = 'closed' | 'ejected' | 'half-open' | 'disabled'
+const RouteSnapshot = z.object({
+  requests: z.number(),
+  limited: z.number(),
+  failed: z.number(),
+  stable: z.string().optional(),
+  canary: z.string().optional(),
+  weight: z.number(),
+  rollout: z.string().optional(),
+  versions: z.tuple([VersionCounts, VersionCounts]),
+  slowThresholdMs: z.number(),
+  brake: z.boolean().optional(),
+})
 
-export type DimensionSnapshot = {
-  id: string
-  version: string
-  attempts: number
-  errors: number
-  p50Ms: number
-  p99Ms: number
-  inflight: number
-  healthy: boolean
-  outlier: OutlierState
-  ejectedForMs?: number
-}
+const DimensionSnapshot = z.object({
+  id: z.string(),
+  version: z.string(),
+  attempts: z.number(),
+  errors: z.number(),
+  p50Ms: z.number(),
+  p99Ms: z.number(),
+  inflight: z.number(),
+  healthy: z.boolean(),
+  outlier: z.enum(['closed', 'ejected', 'half-open', 'disabled']),
+  ejectedForMs: z.number().optional(),
+})
+export type DimensionSnapshot = z.infer<typeof DimensionSnapshot>
 
-export type Merged = {
-  second: number
-  instances: string[]
-  configVersions: Record<string, number>
-  routes: Record<string, RouteSnapshot>
-  dimensions: DimensionSnapshot[]
-}
+const Merged = z.object({
+  second: z.number(),
+  instances: z.array(z.string()),
+  configVersions: z.record(z.string(), z.number()),
+  routes: z.record(z.string(), RouteSnapshot),
+  dimensions: z.array(DimensionSnapshot),
+})
+export type Merged = z.infer<typeof Merged>
 
-export type Step = {
-  step: number
-  weight: number
-  startedAt: string
-  endedAt?: string
-  decision?: string
-  reason?: string
-  llrErrors: number
-  llrSlow: number
-  stableRequests: number
-  canaryRequests: number
-  stableErrors: number
-  canaryErrors: number
-}
+const Step = z.object({
+  step: z.number(),
+  weight: z.number(),
+  startedAt: z.string(),
+  endedAt: z.string().optional(),
+  decision: z.enum(['promote', 'rollback']).optional(),
+  reason: z.string().optional(),
+  llrErrors: z.number(),
+  llrSlow: z.number(),
+  stableRequests: z.number(),
+  canaryRequests: z.number(),
+  stableErrors: z.number(),
+  canaryErrors: z.number(),
+})
 
-export type Rollout = {
-  id: string
-  route: string
-  stable: string
-  canary: string
-  startedAt: string
-  finishedAt?: string
-  outcome?: Outcome
-  reason?: string
-  steps: Step[] | null
-}
+const Outcome = z.enum(['promoted', 'rolled_back', 'aborted'])
+export type Outcome = z.infer<typeof Outcome>
 
-export type Outcome = 'promoted' | 'rolled_back' | 'aborted'
+const Rollout = z.object({
+  id: z.string(),
+  route: z.string(),
+  stable: z.string(),
+  canary: z.string(),
+  startedAt: z.string(),
+  finishedAt: z.string().optional(),
+  outcome: Outcome.optional(),
+  reason: z.string().optional(),
+  steps: z.array(Step).optional(),
+})
 
-export type RolloutStatus = {
-  active: boolean
-  rollout?: Rollout
-  step?: Step
-  steps: number[]
-  dataSec: number
-  llrErrors: number
-  llrSlow: number
-  lower: number
-  upper: number
-  pending?: Outcome
-}
+const RolloutStatus = z.object({
+  active: z.boolean(),
+  rollout: Rollout.optional(),
+  step: Step.optional(),
+  steps: z.array(z.number()),
+  dataSec: z.number(),
+  llrErrors: z.number(),
+  llrSlow: z.number(),
+  lower: z.number(),
+  upper: z.number(),
+  pending: Outcome.optional(),
+})
+export type RolloutStatus = z.infer<typeof RolloutStatus>
 
-export type Fault = { mode: string; target: string; latency?: number; errorRate?: number; period?: number }
+const Actor = z.enum(['bootstrap', 'admin', 'visitor', 'controller', 'registry'])
 
-export type Running = { fault: Fault; actor: string; startedAt: string; until: string }
+const Fault = z.object({
+  mode: z.enum(['crash', 'reset', 'blackhole', 'slow', 'partial', 'flapping']),
+  target: z.string(),
+  latency: z.number().optional(),
+  errorRate: z.number().optional(),
+  period: z.number().optional(),
+})
 
-export type Incident = {
-  fault: Fault
-  actor: string
-  injectedAt: string
-  clearedAt?: string
-  detectedAfterSec?: number
-  movedAfterSec?: number
-  lostRequests: number
-  closed: boolean
-}
+const Running = z.object({ fault: Fault, actor: Actor, startedAt: z.string(), until: z.string() })
 
-export type ChaosView = { current: Running | null; cooldownSec: number; targets: string[] | null; incidents: Incident[] | null }
+const Incident = z.object({
+  fault: Fault,
+  actor: Actor,
+  injectedAt: z.string(),
+  clearedAt: z.string().optional(),
+  detectedAfterSec: z.number().optional(),
+  movedAfterSec: z.number().optional(),
+  lostRequests: z.number(),
+  closed: z.boolean(),
+})
 
-export type PortalEvent = { type: string; at: string; message: string }
+const ChaosView = z.object({ current: Running.nullable(), cooldownSec: z.number(), targets: z.array(z.string()), incidents: z.array(Incident) })
+export type ChaosView = z.infer<typeof ChaosView>
 
-export type Tick = { latest: Merged; rollout: RolloutStatus; viewers: number; chaos?: ChaosView }
+export const PortalEvent = z.object({ type: z.enum(['config', 'chaos', 'rollout']), at: z.string(), message: z.string(), actor: Actor.optional() })
+export type PortalEvent = z.infer<typeof PortalEvent>
 
-export type State = { configVersion: number; latest: Merged | null; rollout: RolloutStatus; viewers: number; events: PortalEvent[] | null }
+export const Tick = z.object({ latest: Merged, rollout: RolloutStatus, viewers: z.number(), chaos: ChaosView.optional() })
+
+export const State = z.object({
+  configVersion: z.number(),
+  latest: Merged.nullable(),
+  rollout: RolloutStatus,
+  viewers: z.number(),
+  events: z.array(PortalEvent),
+})
+
+export const Session = z.object({ admin: z.boolean() })
+
+export const Burst = z.object({ sent: z.number(), allowed: z.number(), limited: z.number(), failed: z.number(), ms: z.number() })
+export type Burst = z.infer<typeof Burst>
+
+export const Refusal = z.object({ error: z.string() })

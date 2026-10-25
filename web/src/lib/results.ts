@@ -1,42 +1,53 @@
 import 'server-only'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { z, type ZodType } from 'zod'
 
-export type PolicyResult = {
-  policy: string
-  trials: number
-  rollbacks: number
-  rollbackRate: number
-  ciLow: number
-  ciHigh: number
-  medianRollbackSec: number
-  medianPromoteSec: number
-  meanCanaryErrors: number
-}
+const PolicyResult = z.object({
+  policy: z.string(),
+  trials: z.number(),
+  rollbacks: z.number(),
+  rollbackRate: z.number(),
+  ciLow: z.number(),
+  ciHigh: z.number(),
+  medianRollbackSec: z.number(),
+  medianPromoteSec: z.number(),
+  meanCanaryErrors: z.number(),
+})
 
-export type Cell = {
-  group: string
-  baseError: number
-  share: number
-  rho: number
-  totalFailure?: boolean
-  canarySlow: number
-  blip?: boolean
-  rps: number
-  trials: number
-}
+const CellResult = z.object({
+  cell: z.object({
+    group: z.string(),
+    baseError: z.number(),
+    share: z.number(),
+    rho: z.number(),
+    totalFailure: z.boolean().optional(),
+    canarySlow: z.number(),
+    blip: z.boolean().optional(),
+    rps: z.number(),
+    trials: z.number(),
+  }),
+  policies: z.array(PolicyResult),
+})
+export type CellResult = z.infer<typeof CellResult>
 
-export type CellResult = { cell: Cell; policies: PolicyResult[] }
+const SimFile = z.object({ cells: z.array(CellResult) })
 
-export type SimResults = { name: string; config: Record<string, unknown>; cells: CellResult[] }
+export type SimResults = z.infer<typeof SimFile> & { name: string }
 
-export function resultsDir(): string {
+function resultsDir(): string {
   return process.env.RESULTS_DIR ?? path.join(process.cwd(), '..', 'bench', 'results')
+}
+
+function read<T>(file: string, schema: ZodType<T>): T {
+  const parsed = schema.safeParse(JSON.parse(readFileSync(file, 'utf8')))
+  if (!parsed.success) throw new Error(`${file} is not what the Results page reads:\n${z.prettifyError(parsed.error)}`)
+  return parsed.data
 }
 
 export type Run<T> = { name: string; summary: T }
 
-export function latestRun<T>(experiment: string): Run<T> | null {
+export function latestRun<T>(experiment: string, schema: ZodType<T>): Run<T> | null {
   const dir = path.join(resultsDir(), experiment)
   let names: string[]
   try {
@@ -46,7 +57,7 @@ export function latestRun<T>(experiment: string): Run<T> | null {
   }
   const name = names.find((n) => existsSync(path.join(dir, n, 'summary.json')))
   if (!name) return null
-  return { name, summary: JSON.parse(readFileSync(path.join(dir, name, 'summary.json'), 'utf8')) as T }
+  return { name, summary: read(path.join(dir, name, 'summary.json'), schema) }
 }
 
 export function latestSim(): SimResults | null {
@@ -61,8 +72,7 @@ export function latestSim(): SimResults | null {
   }
   const name = runs.at(-1)
   if (!name) return null
-  const raw = JSON.parse(readFileSync(path.join(dir, name, 'results.json'), 'utf8'))
-  return { name, config: raw.config, cells: raw.cells }
+  return { name, ...read(path.join(dir, name, 'results.json'), SimFile) }
 }
 
 export function aaRange(cells: CellResult[], policy: string): [number, number] {

@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { ChaosView, Merged, PortalEvent, RolloutStatus, State, Tick } from './types'
+import type { ZodType } from 'zod'
+import { PortalEvent, State, Tick, type ChaosView, type Merged, type RolloutStatus } from './types'
 
-export type LlrPoint = { t: number; errors: number; slow: number; step: number }
+export type LlrPoint = { t: number; errors: number; slow: number; step: number; rollout: string }
 
 export type Live = {
   connected: boolean
@@ -30,11 +31,18 @@ export function appendHistory(history: Record<string, number[]>, m: Merged): Rec
 }
 
 export function appendLlr(points: LlrPoint[], r: RolloutStatus, second: number): LlrPoint[] {
-  if (!r.active || !r.step) return points
-  const key = r.rollout?.id
-  const kept = points.length && points[0] && key && (points as (LlrPoint & { id?: string })[])[0].id !== key ? [] : points
-  const p = { t: second, errors: r.llrErrors, slow: r.llrSlow, step: r.step.step, id: key }
-  return [...kept.slice(-(LLR_POINTS - 1)), p]
+  if (!r.active || !r.step || !r.rollout) return points
+  const rollout = r.rollout.id
+  const kept = points[0]?.rollout === rollout ? points : []
+  return [...kept.slice(-(LLR_POINTS - 1)), { t: second, errors: r.llrErrors, slow: r.llrSlow, step: r.step.step, rollout }]
+}
+
+function listen<T>(source: EventSource, type: string, schema: ZodType<T>, apply: (value: T) => void) {
+  source.addEventListener(type, (e: MessageEvent<string>) => {
+    const parsed = schema.safeParse(JSON.parse(e.data))
+    if (parsed.success) apply(parsed.data)
+    else console.error(`the controller sent a ${type} event the dashboard cannot read`, parsed.error)
+  })
 }
 
 export function useLive(): Live {
@@ -62,12 +70,10 @@ export function useLive(): Live {
         retry.current = 1000
         setLive((l) => ({ ...l, connected: true }))
       }
-      source.addEventListener('state', (e) => {
-        const s = JSON.parse((e as MessageEvent).data) as State
-        setLive((l) => ({ ...l, rollout: s.rollout, viewers: s.viewers, latest: s.latest ?? l.latest, configVersion: s.configVersion, events: s.events ?? [] }))
+      listen(source, 'state', State, (s) => {
+        setLive((l) => ({ ...l, rollout: s.rollout, viewers: s.viewers, latest: s.latest ?? l.latest, configVersion: s.configVersion, events: s.events }))
       })
-      source.addEventListener('tick', (e) => {
-        const t = JSON.parse((e as MessageEvent).data) as Tick
+      listen(source, 'tick', Tick, (t) => {
         setLive((l) => ({
           ...l,
           latest: t.latest,
@@ -78,8 +84,7 @@ export function useLive(): Live {
           llr: appendLlr(l.llr, t.rollout, t.latest.second),
         }))
       })
-      source.addEventListener('event', (e) => {
-        const ev = JSON.parse((e as MessageEvent).data) as PortalEvent
+      listen(source, 'event', PortalEvent, (ev) => {
         setLive((l) => (l.events.some((x) => x.at === ev.at && x.message === ev.message) ? l : { ...l, events: [...l.events.slice(-49), ev] }))
       })
       source.onerror = () => {
