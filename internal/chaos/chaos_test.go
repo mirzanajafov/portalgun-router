@@ -231,9 +231,12 @@ func TestFlappingTogglesUntilCleared(t *testing.T) {
 	if err := in.Inject(context.Background(), f); err == nil {
 		t.Fatal("second flapping on the same target accepted")
 	}
-	time.Sleep(350 * time.Millisecond)
-	if downs, ups := fake.toggles("dim-a"); downs < 2 || ups < 1 {
-		t.Fatalf("downs %d ups %d", downs, ups)
+	deadline := time.Now().Add(2 * time.Second)
+	for downs, ups := fake.toggles("dim-a"); downs < 2 || ups < 1; downs, ups = fake.toggles("dim-a") {
+		if time.Now().After(deadline) {
+			t.Fatalf("downs %d ups %d", downs, ups)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if err := in.Clear(context.Background(), f); err != nil {
 		t.Fatal(err)

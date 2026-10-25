@@ -248,12 +248,12 @@ func capped(t *testing.T, limit int, addr string) *config.Config {
 	})
 }
 
-func waitHeld(t *testing.T, g *Gateway, n int64) {
+func waitHeld(t *testing.T, g *Gateway, h *holding, n int64) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
-	for g.State().Inflight < n {
+	for g.State().Inflight < n || h.now.Load() < n {
 		if time.Now().After(deadline) {
-			t.Fatalf("the gateway holds %d requests, want %d", g.State().Inflight, n)
+			t.Fatalf("the gateway holds %d requests and the dimension %d, want %d", g.State().Inflight, h.now.Load(), n)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -270,7 +270,7 @@ func TestGatewayShedsPastItsCap(t *testing.T) {
 			}
 		})
 	}
-	waitHeld(t, g, 2)
+	waitHeld(t, g, h, 2)
 
 	seen := h.seen.Load()
 	began := time.Now()
@@ -352,7 +352,7 @@ func TestGatewayCapFollowsTheConfig(t *testing.T) {
 			resp.Body.Close()
 		}
 	}()
-	waitHeld(t, g, 1)
+	waitHeld(t, g, h, 1)
 	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusServiceUnavailable {
 		t.Fatalf("got %d at a cap of 1, want 503", status)
 	}

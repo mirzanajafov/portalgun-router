@@ -96,14 +96,13 @@ func TestWatcherReactsToTheChannel(t *testing.T) {
 	ctx := t.Context()
 	target := &fakeTarget{}
 	go NewWatcher(rdb, target, quiet(), time.Hour).Run(ctx)
-	time.Sleep(100 * time.Millisecond)
-	if err := PublishConfig(ctx, rdb, Envelope{Version: 1, Config: json.RawMessage(cfgJSON)}); err != nil {
-		t.Fatal(err)
-	}
 	deadline := time.Now().Add(2 * time.Second)
 	for target.count() == 0 {
 		if time.Now().After(deadline) {
 			t.Fatal("the change notification was not acted on")
+		}
+		if err := PublishConfig(ctx, rdb, Envelope{Version: 1, Config: json.RawMessage(cfgJSON)}); err != nil {
+			t.Fatal(err)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
