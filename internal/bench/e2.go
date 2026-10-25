@@ -238,7 +238,8 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 	if err != nil {
 		return "", err
 	}
-	most, byFile := 0, map[string]any{}
+	most := 0
+	byFile := map[string]any{}
 	for _, c := range plan.Cells {
 		most = max(most, c.Instances)
 		byFile[c.file()] = c.Config()
@@ -247,11 +248,11 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 	if err != nil {
 		return "", err
 	}
-	compose := r.Compose.with("E2_CONFIGS="+configs, "E2_CELL="+plan.Cells[0].file())
+	compose := r.Compose.withEnv("E2_CONFIGS="+configs, "E2_CELL="+plan.Cells[0].file())
 	if most > 2 {
-		compose = compose.with("COMPOSE_PROFILES=four")
+		compose = compose.withEnv("COMPOSE_PROFILES=four")
 	}
-	down, err := r.up(ctx, compose, "the limiter stack")
+	down, err := r.startStack(ctx, compose, "the limiter stack")
 	if err != nil {
 		return "", err
 	}
@@ -286,7 +287,7 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 }
 
 func (r *Runner) limiterCell(ctx context.Context, compose Compose, c LimiterCell, rep, slot int) (LimiterRun, error) {
-	compose = compose.with("E2_CELL=" + c.file())
+	compose = compose.withEnv("E2_CELL=" + c.file())
 	gws := gatewayNames(c.Instances)
 	if _, err := compose.run(ctx, append([]string{"up", "-d", "--force-recreate", "--no-deps"}, gws...)...); err != nil {
 		return LimiterRun{}, err

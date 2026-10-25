@@ -18,7 +18,7 @@ type Compose struct {
 	Env  []string
 }
 
-func (c Compose) with(env ...string) Compose {
+func (c Compose) withEnv(env ...string) Compose {
 	c.Env = append(slices.Clone(c.Env), env...)
 	return c
 }
@@ -58,7 +58,7 @@ func (c Compose) Down(ctx context.Context) error {
 	return err
 }
 
-func (r *Runner) up(ctx context.Context, compose Compose, what string) (func(), error) {
+func (r *Runner) startStack(ctx context.Context, compose Compose, what string) (func(), error) {
 	r.Log.Printf("starting %s", what)
 	if err := compose.Up(ctx); err != nil {
 		return nil, err

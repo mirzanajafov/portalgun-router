@@ -92,7 +92,7 @@ func (r *Runner) RunE5(ctx context.Context, plan RegistryPlan) (dir string, err 
 	if plan.ImageCommit == "" {
 		r.Log.Printf("FF_COMMIT is not set, so the results won't say which FiveFamilies commit %s was built from", plan.Image)
 	}
-	compose := r.Compose.with("FF_IMAGE=" + plan.Image)
+	compose := r.Compose.withEnv("FF_IMAGE=" + plan.Image)
 	down := func(ctx context.Context) error {
 		_, err := compose.run(ctx, "--profile", "join", "down", "-v", "--remove-orphans")
 		return err

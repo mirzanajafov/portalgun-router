@@ -58,7 +58,7 @@ func main() {
 	if controlToken == "" {
 		logger.Warn("no control token, so the control port answers only /ready")
 	}
-	o := options{id: *id, version: *version, addr: *addr, control: control, controlToken: controlToken, behavior: b, keep: keep}
+	o := options{id: *id, version: *version, addr: *addr, controlListener: control, controlToken: controlToken, behavior: b, keep: keep}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err = run(ctx, logger, o)
 	stop()
@@ -110,7 +110,7 @@ const leaveDrain = time.Second
 
 type options struct {
 	id, version, addr string
-	control           net.Listener
+	controlListener   net.Listener
 	controlToken      string
 	behavior          dimension.Behavior
 	keep              func(context.Context, func(bool))
@@ -119,11 +119,11 @@ type options struct {
 func run(ctx context.Context, logger *slog.Logger, o options) error {
 	s, err := dimension.New(o.id, o.version, o.behavior)
 	if err != nil {
-		o.control.Close()
+		o.controlListener.Close()
 		return err
 	}
 	if err := s.Listen(o.addr); err != nil {
-		o.control.Close()
+		o.controlListener.Close()
 		return err
 	}
 	kctx, stopKeeping := context.WithCancel(ctx)
@@ -143,8 +143,8 @@ func run(ctx context.Context, logger *slog.Logger, o options) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
-	go func() { errc <- control.Serve(o.control) }()
-	logger.Info("dimension up", "id", o.id, "version", o.version, "addr", s.Addr(), "control", o.control.Addr().String())
+	go func() { errc <- control.Serve(o.controlListener) }()
+	logger.Info("dimension up", "id", o.id, "version", o.version, "addr", s.Addr(), "control", o.controlListener.Addr().String())
 
 	select {
 	case <-ctx.Done():

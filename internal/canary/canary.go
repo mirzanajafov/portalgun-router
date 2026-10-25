@@ -94,6 +94,14 @@ func (s *SPRT) Verdict() Verdict {
 	return Continue
 }
 
+const (
+	DefaultAlpha   = 0.01
+	DefaultBeta    = 0.05
+	DefaultRho     = 2
+	DefaultMinStep = 30 * time.Second
+	DefaultMaxStep = 5 * time.Minute
+)
+
 type Sequential struct {
 	errors      *SPRT
 	slow        *SPRT
@@ -162,14 +170,6 @@ type Hybrid struct {
 	errs *FixedHorizon
 	slow *FixedHorizon
 }
-
-const (
-	DefaultAlpha   = 0.01
-	DefaultBeta    = 0.05
-	DefaultRho     = 2
-	DefaultMinStep = 30 * time.Second
-	DefaultMaxStep = 5 * time.Minute
-)
 
 func NewHybrid(alpha, beta, rho float64, minStep time.Duration) *Hybrid {
 	return &Hybrid{

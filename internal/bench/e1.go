@@ -175,8 +175,8 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 	if err != nil {
 		return "", err
 	}
-	compose := r.Compose.with(plan.Workload.env()...)
-	down, err := r.up(ctx, compose, "the stack for "+plan.Workload.Name)
+	compose := r.Compose.withEnv(plan.Workload.env()...)
+	down, err := r.startStack(ctx, compose, "the stack for "+plan.Workload.Name)
 	if err != nil {
 		return "", err
 	}
@@ -222,7 +222,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 				if l, ok := limit[sys.Name]; ok && rate > l && !plan.Overload {
 					continue
 				}
-				saturated, err := r.points(ctx, compose, plan, sys, rate, rep, slot, func(p Point) error {
+				saturated, err := r.saturates(ctx, compose, plan, sys, rate, rep, slot, func(p Point) error {
 					if err := enc.Encode(p); err != nil {
 						return err
 					}
@@ -242,7 +242,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 	return dir, nil
 }
 
-func (r *Runner) points(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int, record func(Point) error) (saturated bool, err error) {
+func (r *Runner) saturates(ctx context.Context, compose Compose, plan Plan, sys System, rate float64, rep, slot int, record func(Point) error) (bool, error) {
 	confirmations := []bool{false, true}
 	if plan.Overload {
 		confirmations = confirmations[:1]
