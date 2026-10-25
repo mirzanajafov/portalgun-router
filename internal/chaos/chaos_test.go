@@ -231,18 +231,20 @@ func TestFlappingTogglesUntilCleared(t *testing.T) {
 	if err := in.Inject(context.Background(), f); err == nil {
 		t.Fatal("second flapping on the same target accepted")
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for downs, ups := fake.toggles("dim-a"); downs < 2 || ups < 1; downs, ups = fake.toggles("dim-a") {
-		if time.Now().After(deadline) {
-			t.Fatalf("downs %d ups %d", downs, ups)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitFor(t, func() bool {
+		downs, ups := fake.toggles("dim-a")
+		return downs >= 2 && ups >= 1
+	})
 	if err := in.Clear(context.Background(), f); err != nil {
 		t.Fatal(err)
 	}
 	if on, _ := fake.state("dim-a"); !on {
 		t.Fatal("proxy left down after flapping")
+	}
+	downs, ups := fake.toggles("dim-a")
+	time.Sleep(3 * f.Period)
+	if d, u := fake.toggles("dim-a"); d != downs || u != ups {
+		t.Fatalf("still flapping after the clear: %d downs and %d ups, then %d and %d", downs, ups, d, u)
 	}
 }
 
@@ -310,5 +312,16 @@ func TestABlackholeThatFailsHalfwayTakesBackItsFirstToxic(t *testing.T) {
 	}
 	if _, names := fake.state("dim-a"); slices.Contains(names, "blackhole-upstream") {
 		t.Fatalf("the half that took effect is still there: %v", names)
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("condition not reached in time")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
