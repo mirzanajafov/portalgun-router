@@ -25,6 +25,19 @@ type Limiter interface {
 
 type Clock func() int64
 
+type Options struct {
+	Rule         Rule
+	Instances    int
+	Now          Clock
+	Redis        Pipeliner
+	Prefix       string
+	InstanceName string
+	RedisTimeout time.Duration
+	SyncInterval time.Duration
+	LeaseTarget  time.Duration
+	LeaseTTL     time.Duration
+}
+
 func split(rule Rule, instances int) Rule {
 	n := float64(max(instances, 1))
 	return Rule{Rate: rule.Rate / n, Burst: max(1, rule.Burst/n)}

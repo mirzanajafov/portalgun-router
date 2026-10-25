@@ -3,10 +3,12 @@ package limit
 import (
 	"context"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type exact struct {
-	rdb       Redis
+	rdb       redis.Scripter
 	prefix    string
 	interval  float64
 	tolerance float64
@@ -17,20 +19,20 @@ type exact struct {
 	debts     *ledger
 }
 
-func NewRedisExact(rdb Redis, prefix string, rule Rule, instances int, timeout time.Duration, now Clock) (Limiter, error) {
-	if err := validate(rule); err != nil {
+func NewRedisExact(o Options) (Limiter, error) {
+	if err := validate(o.Rule); err != nil {
 		return nil, err
 	}
-	interval := usPerToken(rule.Rate)
+	interval := usPerToken(o.Rule.Rate)
 	return &exact{
-		rdb:       rdb,
-		prefix:    prefix,
+		rdb:       o.Redis,
+		prefix:    o.Prefix,
 		interval:  interval,
-		tolerance: interval * rule.Burst,
-		timeout:   timeout,
-		fallback:  NewBuckets(split(rule, instances)),
-		now:       now,
-		guard:     newBreaker(now),
+		tolerance: interval * o.Rule.Burst,
+		timeout:   o.RedisTimeout,
+		fallback:  NewBuckets(split(o.Rule, o.Instances)),
+		now:       o.Now,
+		guard:     newBreaker(o.Now),
 		debts:     &ledger{},
 	}, nil
 }

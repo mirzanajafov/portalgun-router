@@ -9,12 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type Redis interface {
-	redis.Scripter
-}
-
 type Pipeliner interface {
-	Redis
+	redis.Scripter
 	Pipeline() redis.Pipeliner
 }
 

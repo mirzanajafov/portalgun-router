@@ -39,21 +39,21 @@ type localSync struct {
 	done     chan struct{}
 }
 
-func NewLocalSync(rdb Pipeliner, prefix string, rule Rule, instances int, instance string, interval, timeout time.Duration, now Clock) (Limiter, error) {
-	if err := validate(rule); err != nil {
+func NewLocalSync(o Options) (Limiter, error) {
+	if err := validate(o.Rule); err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &localSync{
-		rdb:       rdb,
-		prefix:    prefix,
-		rule:      rule,
-		instances: max(instances, 1),
-		instance:  instance,
-		interval:  interval,
-		timeout:   max(timeout, interval/2),
-		fallback:  NewBuckets(split(rule, instances)),
-		now:       now,
+		rdb:       o.Redis,
+		prefix:    o.Prefix,
+		rule:      o.Rule,
+		instances: max(o.Instances, 1),
+		instance:  o.InstanceName,
+		interval:  o.SyncInterval,
+		timeout:   max(o.RedisTimeout, o.SyncInterval/2),
+		fallback:  NewBuckets(split(o.Rule, o.Instances)),
+		now:       o.Now,
 		keys:      map[string]*syncKey{},
 		cancel:    cancel,
 		done:      make(chan struct{}),

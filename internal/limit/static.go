@@ -7,8 +7,8 @@ type static struct {
 	now     Clock
 }
 
-func NewStatic(rule Rule, instances int, now Clock) Limiter {
-	return &static{buckets: NewBuckets(split(rule, instances)), now: now}
+func NewStatic(o Options) Limiter {
+	return &static{buckets: NewBuckets(split(o.Rule, o.Instances)), now: o.Now}
 }
 
 func (s *static) Allow(_ context.Context, key string) Decision {

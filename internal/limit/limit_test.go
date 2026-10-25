@@ -55,7 +55,7 @@ func TestBucketsForgetFullBuckets(t *testing.T) {
 
 func TestStaticSplitDividesTheRule(t *testing.T) {
 	var clk fakeClock
-	l := NewStatic(Rule{Rate: 100, Burst: 10}, 2, clk.now)
+	l := NewStatic(Options{Rule: Rule{Rate: 100, Burst: 10}, Instances: 2, Now: clk.now})
 	allowed := 0
 	for range 20 {
 		if l.Allow(context.Background(), "k").Allowed {
@@ -91,8 +91,8 @@ func TestRedisExactIsSharedAndExact(t *testing.T) {
 	rdb := testRedis(t)
 	p := prefix(t)
 	rule := Rule{Rate: 10, Burst: 20}
-	a, _ := NewRedisExact(rdb, p, rule, 2, time.Second, wall)
-	b, _ := NewRedisExact(rdb, p, rule, 2, time.Second, wall)
+	a, _ := NewRedisExact(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, RedisTimeout: time.Second, Now: wall})
+	b, _ := NewRedisExact(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, RedisTimeout: time.Second, Now: wall})
 	allowed := 0
 	for i := range 60 {
 		l := a
@@ -123,7 +123,7 @@ func TestRedisExactIsSharedAndExact(t *testing.T) {
 func TestRedisExactFallsBackWhenRedisIsGone(t *testing.T) {
 	dead := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: 50 * time.Millisecond, MaxRetries: -1})
 	defer dead.Close()
-	l, _ := NewRedisExact(dead, "x:", Rule{Rate: 10, Burst: 4}, 2, 20*time.Millisecond, wall)
+	l, _ := NewRedisExact(Options{Redis: dead, Prefix: "x:", Rule: Rule{Rate: 10, Burst: 4}, Instances: 2, RedisTimeout: 20 * time.Millisecond, Now: wall})
 	allowed := 0
 	for range 10 {
 		d := l.Allow(context.Background(), "k")
@@ -176,8 +176,8 @@ func TestRedisLimitersGiveUpOnARedisThatNeverAnswers(t *testing.T) {
 		t.Fatalf("%d connections opened ahead of the first call, want %d", n, opts.MinIdleConns)
 	}
 	rule := Rule{Rate: 10, Burst: 4}
-	e, _ := NewRedisExact(rdb, "x:", rule, 2, 5*time.Millisecond, wall)
-	l, _ := NewLease(rdb, "y:", rule, 2, 20*time.Millisecond, time.Second, 5*time.Millisecond, wall)
+	e, _ := NewRedisExact(Options{Redis: rdb, Prefix: "x:", Rule: rule, Instances: 2, RedisTimeout: 5 * time.Millisecond, Now: wall})
+	l, _ := NewLease(Options{Redis: rdb, Prefix: "y:", Rule: rule, Instances: 2, LeaseTarget: 20 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: 5 * time.Millisecond, Now: wall})
 	for name, lim := range map[string]Limiter{"redis-exact": e, "lease": l} {
 		before := accepted.Load()
 		began := time.Now()
@@ -507,7 +507,7 @@ func checkForgiven(t *testing.T, l Limiter, g *gate) {
 
 func TestRedisExactChargesWhatAGatewayAdmittedAlone(t *testing.T) {
 	alone, connected, g := pair(t, func(rdb *redis.Client, p string) Limiter {
-		l, _ := NewRedisExact(rdb, p, chargeRule, 2, 50*time.Millisecond, wall)
+		l, _ := NewRedisExact(Options{Redis: rdb, Prefix: p, Rule: chargeRule, Instances: 2, RedisTimeout: 50 * time.Millisecond, Now: wall})
 		return l
 	})
 	checkCharged(t, alone, connected, g)
@@ -515,7 +515,7 @@ func TestRedisExactChargesWhatAGatewayAdmittedAlone(t *testing.T) {
 
 func TestLeaseChargesWhatAGatewayAdmittedAlone(t *testing.T) {
 	alone, connected, g := pair(t, func(rdb *redis.Client, p string) Limiter {
-		l, _ := NewLease(rdb, p, chargeRule, 2, 20*time.Millisecond, time.Second, 50*time.Millisecond, wall)
+		l, _ := NewLease(Options{Redis: rdb, Prefix: p, Rule: chargeRule, Instances: 2, LeaseTarget: 20 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: 50 * time.Millisecond, Now: wall})
 		return l
 	})
 	checkCharged(t, alone, connected, g)
@@ -523,19 +523,19 @@ func TestLeaseChargesWhatAGatewayAdmittedAlone(t *testing.T) {
 
 func TestRedisExactForgetsWhatNobodyElseSpent(t *testing.T) {
 	g, cut := gated(t)
-	l, _ := NewRedisExact(cut, prefix(t), chargeRule, 1, 50*time.Millisecond, wall)
+	l, _ := NewRedisExact(Options{Redis: cut, Prefix: prefix(t), Rule: chargeRule, Instances: 1, RedisTimeout: 50 * time.Millisecond, Now: wall})
 	checkForgiven(t, l, g)
 }
 
 func TestLeaseForgetsWhatNobodyElseSpent(t *testing.T) {
 	g, cut := gated(t)
-	l, _ := NewLease(cut, prefix(t), chargeRule, 1, 20*time.Millisecond, time.Second, 50*time.Millisecond, wall)
+	l, _ := NewLease(Options{Redis: cut, Prefix: prefix(t), Rule: chargeRule, Instances: 1, LeaseTarget: 20 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: 50 * time.Millisecond, Now: wall})
 	checkForgiven(t, l, g)
 }
 
 func TestLocalSyncForgetsWhatNobodyElseSpent(t *testing.T) {
 	g, cut := gated(t)
-	l, err := NewLocalSync(cut, prefix(t), chargeRule, 1, "gw", 20*time.Millisecond, 50*time.Millisecond, wall)
+	l, err := NewLocalSync(Options{Redis: cut, Prefix: prefix(t), Rule: chargeRule, Instances: 1, InstanceName: "gw", SyncInterval: 20 * time.Millisecond, RedisTimeout: 50 * time.Millisecond, Now: wall})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +567,7 @@ func TestLeaseNeverOverAdmits(t *testing.T) {
 	rule := Rule{Rate: 200, Burst: 20}
 	var ls []Limiter
 	for range 3 {
-		l, _ := NewLease(rdb, p, rule, 3, 20*time.Millisecond, time.Second, time.Second, wall)
+		l, _ := NewLease(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 3, LeaseTarget: 20 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 		ls = append(ls, l)
 	}
 	began := time.Now()
@@ -583,7 +583,7 @@ func TestLeaseNeverOverAdmits(t *testing.T) {
 
 func TestLeaseFetchesInBatches(t *testing.T) {
 	rdb := testRedis(t)
-	l, _ := NewLease(rdb, prefix(t), Rule{Rate: 10000, Burst: 10000}, 1, 50*time.Millisecond, time.Second, time.Second, wall)
+	l, _ := NewLease(Options{Redis: rdb, Prefix: prefix(t), Rule: Rule{Rate: 10000, Burst: 10000}, Instances: 1, LeaseTarget: 50 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 	allowed := hammer(t, []Limiter{l}, "k", 2000, 0)
 	if f := l.(*lease).Fetches(); allowed != 2000 || f > 250 {
 		t.Fatalf("%d Redis calls for %d admitted requests out of 2000", f, allowed)
@@ -593,7 +593,7 @@ func TestLeaseFetchesInBatches(t *testing.T) {
 func TestLeaseKeepsBatchingWhenTheBucketRunsDry(t *testing.T) {
 	rdb := testRedis(t)
 	rule := Rule{Rate: 200, Burst: 20}
-	l, _ := NewLease(rdb, prefix(t), rule, 1, 20*time.Millisecond, time.Second, time.Second, wall)
+	l, _ := NewLease(Options{Redis: rdb, Prefix: prefix(t), Rule: rule, Instances: 1, LeaseTarget: 20 * time.Millisecond, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 	began := time.Now()
 	allowed := hammer(t, []Limiter{l}, "k", 1000, 2*time.Millisecond)
 	exact := rule.Burst + rule.Rate*time.Since(began).Seconds()
@@ -612,7 +612,7 @@ func TestLocalSyncStaysCloseToTheLimit(t *testing.T) {
 	rule := Rule{Rate: 300, Burst: 30}
 	var ls []Limiter
 	for i := range 2 {
-		l, err := NewLocalSync(rdb, p, rule, 2, fmt.Sprint("gw-", i), 20*time.Millisecond, time.Second, wall)
+		l, err := NewLocalSync(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 20 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -636,7 +636,7 @@ func TestLocalSyncKeepsTheRateWhenAnIntervalRefillsMoreThanTheBurst(t *testing.T
 	rule := Rule{Rate: 200, Burst: 10}
 	var ls []Limiter
 	for i := range 2 {
-		l, err := NewLocalSync(rdb, p, rule, 2, fmt.Sprint("gw-", i), 200*time.Millisecond, time.Second, wall)
+		l, err := NewLocalSync(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 200 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -660,7 +660,7 @@ func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 	rule := Rule{Rate: 200, Burst: 20}
 	var ls []Limiter
 	for i := range 2 {
-		l, err := NewLocalSync(rdb, p, rule, 2, fmt.Sprint("gw-", i), 20*time.Millisecond, time.Second, wall)
+		l, err := NewLocalSync(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: 2, InstanceName: fmt.Sprint("gw-", i), SyncInterval: 20 * time.Millisecond, RedisTimeout: time.Second, Now: wall})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -698,7 +698,7 @@ func TestLocalSyncFollowsSkewedDemandOnAFreshRedis(t *testing.T) {
 func TestLocalSyncFallsBackAndCharges(t *testing.T) {
 	dead := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: 20 * time.Millisecond, MaxRetries: -1})
 	defer dead.Close()
-	l, _ := NewLocalSync(dead, "x:", Rule{Rate: 100, Burst: 10}, 2, "gw", 10*time.Millisecond, 10*time.Millisecond, wall)
+	l, _ := NewLocalSync(Options{Redis: dead, Prefix: "x:", Rule: Rule{Rate: 100, Burst: 10}, Instances: 2, InstanceName: "gw", SyncInterval: 10 * time.Millisecond, RedisTimeout: 10 * time.Millisecond, Now: wall})
 	defer l.Close()
 	l.Allow(context.Background(), "k")
 	deadline := time.Now().Add(2 * time.Second)

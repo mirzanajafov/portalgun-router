@@ -55,7 +55,7 @@ func TestBucketNeverAdmitsMoreThanRateTimesWindowPlusBurst(t *testing.T) {
 		burst := float64(rapid.IntRange(1, 50).Draw(t, "burst"))
 		gaps := rapid.SliceOfN(rapid.Int64Range(0, int64(2e9/rate)), 20, 400).Draw(t, "gaps")
 		var clk fakeClock
-		l := NewStatic(Rule{Rate: rate, Burst: burst}, 1, clk.now)
+		l := NewStatic(Options{Rule: Rule{Rate: rate, Burst: burst}, Instances: 1, Now: clk.now})
 		var admitted []int64
 		for _, g := range gaps {
 			clk.advance(time.Duration(g))
@@ -79,7 +79,7 @@ func TestBucketAdmitsEverythingThatArrivesWithinTheRate(t *testing.T) {
 		interval := int64(1e9/rate) + 2
 		gaps := rapid.SliceOfN(rapid.Int64Range(interval, 3*interval), 20, 400).Draw(t, "gaps")
 		var clk fakeClock
-		l := NewStatic(Rule{Rate: rate, Burst: burst}, 1, clk.now)
+		l := NewStatic(Options{Rule: Rule{Rate: rate, Burst: burst}, Instances: 1, Now: clk.now})
 		for i, g := range gaps {
 			clk.advance(time.Duration(g))
 			if d := l.Allow(context.Background(), "k"); !d.Allowed {
@@ -100,7 +100,7 @@ func TestRedisExactNeverAdmitsMoreThanRateTimesWindowPlusBurst(t *testing.T) {
 		rate := rapid.Float64Range(50, 2000).Draw(rt, "rate")
 		burst := float64(rapid.IntRange(1, 20).Draw(rt, "burst"))
 		gaps := rapid.SliceOfN(rapid.SampledFrom(gapChoices), 10, 50).Draw(rt, "gaps")
-		l, err := NewRedisExact(rdb, fmt.Sprintf("%s%d:", base, cases.Add(1)), Rule{Rate: rate, Burst: burst}, 1, time.Second, wall)
+		l, err := NewRedisExact(Options{Redis: rdb, Prefix: fmt.Sprintf("%s%d:", base, cases.Add(1)), Rule: Rule{Rate: rate, Burst: burst}, Instances: 1, RedisTimeout: time.Second, Now: wall})
 		if err != nil {
 			rt.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestLeaseNeverAdmitsAheadOfTheSharedBucket(t *testing.T) {
 		var wg sync.WaitGroup
 		began := wall()
 		for _, gaps := range schedules {
-			l, err := NewLease(rdb, p, rule, instances, target, time.Second, time.Second, wall)
+			l, err := NewLease(Options{Redis: rdb, Prefix: p, Rule: rule, Instances: instances, LeaseTarget: target, LeaseTTL: time.Second, RedisTimeout: time.Second, Now: wall})
 			if err != nil {
 				rt.Fatal(err)
 			}

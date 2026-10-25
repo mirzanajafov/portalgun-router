@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type leaseKey struct {
@@ -42,7 +44,7 @@ func (k *leaseKey) take(now int64) bool {
 }
 
 type lease struct {
-	rdb      Redis
+	rdb      redis.Scripter
 	prefix   string
 	rule     Rule
 	target   time.Duration
@@ -58,20 +60,20 @@ type lease struct {
 	sweeps  int
 }
 
-func NewLease(rdb Redis, prefix string, rule Rule, instances int, target, ttl, timeout time.Duration, now Clock) (Limiter, error) {
-	if err := validate(rule); err != nil {
+func NewLease(o Options) (Limiter, error) {
+	if err := validate(o.Rule); err != nil {
 		return nil, err
 	}
 	return &lease{
-		rdb:      rdb,
-		prefix:   prefix,
-		rule:     rule,
-		target:   target,
-		ttl:      ttl,
-		timeout:  timeout,
-		fallback: NewBuckets(split(rule, instances)),
-		now:      now,
-		guard:    newBreaker(now),
+		rdb:      o.Redis,
+		prefix:   o.Prefix,
+		rule:     o.Rule,
+		target:   o.LeaseTarget,
+		ttl:      o.LeaseTTL,
+		timeout:  o.RedisTimeout,
+		fallback: NewBuckets(split(o.Rule, o.Instances)),
+		now:      o.Now,
+		guard:    newBreaker(o.Now),
 		keys:     map[string]*leaseKey{},
 	}, nil
 }
