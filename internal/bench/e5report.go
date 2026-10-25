@@ -51,7 +51,7 @@ func LoadRegistryRuns(dir string) ([]RegistryRun, error) {
 	return runs, sc.Err()
 }
 
-func SummarizeE5(runs []RegistryRun) []RegistrySummary {
+func SummarizeRegistry(runs []RegistryRun) []RegistrySummary {
 	var order []string
 	by := map[string][]RegistryRun{}
 	for _, r := range runs {

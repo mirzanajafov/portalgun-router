@@ -219,7 +219,7 @@ func Summarize(points []Point) Report {
 	return rep
 }
 
-func (r Report) WriteText(w io.Writer) error {
+func WriteReportText(w io.Writer, r Report) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rate\tsystem\truns\tsat\tdied\tp50 us\t+p50\tp99 us (min-max)\t+p99\tp99.9 us\tcpu us/req\tuser\tmem MB\t\n")
 	for _, c := range r.Cells {
@@ -241,7 +241,7 @@ func (r Report) WriteText(w io.Writer) error {
 	return writeTable(w, b.String(), tabwriter.AlignRight)
 }
 
-func (r Report) WriteOverloadText(w io.Writer) error {
+func WriteOverloadText(w io.Writer, r Report) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rate\tsystem\truns\tcollapsed\tgoodput rps (min-max)\t503 %%\tfailed %%\tok p50 ms\tok p99 ms (min-max)\tcpu us/req\tmem MB\tanon MB\tsock MB\tswap MB\t\n")
 	for _, c := range r.Cells {
