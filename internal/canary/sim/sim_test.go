@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"testing"
@@ -45,6 +46,22 @@ func TestTrialsAreReproducible(t *testing.T) {
 		if a[i] != b[i] {
 			t.Fatalf("policy %d: %+v vs %+v", i, a[i], b[i])
 		}
+	}
+}
+
+func TestSeededTrialsGiveThePinnedOutcomes(t *testing.T) {
+	cfg := Config{Step: time.Minute, MinStep: 10 * time.Second, Seed: 3, Alpha: 0.01, Beta: 0.05, Rho: 2}
+	cell := Cell{BaseError: 0.01, Share: 0.25, Rho: 2, CanarySlow: 0.08, RPS: 300}
+	rng := rand.New(rand.NewPCG(9, 9))
+	var got []Outcome
+	for range 3 {
+		got = append(got, Trial(cell, cfg, rng)...)
+	}
+	const want = "[{rollback 18 34 false} {rollback 7 11 false} {promote 60 86 true} {rollback 13 24 false} {rollback 60 86 true} {rollback 18 34 false} " +
+		"{rollback 20 33 false} {rollback 2 4 false} {rollback 2 4 false} {rollback 2 4 false} {rollback 60 98 true} {rollback 20 33 false} " +
+		"{rollback 7 7 false} {rollback 2 5 false} {rollback 2 5 false} {rollback 20 23 false} {rollback 60 71 true} {rollback 8 10 false}]"
+	if s := fmt.Sprint(got); s != want {
+		t.Fatalf("three seeded trials gave\n%s\nwant\n%s", s, want)
 	}
 }
 
