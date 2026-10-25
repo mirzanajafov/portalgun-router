@@ -45,8 +45,8 @@ func (f *fixedAbsolute) Name() string { return "fixed-absolute" }
 func (f *fixedAbsolute) Observe(b canary.Bin, _ time.Duration) canary.Decision {
 	f.w.push(b)
 	t := f.w.total
-	if t.Requests[1] >= f.minRequests && rate(t.Errors[1], t.Requests[1]) > f.maxRate {
-		return canary.Decision{Verdict: canary.Rollback, Reason: fmt.Sprintf("canary error rate %.2f%% above %.2f%%", 100*rate(t.Errors[1], t.Requests[1]), 100*f.maxRate)}
+	if t.Canary.Requests >= f.minRequests && rate(t.Canary.Errors, t.Canary.Requests) > f.maxRate {
+		return canary.Decision{Verdict: canary.Rollback, Reason: fmt.Sprintf("canary error rate %.2f%% above %.2f%%", 100*rate(t.Canary.Errors, t.Canary.Requests), 100*f.maxRate)}
 	}
 	return canary.Decision{}
 }
@@ -68,8 +68,8 @@ func (f *fixedRelative) Name() string { return "fixed-relative" }
 func (f *fixedRelative) Observe(b canary.Bin, _ time.Duration) canary.Decision {
 	f.w.push(b)
 	t := f.w.total
-	stable, canaryRate := rate(t.Errors[0], t.Requests[0]), rate(t.Errors[1], t.Requests[1])
-	if t.Requests[1] >= f.minRequests && t.Errors[1] > 0 && canaryRate > f.factor*stable {
+	stable, canaryRate := rate(t.Stable.Errors, t.Stable.Requests), rate(t.Canary.Errors, t.Canary.Requests)
+	if t.Canary.Requests >= f.minRequests && t.Canary.Errors > 0 && canaryRate > f.factor*stable {
 		return canary.Decision{Verdict: canary.Rollback, Reason: fmt.Sprintf("canary error rate %.3f%% is more than %.1fx the stable %.3f%%", 100*canaryRate, f.factor, 100*stable)}
 	}
 	return canary.Decision{}
@@ -92,12 +92,12 @@ func (p *peeking) Name() string { return "peeking-z" }
 func (p *peeking) Observe(b canary.Bin, _ time.Duration) canary.Decision {
 	p.total = p.total.Plus(b)
 	t := p.total
-	n1, n2 := float64(t.Requests[0]), float64(t.Requests[1])
-	if t.Requests[1] < p.minRequests || n1 == 0 {
+	n1, n2 := float64(t.Stable.Requests), float64(t.Canary.Requests)
+	if t.Canary.Requests < p.minRequests || n1 == 0 {
 		return canary.Decision{}
 	}
-	p1, p2 := float64(t.Errors[0])/n1, float64(t.Errors[1])/n2
-	pooled := float64(t.Errors[0]+t.Errors[1]) / (n1 + n2)
+	p1, p2 := float64(t.Stable.Errors)/n1, float64(t.Canary.Errors)/n2
+	pooled := float64(t.Stable.Errors+t.Canary.Errors) / (n1 + n2)
 	se := math.Sqrt(pooled * (1 - pooled) * (1/n1 + 1/n2))
 	if se > 0 && (p2-p1)/se > p.z {
 		return canary.Decision{Verdict: canary.Rollback, Reason: fmt.Sprintf("z = %.2f above %.2f", (p2-p1)/se, p.z)}

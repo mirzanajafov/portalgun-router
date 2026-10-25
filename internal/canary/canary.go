@@ -24,10 +24,19 @@ func (v Verdict) String() string {
 	return "continue"
 }
 
+type Counts struct {
+	Requests int64
+	Errors   int64
+	Slow     int64
+}
+
+func (c Counts) add(o Counts, sign int64) Counts {
+	return Counts{Requests: c.Requests + sign*o.Requests, Errors: c.Errors + sign*o.Errors, Slow: c.Slow + sign*o.Slow}
+}
+
 type Bin struct {
-	Requests [2]int64
-	Errors   [2]int64
-	Slow     [2]int64
+	Stable Counts
+	Canary Counts
 }
 
 func (b Bin) Plus(o Bin) Bin { return b.add(o, 1) }
@@ -35,12 +44,7 @@ func (b Bin) Plus(o Bin) Bin { return b.add(o, 1) }
 func (b Bin) Minus(o Bin) Bin { return b.add(o, -1) }
 
 func (b Bin) add(o Bin, sign int64) Bin {
-	for i := range 2 {
-		b.Requests[i] += sign * o.Requests[i]
-		b.Errors[i] += sign * o.Errors[i]
-		b.Slow[i] += sign * o.Slow[i]
-	}
-	return b
+	return Bin{Stable: b.Stable.add(o.Stable, sign), Canary: b.Canary.add(o.Canary, sign)}
 }
 
 type Decision struct {
@@ -123,10 +127,10 @@ func (s *Sequential) Slow() *SPRT { return s.slow }
 const SilentRequests = 300
 
 func (s *Sequential) Observe(b Bin, elapsed time.Duration) Decision {
-	s.errors.Update(b.Requests[0], b.Requests[1], b.Errors[0], b.Errors[1])
-	s.slow.Update(b.Requests[0], b.Requests[1], b.Slow[0], b.Slow[1])
-	s.canary += b.Requests[1]
-	s.errorEvents += b.Errors[0] + b.Errors[1]
+	s.errors.Update(b.Stable.Requests, b.Canary.Requests, b.Stable.Errors, b.Canary.Errors)
+	s.slow.Update(b.Stable.Requests, b.Canary.Requests, b.Stable.Slow, b.Canary.Slow)
+	s.canary += b.Canary.Requests
+	s.errorEvents += b.Stable.Errors + b.Canary.Errors
 	silent := s.errorEvents == 0 && s.canary >= SilentRequests
 	switch {
 	case s.errors.Verdict() == Rollback:
@@ -159,7 +163,7 @@ func (f *FixedHorizon) Name() string { return "fixed-horizon" }
 
 func (f *FixedHorizon) Observe(b Bin, _ time.Duration) Decision {
 	if f.slow {
-		b.Errors = b.Slow
+		b.Stable.Errors, b.Canary.Errors = b.Stable.Slow, b.Canary.Slow
 	}
 	f.total = f.total.Plus(b)
 	return Decision{}
@@ -201,13 +205,13 @@ func (h *Hybrid) Finish() Decision {
 
 func (f *FixedHorizon) Finish() Decision {
 	t := f.total
-	if t.Requests[0] == 0 || t.Requests[1] == 0 {
+	if t.Stable.Requests == 0 || t.Canary.Requests == 0 {
 		return Decision{Verdict: Promote}
 	}
-	share := float64(t.Requests[1]) / float64(t.Requests[0]+t.Requests[1])
-	events := t.Errors[0] + t.Errors[1]
-	if p := BinomialTail(t.Errors[1], events, share); p < f.alpha {
-		return Decision{Rollback, fmt.Sprintf("%d of %d events on a canary with %.1f%% of the traffic, p = %.2g", t.Errors[1], events, 100*share, p)}
+	share := float64(t.Canary.Requests) / float64(t.Stable.Requests+t.Canary.Requests)
+	events := t.Stable.Errors + t.Canary.Errors
+	if p := BinomialTail(t.Canary.Errors, events, share); p < f.alpha {
+		return Decision{Rollback, fmt.Sprintf("%d of %d events on a canary with %.1f%% of the traffic, p = %.2g", t.Canary.Errors, events, 100*share, p)}
 	}
 	return Decision{Verdict: Promote}
 }

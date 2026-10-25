@@ -138,12 +138,11 @@ func Trial(cell Cell, cfg Config, rng *rand.Rand) []Outcome {
 		if blipStart >= 0 && sec >= blipStart && sec < blipStart+blipLength {
 			ps, pc = min(1, ps+blipRate), min(1, pc+blipRate)
 		}
-		b := canary.Bin{
-			Requests: [2]int64{n1, n2},
-			Errors:   [2]int64{binomial(rng, n1, ps), binomial(rng, n2, pc)},
-			Slow:     [2]int64{binomial(rng, n1, stableSlow), binomial(rng, n2, slow)},
-		}
-		canaryErrors += b.Errors[1]
+		var b canary.Bin
+		b.Stable.Requests, b.Canary.Requests = n1, n2
+		b.Stable.Errors, b.Canary.Errors = binomial(rng, n1, ps), binomial(rng, n2, pc)
+		b.Stable.Slow, b.Canary.Slow = binomial(rng, n1, stableSlow), binomial(rng, n2, slow)
+		canaryErrors += b.Canary.Errors
 		for i, p := range pols {
 			if decided[i] {
 				continue

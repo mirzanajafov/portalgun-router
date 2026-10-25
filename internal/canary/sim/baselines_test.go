@@ -8,7 +8,7 @@ import (
 )
 
 func bin(n1, n2, e1, e2 int64) canary.Bin {
-	return canary.Bin{Requests: [2]int64{n1, n2}, Errors: [2]int64{e1, e2}}
+	return canary.Bin{Stable: canary.Counts{Requests: n1, Errors: e1}, Canary: canary.Counts{Requests: n2, Errors: e2}}
 }
 
 func TestFixedAbsolute(t *testing.T) {
