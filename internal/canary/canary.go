@@ -134,19 +134,19 @@ func (s *Sequential) Observe(b Bin, elapsed time.Duration) Decision {
 	silent := s.errorEvents == 0 && s.canary >= SilentRequests
 	switch {
 	case s.errors.Verdict() == Rollback:
-		return Decision{Rollback, fmt.Sprintf("errors: log-likelihood ratio %.2f crossed %.2f", s.errors.llr, s.errors.upper)}
+		return Decision{Verdict: Rollback, Reason: fmt.Sprintf("errors: log-likelihood ratio %.2f crossed %.2f", s.errors.llr, s.errors.upper)}
 	case s.slow.Verdict() == Rollback:
-		return Decision{Rollback, fmt.Sprintf("latency: log-likelihood ratio %.2f crossed %.2f", s.slow.llr, s.slow.upper)}
+		return Decision{Verdict: Rollback, Reason: fmt.Sprintf("latency: log-likelihood ratio %.2f crossed %.2f", s.slow.llr, s.slow.upper)}
 	case s.slow.Verdict() == Promote && elapsed >= s.minStep && s.errors.Verdict() == Promote:
-		return Decision{Promote, "both tests accepted the canary"}
+		return Decision{Verdict: Promote, Reason: "both tests accepted the canary"}
 	case s.slow.Verdict() == Promote && elapsed >= s.minStep && silent:
-		return Decision{Promote, fmt.Sprintf("latency accepted, and %d canary requests without a single error on either version", s.canary)}
+		return Decision{Verdict: Promote, Reason: fmt.Sprintf("latency accepted, and %d canary requests without a single error on either version", s.canary)}
 	}
 	return Decision{}
 }
 
 func (s *Sequential) Finish() Decision {
-	return Decision{Promote, "undecided when the step ended: not enough evidence that the canary is worse"}
+	return Decision{Verdict: Promote, Reason: "undecided when the step ended: not enough evidence that the canary is worse"}
 }
 
 type FixedHorizon struct {
@@ -195,12 +195,12 @@ func (h *Hybrid) Observe(b Bin, elapsed time.Duration) Decision {
 
 func (h *Hybrid) Finish() Decision {
 	if d := h.errs.Finish(); d.Verdict == Rollback {
-		return Decision{Rollback, "errors, terminal test: " + d.Reason}
+		return Decision{Verdict: Rollback, Reason: "errors, terminal test: " + d.Reason}
 	}
 	if d := h.slow.Finish(); d.Verdict == Rollback {
-		return Decision{Rollback, "latency, terminal test: " + d.Reason}
+		return Decision{Verdict: Rollback, Reason: "latency, terminal test: " + d.Reason}
 	}
-	return Decision{Promote, "undecided by the sequential test and not worse at the end of the step"}
+	return Decision{Verdict: Promote, Reason: "undecided by the sequential test and not worse at the end of the step"}
 }
 
 func (f *FixedHorizon) Finish() Decision {
@@ -211,7 +211,7 @@ func (f *FixedHorizon) Finish() Decision {
 	share := float64(t.Canary.Requests) / float64(t.Stable.Requests+t.Canary.Requests)
 	events := t.Stable.Errors + t.Canary.Errors
 	if p := BinomialTail(t.Canary.Errors, events, share); p < f.alpha {
-		return Decision{Rollback, fmt.Sprintf("%d of %d events on a canary with %.1f%% of the traffic, p = %.2g", t.Canary.Errors, events, 100*share, p)}
+		return Decision{Verdict: Rollback, Reason: fmt.Sprintf("%d of %d events on a canary with %.1f%% of the traffic, p = %.2g", t.Canary.Errors, events, 100*share, p)}
 	}
 	return Decision{Verdict: Promote}
 }
