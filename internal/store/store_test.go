@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func open(t *testing.T) *Store {
@@ -188,11 +190,17 @@ func TestAChaosEventIsWrittenWithAnEmptyDetailWhenItHasNone(t *testing.T) {
 	if err := s.LogChaos(ctx, ChaosEvent{At: time.Now().UTC(), Actor: ActorVisitor, Mode: "crash", Target: "dim-a", Action: "inject"}); err != nil {
 		t.Fatal(err)
 	}
-	var n int
-	var mode, detail string
-	err := s.pool.QueryRow(ctx, `select count(*), min(mode), min(detail::text) from chaos_events`).Scan(&n, &mode, &detail)
-	if err != nil || n != 1 || mode != "crash" || detail != "{}" {
-		t.Fatalf("%d events, mode %q, detail %q: %v", n, mode, detail, err)
+	rows, err := s.pool.Query(ctx, `select actor, mode, target, action, detail::text from chaos_events`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logged, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) ([5]string, error) {
+		var e [5]string
+		err := r.Scan(&e[0], &e[1], &e[2], &e[3], &e[4])
+		return e, err
+	})
+	if want := [5]string{"visitor", "crash", "dim-a", "inject", "{}"}; err != nil || len(logged) != 1 || logged[0] != want {
+		t.Fatalf("logged %v, want only %v: %v", logged, want, err)
 	}
 }
 
