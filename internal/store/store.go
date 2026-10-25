@@ -230,7 +230,7 @@ type Rollout struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 	Outcome    Outcome    `json:"outcome,omitempty"`
 	Reason     string     `json:"reason,omitempty"`
-	Steps      []Step     `json:"steps"`
+	Steps      []Step     `json:"steps,omitempty"`
 }
 
 type Step struct {
@@ -329,7 +329,7 @@ func (s *Store) Rollouts(ctx context.Context, limit int) ([]Rollout, error) {
 		return nil, fmt.Errorf("listing rollouts: %w", err)
 	}
 	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Rollout, error) {
-		ro := Rollout{Steps: []Step{}}
+		var ro Rollout
 		err := r.Scan(&ro.ID, &ro.Route, &ro.Stable, &ro.Canary, &ro.StartedAt, &ro.FinishedAt, &ro.Outcome, &ro.Reason)
 		return ro, err
 	})

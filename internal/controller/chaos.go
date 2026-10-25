@@ -321,7 +321,7 @@ type ChaosView struct {
 func (c *ChaosService) View() ChaosView {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	v := ChaosView{Current: c.current, Targets: c.targets, Cooldown: max(0, c.cooldown.Sub(c.now()).Seconds())}
+	v := ChaosView{Current: c.current, Targets: c.targets, Cooldown: max(0, c.cooldown.Sub(c.now()).Seconds()), Incidents: make([]Incident, 0, len(c.incidents))}
 	for i := len(c.incidents) - 1; i >= 0; i-- {
 		v.Incidents = append(v.Incidents, *c.incidents[i])
 	}

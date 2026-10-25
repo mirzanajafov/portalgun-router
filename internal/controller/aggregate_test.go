@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -78,5 +80,15 @@ func TestSecondsComeOutInOrder(t *testing.T) {
 	agg.Flush(time.Unix(200, 0))
 	if len(*out) != 2 || (*out)[0].Second != 101 || (*out)[1].Second != 102 {
 		t.Fatalf("order %v", *out)
+	}
+}
+
+func TestAMergedSecondWithoutDimensionsListsNoneRatherThanNull(t *testing.T) {
+	raw, err := json.Marshal(merge(1, map[string]gatewayapi.Snapshot{"gw-1": {Instance: "gw-1"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"dimensions":[]`)) || !bytes.Contains(raw, []byte(`"instances":["gw-1"]`)) {
+		t.Fatalf("merged second %s", raw)
 	}
 }

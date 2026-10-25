@@ -115,7 +115,7 @@ func severity(s health.State) int {
 }
 
 func merge(sec int64, bin map[string]gatewayapi.Snapshot) Merged {
-	m := Merged{Second: sec, ConfigVersions: map[string]int64{}, Routes: map[string]gatewayapi.RouteSnapshot{}}
+	m := Merged{Second: sec, Instances: make([]string, 0, len(bin)), ConfigVersions: map[string]int64{}, Routes: map[string]gatewayapi.RouteSnapshot{}}
 	dims := map[string]*gatewayapi.DimensionSnapshot{}
 	for inst, s := range bin {
 		m.Instances = append(m.Instances, inst)
@@ -158,6 +158,7 @@ func merge(sec int64, bin map[string]gatewayapi.Snapshot) Merged {
 		}
 	}
 	slices.Sort(m.Instances)
+	m.Dimensions = make([]gatewayapi.DimensionSnapshot, 0, len(dims))
 	for _, d := range dims {
 		m.Dimensions = append(m.Dimensions, *d)
 	}

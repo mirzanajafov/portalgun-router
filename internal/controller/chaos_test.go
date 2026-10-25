@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -254,6 +255,17 @@ func TestAVisitorWhoLeavesIsNotLoggedAsACounterFailure(t *testing.T) {
 	counter.fail(nil)
 	if _, _, err := svc.Start(context.Background(), ChaosRequest{Mode: "crash", Target: "dim-a"}, false, "5.6.7.8"); err != nil {
 		t.Fatalf("the next visitor was refused after a cancelled request: %v", err)
+	}
+}
+
+func TestTheChaosViewListsNoIncidentsRatherThanNull(t *testing.T) {
+	svc, _, _ := newChaos(DefaultChaosLimits())
+	raw, err := json.Marshal(svc.View())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"incidents":[]`) {
+		t.Fatalf("chaos view %s", raw)
 	}
 }
 
