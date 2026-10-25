@@ -397,7 +397,7 @@ func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan Failove
 	}
 	run.Report = &failoverbench.Report{}
 	if err := json.Unmarshal(out, run.Report); err != nil {
-		return run, fmt.Errorf("failover output: %w", err)
+		return run, fmt.Errorf("failoverbench output: %w", err)
 	}
 	if plan.Records {
 		raw := filepath.Join(dir, "raw")
