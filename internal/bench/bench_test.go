@@ -241,3 +241,13 @@ func TestLoadgenArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestARunsFileThatBreaksOffIsAnError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "runs.jsonl"), []byte("{\"system\":\"a\"}\n}\n{\"system\":\"b\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if points, err := LoadPoints(dir); err == nil {
+		t.Fatalf("read %d points from a broken runs file without an error", len(points))
+	}
+}
