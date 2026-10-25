@@ -259,10 +259,9 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 			return "", err
 		}
 	}
-	compose := r.Compose
-	compose.Env = append(slices.Clone(compose.Env), "E2_CONFIGS="+configs, "E2_CELL="+plan.Cells[0].file())
+	compose := r.Compose.with("E2_CONFIGS="+configs, "E2_CELL="+plan.Cells[0].file())
 	if most > 2 {
-		compose.Env = append(compose.Env, "COMPOSE_PROFILES=four")
+		compose = compose.with("COMPOSE_PROFILES=four")
 	}
 	r.Log.Printf("starting the limiter stack")
 	if err := compose.Up(ctx); err != nil {
@@ -307,7 +306,7 @@ func (r *Runner) RunE2(ctx context.Context, plan LimiterPlan) (dir string, err e
 }
 
 func (r *Runner) limiterCell(ctx context.Context, compose Compose, c LimiterCell, rep, slot int) (LimiterRun, error) {
-	compose.Env = append(slices.Clone(compose.Env), "E2_CELL="+c.file())
+	compose = compose.with("E2_CELL=" + c.file())
 	gws := gatewayNames(c.Instances)
 	if _, err := compose.run(ctx, append([]string{"up", "-d", "--force-recreate", "--no-deps"}, gws...)...); err != nil {
 		return LimiterRun{}, err

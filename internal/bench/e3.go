@@ -293,10 +293,9 @@ func (r *Runner) RunE3(ctx context.Context, plan FailoverPlan) (dir string, err 
 			return "", err
 		}
 	}
-	compose := r.Compose
-	compose.Env = append(slices.Clone(compose.Env), "E3_CONFIGS="+configs, "E3_CELL="+plan.Cells[0].file())
+	compose := r.Compose.with("E3_CONFIGS="+configs, "E3_CELL="+plan.Cells[0].file())
 	if plan.Gateways == 2 {
-		compose.Env = append(compose.Env, "COMPOSE_PROFILES=two")
+		compose = compose.with("COMPOSE_PROFILES=two")
 	}
 	r.Log.Printf("starting the failover stack with %d gateway(s)", plan.Gateways)
 	if err := compose.Up(ctx); err != nil {
@@ -366,7 +365,7 @@ func msOrDash(v *float64) string {
 }
 
 func (r *Runner) failoverCell(ctx context.Context, compose Compose, plan FailoverPlan, c FailoverCell, rep, slot int, dir string) (FailoverRun, error) {
-	compose.Env = append(slices.Clone(compose.Env), "E3_CELL="+c.file())
+	compose = compose.with("E3_CELL=" + c.file())
 	args := append([]string{"up", "-d", "--force-recreate", "--no-deps"}, plan.gatewayServices()...)
 	if _, err := compose.run(ctx, args...); err != nil {
 		return FailoverRun{}, err

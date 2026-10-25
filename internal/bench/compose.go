@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/mirzanajafov/portalgun-router/internal/loadgen"
@@ -15,6 +16,11 @@ import (
 type Compose struct {
 	File string
 	Env  []string
+}
+
+func (c Compose) with(env ...string) Compose {
+	c.Env = append(slices.Clone(c.Env), env...)
+	return c
 }
 
 func (c Compose) command(ctx context.Context, args ...string) *exec.Cmd {

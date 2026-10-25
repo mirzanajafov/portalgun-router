@@ -175,8 +175,7 @@ func (r *Runner) RunE1(ctx context.Context, plan Plan) (dir string, err error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	compose := r.Compose
-	compose.Env = append(slices.Clone(compose.Env), plan.Workload.env()...)
+	compose := r.Compose.with(plan.Workload.env()...)
 	r.Log.Printf("starting the stack for %s", plan.Workload.Name)
 	if err := compose.Up(ctx); err != nil {
 		return "", err
