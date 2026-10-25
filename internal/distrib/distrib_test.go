@@ -99,22 +99,21 @@ func TestWatcherReactsToTheChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 	go NewWatcher(rdb, target, quiet(), time.Hour).Run(ctx)
-	waitFor(t, func() bool {
-		subs, err := rdb.PubSubNumSub(ctx, ConfigChannel).Result()
-		return target.count() == 1 && err == nil && subs[ConfigChannel] == 1
+	eventually(t, "version 1 applied at the start", func() bool { return target.count() == 1 })
+	eventually(t, "version 2 applied through the channel", func() bool {
+		if err := PublishConfig(ctx, rdb, Envelope{Version: 2, Config: json.RawMessage(cfgJSON)}); err != nil {
+			t.Fatal(err)
+		}
+		return target.count() == 2
 	})
-	if err := PublishConfig(ctx, rdb, Envelope{Version: 2, Config: json.RawMessage(cfgJSON)}); err != nil {
-		t.Fatal(err)
-	}
-	waitFor(t, func() bool { return target.count() == 2 })
 }
 
-func waitFor(t *testing.T, cond func() bool) {
+func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
-	for !cond() {
+	for !ok() {
 		if time.Now().After(deadline) {
-			t.Fatal("condition not reached in time")
+			t.Fatalf("never saw %s", what)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -127,7 +126,7 @@ func TestPublisherWritesSnapshots(t *testing.T) {
 	go p.Run(ctx)
 	p.Offer(gatewayapi.Snapshot{Instance: "gw-1", Second: 42, Routes: map[string]gatewayapi.RouteSnapshot{"all": {Requests: 7}}})
 	var msgs []redis.XMessage
-	waitFor(t, func() bool {
+	eventually(t, "the snapshot in the stream", func() bool {
 		msgs, _ = rdb.XRange(ctx, SnapshotStream, "-", "+").Result()
 		return len(msgs) > 0
 	})

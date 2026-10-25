@@ -231,7 +231,7 @@ func TestFlappingTogglesUntilCleared(t *testing.T) {
 	if err := in.Inject(context.Background(), f); err == nil {
 		t.Fatal("second flapping on the same target accepted")
 	}
-	waitFor(t, func() bool {
+	eventually(t, "two downs and an up", func() bool {
 		downs, ups := fake.toggles("dim-a")
 		return downs >= 2 && ups >= 1
 	})
@@ -315,12 +315,12 @@ func TestABlackholeThatFailsHalfwayTakesBackItsFirstToxic(t *testing.T) {
 	}
 }
 
-func waitFor(t *testing.T, cond func() bool) {
+func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
-	for !cond() {
+	for !ok() {
 		if time.Now().After(deadline) {
-			t.Fatal("condition not reached in time")
+			t.Fatalf("never saw %s", what)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}

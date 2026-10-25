@@ -188,7 +188,10 @@ func TestFullPoolAnswers503(t *testing.T) {
 		})
 	}
 	deadline := time.Now().Add(2 * time.Second)
-	for g.State().Upstreams[0].Inflight < 2 && time.Now().Before(deadline) {
+	for g.State().Upstreams[0].Inflight < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("the dimension holds %d requests, want 2", g.State().Upstreams[0].Inflight)
+		}
 		time.Sleep(5 * time.Millisecond)
 	}
 	if status, _ := get(t, srv.Client(), srv.URL+"/", ""); status != http.StatusServiceUnavailable {
