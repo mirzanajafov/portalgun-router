@@ -58,10 +58,10 @@ describe('demo steps', () => {
   })
 
   it('sends nothing for a refused fault', async () => {
-    answer(Response.json({ error: 'a fault is already running' }, { status: 409 }))
+    answer(Response.json({ error: 'another fault is running' }, { status: 409 }))
     render(<ChaosPanel chaos={null} targets={['c-137']} admin={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Kill' }))
-    await screen.findByText('a fault is already running')
+    await screen.findByText('another fault is running')
     expect(steps).toEqual([])
   })
 
