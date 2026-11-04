@@ -6,7 +6,7 @@ PortalGun is an HTTP reverse proxy in Go. It decides where each request goes fro
 
 Everything a gateway promises is a number: it adds little latency, it keeps a client inside its quota across several instances, it moves traffic off a dead upstream before many requests fail, and it catches a bad release without rolling back good ones. I built the project around those four numbers rather than a feature list, and each of them is measured against something real.
 
-It's running at **[portalgun.najafov.dev](https://portalgun.najafov.dev)**. You can kill a dimension, slow one down, or start a canary rollout and break it, and watch traffic move. Most of the numbers below are on the Results page too.
+It's running at **[portalgun.najafov.dev](https://portalgun.najafov.dev)**. You can kill a dimension, slow one down, or start a canary rollout and break it, and watch traffic move. Most of the numbers below are on the Results page too. The live demo loads a small script from najafov.dev that records visits the way my site does, with less detail, and whether someone fired the 60 requests or got a fault onto a dimension. What it records and why is at [najafov.dev/privacy#demos](https://najafov.dev/privacy#demos).
 
 ![The live dashboard: two gateways spreading traffic over four dimensions, the chaos panel with the last fault's detection time, the shared rate limit, and the canary](docs/dashboard.png)
 

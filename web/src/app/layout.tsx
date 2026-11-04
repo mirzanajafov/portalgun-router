@@ -17,6 +17,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <script async src="https://najafov.dev/visit.js" />
       <body className="min-h-screen">
         <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 pt-5 pb-3 sm:px-6">
           <Link href="/" className="flex items-center gap-2">
@@ -33,6 +34,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </nav>
         </header>
         <main className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">{children}</main>
+        <footer className="mx-auto max-w-7xl px-4 pb-8 text-xs sm:px-6">
+          <a href="https://najafov.dev/privacy#demos" className="muted underline hover:text-[var(--ink)]">
+            What this demo records
+          </a>
+        </footer>
       </body>
     </html>
   )

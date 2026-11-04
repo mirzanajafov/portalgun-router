@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { postJSON, useAction } from '@/lib/action'
 import { dimensionName, remaining, seconds } from '@/lib/format'
 import type { ChaosView } from '@/lib/types'
+import { reportStep } from '@/lib/visit'
 
 type Action = { label: string; hint: string; body: Record<string, unknown> }
 
@@ -56,7 +57,7 @@ export function ChaosPanel({ chaos, targets, admin }: { chaos: ChaosView | null;
             className="btn btn-danger"
             title={a.hint}
             disabled={busy || !!current || (!admin && cooldown > 0) || !chosen}
-            onClick={() => send('/api/chaos', postJSON({ ...a.body, target: chosen, durationSec: 20 }))}
+            onClick={() => send('/api/chaos', postJSON({ ...a.body, target: chosen, durationSec: 20 }), () => reportStep('broke-dimension'))}
           >
             {a.label}
           </button>
