@@ -34,7 +34,7 @@ const running: ChaosView = {
 }
 
 describe('demo steps', () => {
-  it('hands a burst to the visit script once all 60 requests have gone out', async () => {
+  it('hands a burst to the visit script once the burst comes back', async () => {
     answer(Response.json({ sent: 60, allowed: 40, limited: 20, failed: 0, ms: 12 }))
     render(<FluidPanel latest={null} />)
     fireEvent.click(screen.getByRole('button', { name: 'Fire 60 requests' }))
@@ -50,7 +50,7 @@ describe('demo steps', () => {
     expect(steps).toEqual([])
   })
 
-  it('hands a fault to the visit script once the controller has put it on the dimension', async () => {
+  it('hands a fault to the visit script once the controller accepts it', async () => {
     answer(Response.json(running.current, { status: 201 }))
     render(<ChaosPanel chaos={null} targets={['c-137']} admin={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Kill' }))
