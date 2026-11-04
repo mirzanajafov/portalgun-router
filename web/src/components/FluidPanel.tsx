@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAction } from '@/lib/action'
 import { Burst, type Merged } from '@/lib/types'
+import { reportStep } from '@/lib/visit'
 
 export function FluidPanel({ latest }: { latest: Merged | null }) {
   const [burst, setBurst] = useState<Burst | null>(null)
@@ -25,7 +26,12 @@ export function FluidPanel({ latest }: { latest: Merged | null }) {
       <div className="flex items-center gap-3">
         <button
           className="btn btn-primary"
-          onClick={() => send('/api/burst', { method: 'POST' }, async (res) => setBurst(Burst.parse(await res.json())))}
+          onClick={() =>
+            send('/api/burst', { method: 'POST' }, async (res) => {
+              setBurst(Burst.parse(await res.json()))
+              reportStep('fired')
+            })
+          }
           disabled={busy}
         >
           Fire 60 requests
